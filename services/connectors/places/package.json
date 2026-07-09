@@ -1,0 +1,16 @@
+{
+  "name": "@constellation/connector-places",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Places catalog connector — ingests restaurants/cafes from OpenStreetMap (Overpass) into the shared graph via NATS. Provider-pluggable (google/yandex/foursquare stubs).",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@constellation/graph-core": "*",
+    "nats": "^2.29.3",
+    "tsx": "^4.19.2"
+  }
+}

@@ -1,0 +1,54 @@
+# LiteLLM gateway — the single entry point for all extraction model calls.
+#
+# The extractor sends OpenAI-format /chat/completions requests here; LiteLLM
+# routes them to the right provider, computes cost (model_info below), and streams
+# a full trace (input, output, tokens, cost) to Langfuse via the success callback.
+#
+# model_name is what the extractor sends (it equals the router's variant.model):
+# Claude model ids, and the Ollama tag. Costs are pinned here so accounting is
+# correct regardless of LiteLLM's built-in price map.
+
+model_list:
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      input_cost_per_token: 0.000001 # $1 / 1M
+      output_cost_per_token: 0.000005 # $5 / 1M
+
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      input_cost_per_token: 0.000003 # $3 / 1M
+      output_cost_per_token: 0.000015 # $15 / 1M
+
+  - model_name: claude-opus-4-8
+    litellm_params:
+      model: anthropic/claude-opus-4-8
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      input_cost_per_token: 0.000005 # $5 / 1M
+      output_cost_per_token: 0.000025 # $25 / 1M
+
+  # Local model — free, but still monitored end-to-end alongside the paid ones.
+  - model_name: gemma3:latest
+    litellm_params:
+      model: ollama_chat/gemma3:latest
+      api_base: os.environ/OLLAMA_HOST
+    model_info:
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+
+litellm_settings:
+  # Stream every call's trace to Langfuse for monitoring + eval/labelling.
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
+  # Drop provider-unsupported params (e.g. response_format on Anthropic) instead
+  # of erroring — the extractor only sends json mode for the Ollama path.
+  drop_params: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

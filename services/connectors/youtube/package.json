@@ -1,0 +1,16 @@
+{
+  "name": "@constellation/connector-youtube",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ingestion connector stub — shows the node.upsert / edge.upsert event contract every connector (YouTube, Instagram, market data…) publishes onto NATS.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@constellation/graph-core": "*",
+    "nats": "^2.29.3",
+    "tsx": "^4.19.2"
+  }
+}

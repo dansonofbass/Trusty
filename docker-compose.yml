@@ -1,0 +1,430 @@
+# Trusty — full dev stack in Docker.
+#
+#   docker compose up              # everything → http://localhost:3000
+#   docker compose up -d           # detached
+#   docker compose exec ollama ollama pull gemma3   # once, for Write view
+#
+# Architecture in Docker:
+#   browser → web (:3000) → gateway GraphQL (:4000) → graph-service (:4001) → Neo4j
+#                         → extractor (:4003) → Ollama + graph-service
+#
+# The browser always uses host-published ports (localhost), even when services
+# run in containers. Internal service-to-service URLs use Docker DNS names.
+
+x-node-health: &node-health
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 90s
+
+x-node-service: &node-service
+  image: node:20-alpine
+  working_dir: /workspace
+  env_file: .env
+  volumes:
+    - .:/workspace
+    - workspace_node_modules:/workspace/node_modules
+  depends_on:
+    install:
+      condition: service_completed_successfully
+
+services:
+  # ---------------- one shared npm install (avoids races on startup) ----------------
+  install:
+    image: node:20-alpine
+    working_dir: /workspace
+    command: sh -c "npm install --no-audit --no-fund && echo 'deps ready'"
+    volumes:
+      - .:/workspace
+      - workspace_node_modules:/workspace/node_modules
+
+  # ---------------- storage & messaging ----------------
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/constellation
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: constellation
+      POSTGRES_PASSWORD: constellation
+      POSTGRES_DB: constellation
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U constellation -d constellation"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---------------- LLM observability (gateway + tracing) ----------------
+  # extractor → litellm (cost + unified routing) → providers; litellm streams
+  # every call's trace (I/O, tokens, cost) to langfuse for monitoring + eval.
+
+  # Langfuse v2 needs only its own Postgres (kept separate from the app DB).
+  langfuse-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  langfuse:
+    image: langfuse/langfuse:2
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-langfuse-dev-secret-change-me}
+      SALT: ${LANGFUSE_SALT:-langfuse-dev-salt-change-me}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_INIT_ORG_ID: constellation
+      LANGFUSE_INIT_PROJECT_ID: constellation
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-constellation}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-constellation}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-admin@constellation.dev}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-langfuse123}
+      LANGFUSE_INIT_USER_NAME: Admin
+    ports:
+      - "3001:3000"
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/public/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 40s
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-constellation-dev}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_HOST: http://ollama:11434
+      # Langfuse callback credentials (match the INIT keys above).
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-constellation}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-constellation}
+      LANGFUSE_HOST: http://langfuse:3000
+    volumes:
+      - ./infra/litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      - "4006:4000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      langfuse:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  # ---------------- identity (OIDC) ----------------
+  # Dev mode (start-dev) uses Keycloak's built-in H2 store — no external DB to
+  # wire. The realm (clients, registration) is imported on boot. KC_HOSTNAME
+  # pins the browser-facing issuer to localhost:8080; the web container reaches
+  # the back-channel via the Docker DNS name (rewritten in the BFF).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm", "--http-port=8080"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      # Keycloak 26 serves health on the management port 9000.
+      test:
+        [
+          "CMD-SHELL",
+          'exec 3<>/dev/tcp/127.0.0.1/9000; echo -e "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3; grep -q "200 OK" <&3',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 60s
+
+  # ---------------- backend services ----------------
+  recommender:
+    <<: *node-service
+    command: npm run dev:recommender
+    environment:
+      PORT: 4002
+      DATABASE_URL: postgresql://constellation:constellation@postgres:5432/constellation
+    ports:
+      - "4002:4002"
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:4002/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+
+  graph-service:
+    <<: *node-service
+    command: npm run dev:graph
+    environment:
+      PORT: 4001
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: constellation
+      NATS_URL: nats://nats:4222
+      RECOMMENDER_URL: http://recommender:4002
+      # Writings log lives in Postgres (Docker DNS host, not the .env localhost).
+      DATABASE_URL: postgresql://constellation:constellation@postgres:5432/constellation
+      # Semantic trust-search topic matching (Feature 9): BGE-M3 embeddings in
+      # pgvector. Pull the model once: docker compose exec ollama ollama pull bge-m3
+      # (falls back to exact/parent matching if the model isn't present).
+      EMBEDDINGS_URL: http://ollama:11434
+      EMBEDDINGS_MODEL: bge-m3
+    ports:
+      - "4001:4001"
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      neo4j:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      recommender:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:4001/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+
+  gateway:
+    <<: *node-service
+    command: npm run dev:gateway
+    environment:
+      PORT: 4000
+      GRAPH_SERVICE_URL: http://graph-service:4001
+    ports:
+      - "4000:4000"
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      graph-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:4000/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+
+  extractor:
+    <<: *node-service
+    command: npm run dev:extractor
+    environment:
+      PORT: 4003
+      GRAPH_SERVICE_URL: http://graph-service:4001
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:latest}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EXTRACTOR_MODEL: ${EXTRACTOR_MODEL:-claude-haiku-4-5}
+      # Per-request model routing: default provider, A/B split, manual override.
+      EXTRACTOR_PROVIDER: ${EXTRACTOR_PROVIDER:-}
+      EXTRACTOR_AB_TEST: ${EXTRACTOR_AB_TEST:-}
+      EXTRACTOR_AB_SALT: ${EXTRACTOR_AB_SALT:-constellation}
+      EXTRACTOR_ALLOW_OVERRIDE: ${EXTRACTOR_ALLOW_OVERRIDE:-1}
+      # Admin panel writes routing overrides here (Docker DNS host, not .env localhost).
+      DATABASE_URL: postgresql://constellation:constellation@postgres:5432/constellation
+      EXTRACTOR_ADMIN_SECRET: ${EXTRACTOR_ADMIN_SECRET:-}
+      # Route model calls through the LiteLLM gateway (cost + Langfuse tracing).
+      LITELLM_BASE_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-constellation-dev}
+      ENTITY_SOURCES: ${ENTITY_SOURCES:-wikipedia}
+    ports:
+      - "4003:4003"
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      graph-service:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+    healthcheck:
+      <<: *node-health
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:4003/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+
+  connector-youtube:
+    <<: *node-service
+    command: npm run start --workspace @constellation/connector-youtube
+    environment:
+      NATS_URL: nats://nats:4222
+      CONNECTOR_INTERVAL_MS: "300000"
+    restart: unless-stopped
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      graph-service:
+        condition: service_healthy
+
+  # Restaurant/cafe catalog from OpenStreetMap (Overpass). Provider-pluggable:
+  # set PLACES_PROVIDER=google|yandex|foursquare once those are implemented +
+  # keyed. Re-imports daily by default.
+  connector-places:
+    <<: *node-service
+    command: npm run start --workspace @constellation/connector-places
+    environment:
+      NATS_URL: nats://nats:4222
+      PLACES_PROVIDER: osm
+      PLACES_AREA: Yerevan
+      # 0 = link-only (stay alive, resolve submitted Google/Yandex links on demand).
+      # Set PLACES_AREA_ONESHOT=true to run a one-off OSM area bulk import instead.
+      CONNECTOR_INTERVAL_MS: "0"
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      YANDEX_MAPS_API_KEY: ${YANDEX_MAPS_API_KEY:-}
+      FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY:-}
+      # SerpApi Google Maps — several comma-separated keys (each ≈250/mo);
+      # the connector round-robins + fails over when one is exhausted.
+      SERPAPI_KEYS: ${SERPAPI_KEYS:-}
+    restart: unless-stopped
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      graph-service:
+        condition: service_healthy
+
+  # ---------------- web (GraphQL gateway is the graph API for the browser) ----------------
+  web:
+    <<: *node-service
+    command: npm run dev --workspace web -- -H 0.0.0.0
+    environment:
+      # Windows/Docker bind mounts don't forward inotify events, so Next's file
+      # watcher never sees edits. Poll instead so hot-reload actually works.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      NEXT_PUBLIC_DATA_SOURCE: api
+      # The browser talks ONLY to the Next.js BFF (same origin). These remain
+      # for local (non-Docker) dev / fallback; in Docker the client calls
+      # /api/graphql and /api/ingest, which the BFF proxies internally.
+      NEXT_PUBLIC_GATEWAY_URL: http://localhost:4000/graphql
+      NEXT_PUBLIC_EXTRACTOR_API: http://localhost:4003
+      # Server-side (BFF) internal targets — Docker DNS names.
+      GATEWAY_INTERNAL_URL: http://gateway:4000/graphql
+      EXTRACTOR_INTERNAL_URL: http://extractor:4003
+      GRAPH_SERVICE_INTERNAL_URL: http://graph-service:4001
+      # Community photo uploads land here (a named volume, outside the bind mount).
+      UPLOAD_DIR: /data/uploads
+      # Auth (KEYCLOAK_*, SESSION_SECRET, APP_BASE_URL come from .env via env_file).
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - workspace_node_modules:/workspace/node_modules
+      - web_next:/workspace/apps/web/.next
+      - uploads:/data/uploads
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
+      extractor:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ || exit 1"]
+
+volumes:
+  neo4j-data:
+  pg-data:
+  ollama-data:
+  keycloak-data:
+  langfuse-db-data:
+  workspace_node_modules:
+  web_next:
+  uploads:

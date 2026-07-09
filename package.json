@@ -1,0 +1,29 @@
+{
+  "name": "constellation",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A graph-native social network — people, content, places and signals as one living constellation.",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "services/*",
+    "services/connectors/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace web",
+    "build": "npm run build --workspace web",
+    "start": "npm run start --workspace web",
+    "test": "tsx --test packages/graph-core/test/*.test.ts",
+    "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
+    "dev:graph": "npm run dev --workspace @constellation/graph-service",
+    "dev:gateway": "npm run dev --workspace @constellation/gateway",
+    "dev:recommender": "npm run dev --workspace @constellation/recommender",
+    "dev:extractor": "npm run dev --workspace @constellation/extractor",
+    "dev:connector-youtube": "npm run dev --workspace @constellation/connector-youtube",
+    "dev:connector-places": "npm run dev --workspace @constellation/connector-places",
+    "compose:up": "docker compose up",
+    "compose:up:detached": "docker compose up -d",
+    "compose:down": "docker compose down",
+    "compose:logs": "docker compose logs -f web gateway graph-service extractor"
+  }
+}

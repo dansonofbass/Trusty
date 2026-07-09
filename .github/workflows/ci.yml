@@ -1,0 +1,33 @@
+name: CI
+
+# graph-core is pure domain logic that every service + the web app depend on,
+# so its test suite is the cheapest, highest-leverage gate. We also typecheck
+# the web app (which transpiles graph-core), so a break in either fails CI.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install (workspaces)
+        run: npm ci
+
+      - name: graph-core test suite
+        run: npm test
+
+      - name: Web typecheck
+        run: npm run typecheck

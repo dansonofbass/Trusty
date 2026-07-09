@@ -1,0 +1,16 @@
+{
+  "name": "@constellation/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GraphQL edge for clients — composes graph-service (and later recommender, auth) behind one schema.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "graphql": "^16.10.0",
+    "graphql-yoga": "^5.10.0",
+    "tsx": "^4.19.2"
+  }
+}

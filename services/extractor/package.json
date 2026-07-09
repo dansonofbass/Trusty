@@ -1,0 +1,24 @@
+{
+  "name": "@constellation/extractor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Claude-powered entity & relation extraction — turns articles/thoughts into graph structure.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@constellation/graph-core": "*",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pg": "^8.22.0",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/pg": "^8.11.10"
+  }
+}
