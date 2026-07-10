@@ -8,19 +8,27 @@
  * sight of an id materialises that user). Idempotent: profiles/edges/trust
  * upsert, and entities are de-duped by label, so it's safe to re-run.
  *
- * Run inside the stack (graph-service reaches itself at localhost:4001):
- *   docker compose exec graph-service node scripts/seed-demo.mjs
+ * Run inside the stack (graph-service reaches itself at 127.0.0.1:4001):
+ *   docker compose exec graph-service node services/graph-service/scripts/seed-demo.mjs
  * Or from the host (port 4001 is published):
- *   SEED_BASE=http://localhost:4001 node services/graph-service/scripts/seed-demo.mjs
+ *   SEED_BASE=http://127.0.0.1:4001 node services/graph-service/scripts/seed-demo.mjs
+ *
+ * NOTE: use 127.0.0.1, not "localhost" — Node's fetch resolves "localhost" to
+ * IPv6 (::1) on some machines, but graph-service listens on IPv4 → "fetch failed".
  */
 
-const BASE = process.env.SEED_BASE ?? "http://localhost:4001";
+const BASE = process.env.SEED_BASE ?? "http://127.0.0.1:4001";
 
 async function req(method, path, { user = "seed-admin", name, app, body } = {}) {
   const headers = { "content-type": "application/json", "x-user-id": user };
   if (name) headers["x-user-name"] = encodeURIComponent(name);
   const url = BASE + path + (app ? (path.includes("?") ? "&" : "?") + "app=" + app : "");
-  const r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  let r;
+  try {
+    r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  } catch (e) {
+    throw new Error(`cannot reach graph-service at ${BASE} (${e.message}). Is it up? → docker compose ps graph-service`);
+  }
   const text = await r.text();
   let j; try { j = JSON.parse(text); } catch { j = { raw: text.slice(0, 200) }; }
   if (!r.ok) throw new Error(`${method} ${path} → ${r.status} ${JSON.stringify(j).slice(0, 200)}`);
@@ -29,6 +37,18 @@ async function req(method, path, { user = "seed-admin", name, app, body } = {}) 
 const get = (p, o) => req("GET", p, o);
 const post = (p, body, o = {}) => req("POST", p, { ...o, body });
 const ensureUser = (user, name) => get("/api/profile", { user, name }); // materialises the person
+
+/** Wait until graph-service is up + backed by Neo4j (it may still be booting). */
+async function waitForHealth() {
+  for (let i = 0; i < 30; i++) {
+    try {
+      const r = await fetch(`${BASE}/health`);
+      if (r.ok) { const j = await r.json(); if (j.storage === "neo4j") return; console.log(`  … graph-service storage=${j.storage}, waiting`); }
+    } catch { /* not up yet */ }
+    await new Promise((res) => setTimeout(res, 2000));
+  }
+  throw new Error(`graph-service not ready at ${BASE} after 60s. Check: docker compose ps graph-service && docker compose logs graph-service`);
+}
 
 /* =================================================================== */
 /* 1. GLOBAL "Trusty" app — restaurants, people, friendships, trust      */
@@ -225,6 +245,7 @@ async function seedSummitData() {
 
 async function main() {
   console.log(`Seeding demo data → ${BASE}`);
+  await waitForHealth();
   await seedGlobal();
   await seedSummitOntology();
   await seedSummitData();
