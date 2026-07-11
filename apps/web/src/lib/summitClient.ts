@@ -68,6 +68,27 @@ export const getDirectoryFiltered = (
   return jget<{ nodes: GNode[]; count: number }>(`/api/directory?${p}`);
 };
 
+/** A ranked directory hit — node + why it ranked (recommendation-style). */
+export interface RankedHitItem {
+  node: GNode;
+  matchPct: number;
+  score: number;
+  reasons: string[];
+  factors?: { relevance: number; affinity: number; proximity: number };
+}
+
+/**
+ * Ranked directory search — recommendation-style ordering (query relevance +
+ * match-to-me + link prediction) instead of a flat filter.
+ */
+export const getRankedDirectory = (
+  filters: { type?: string; q?: string; industry?: string; tech?: string; country?: string; stage?: string; skill?: string } = {},
+) => {
+  const p = new URLSearchParams({ app: SUMMIT_APP, rank: "1" });
+  for (const [k, v] of Object.entries(filters)) if (v) p.set(k, v);
+  return jget<{ hits: RankedHitItem[]; count: number }>(`/api/directory?${p}`).then((r) => r.hits ?? []);
+};
+
 /* Bookmark labels + the meeting lifecycle (F3/F6). */
 export const CONTACT_LABELS = [
   { id: "interesting", label: "Interesting" },
@@ -213,46 +234,8 @@ export interface SevanFilters {
 export const resolveSevanQuery = (query: string, vocab: Record<string, string[]>) =>
   jsend<{ filters: SevanFilters; via: string }>("/api/sevan/query", "POST", { query, vocab });
 
-/** A light, non-creepy summary of the viewer so the concierge can tailor answers. */
-export interface ViewerContext {
-  role?: string;
-  skills?: string[];
-  sectors?: string[];
-  venture?: string;
-}
-
-/** Stream the concierge answer; calls onToken per chunk. Resolves when done. */
-export async function streamSevanAnswer(
-  query: string,
-  results: { label: string; entityType?: string; sub?: string; matchPct?: number; reasons?: string[] }[],
-  onToken: (t: string) => void,
-  viewer?: ViewerContext,
-): Promise<void> {
-  const r = await fetch("/api/sevan/answer", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ query, results, viewer }),
-  });
-  if (!r.ok || !r.body) throw new Error(`answer stream failed (${r.status})`);
-  const reader = r.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const parts = buf.split("\n\n");
-    buf = parts.pop() ?? "";
-    for (const part of parts) {
-      const line = part.split("\n").find((l) => l.startsWith("data: "));
-      if (!line) continue;
-      try {
-        const ev = JSON.parse(line.slice(6)) as { type: string; content?: string };
-        if (ev.type === "token" && ev.content) onToken(ev.content);
-      } catch { /* skip malformed */ }
-    }
-  }
-}
+/** Concierge answer stream — shared implementation lives in conciergeClient. */
+export { streamConciergeAnswer as streamSevanAnswer, type ViewerContext } from "./conciergeClient";
 
 /* Programme (F7) — workshops/sessions + attendance. */
 export interface ProgrammeItem {

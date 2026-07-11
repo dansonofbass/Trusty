@@ -4,14 +4,15 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { entityTypesForApp, hasRole, type GNode } from "@constellation/graph-core";
 import { hydrateOntology } from "@/lib/ontologyClient";
 import {
-  getMyProfile, getDirectoryFiltered, getContacts, getContactItems, setContactStage,
+  getMyProfile, getDirectoryFiltered, getRankedDirectory, getContacts, getContactItems, setContactStage,
   getMeetings, respondMeeting, getProgramme, setAttending, formatSlot,
   getMyNotes, deleteNoteApi, resolveSevanQuery, streamSevanAnswer,
   CONTACT_LABELS, LIFECYCLE_STAGES,
-  SUMMIT_APP, type Meeting, type ContactItem, type ProgrammeItem, type MyNote, type ViewerContext,
+  SUMMIT_APP, type Meeting, type ContactItem, type ProgrammeItem, type MyNote, type ViewerContext, type RankedHitItem,
 } from "@/lib/summitClient";
 import { myAsks, askInbox, answerAsk, type MyAsk, type InboxAsk } from "@/lib/asksClient";
 import { createInvite, inviteUrl } from "@/lib/inviteClient";
+import { MarkdownLite } from "@/components/concierge/AgentTrace";
 import ProfileCard from "./ProfileCard";
 import ProfileEditor from "./ProfileEditor";
 import Home from "./Home";
@@ -207,6 +208,8 @@ function Directory({ onOpen, me }: { onOpen: (t: OpenTarget) => void; me: GNode 
   const [country, setCountry] = useState("");
   const [stage, setStage] = useState("");
   const [rows, setRows] = useState<GNode[] | null>(null);
+  // nodeId → why it ranked (match % + reasons), when results are recommendation-ranked.
+  const [rankInfo, setRankInfo] = useState<Map<string, RankedHitItem>>(new Map());
 
   // Facet vocabularies come from the (admin-defined) ontology itself.
   const facetOptions = useMemo(() => {
@@ -225,13 +228,21 @@ function Directory({ onOpen, me }: { onOpen: (t: OpenTarget) => void; me: GNode 
 
   const load = useCallback(async () => {
     setRows(null);
-    setRows(
-      (await getDirectoryFiltered({
-        type: type || undefined, q: q.trim() || undefined,
-        industry: industry || undefined, tech: tech || undefined,
-        country: country || undefined, stage: stage || undefined,
-      })).nodes,
-    );
+    const filters = {
+      type: type || undefined, q: q.trim() || undefined,
+      industry: industry || undefined, tech: tech || undefined,
+      country: country || undefined, stage: stage || undefined,
+    };
+    // Any active filter/query → rank by recommendation signals; plain "All" → flat list.
+    const anyFilter = !!(type || q.trim() || industry || tech || country || stage);
+    if (anyFilter) {
+      const hits = await getRankedDirectory(filters);
+      setRankInfo(new Map(hits.map((h) => [h.node.id, h])));
+      setRows(hits.map((h) => h.node));
+    } else {
+      setRankInfo(new Map());
+      setRows((await getDirectoryFiltered(filters)).nodes);
+    }
   }, [type, q, industry, tech, country, stage]);
   useEffect(() => { void load(); }, [load]);
 
@@ -276,21 +287,26 @@ function Directory({ onOpen, me }: { onOpen: (t: OpenTarget) => void; me: GNode 
       setStage(filters.stage ?? "");
       setQ("");
 
-      // Step 2 — search.
+      // Step 2 — ranked search (relevance + match-to-me + link prediction).
       setStep("search", { status: "active" });
-      const found = (await getDirectoryFiltered({
-        type: filters.type, industry: filters.industry, tech: filters.tech,
+      const hits = await getRankedDirectory({
+        type: filters.type, q: query, industry: filters.industry, tech: filters.tech,
         country: filters.country, stage: filters.stage, skill: filters.skill,
-      })).nodes;
+      });
+      const found = hits.map((h) => h.node);
+      setRankInfo(new Map(hits.map((h) => [h.node.id, h])));
       setRows(found);
-      setTrace((t) => (t ? { ...t, found } : t));
-      setStep("search", { status: "done", summary: countLabel(found.length, filters.type, types) });
+      setTrace((t) => (t ? { ...t, found, hits } : t));
+      setStep("search", { status: "done", summary: `${countLabel(found.length, filters.type, types)} · ranked` });
 
-      // Step 3 — read the graph & compose the answer.
+      // Step 3 — read the graph & compose the answer (with match reasons + %).
       setStep("answer", { status: "active" });
       await streamSevanAnswer(
         query,
-        found.slice(0, 8).map((n) => ({ label: n.label, entityType: n.entityType, sub: n.sub })),
+        hits.slice(0, 8).map((h) => ({
+          label: h.node.label, entityType: h.node.entityType, sub: h.node.sub,
+          matchPct: h.matchPct, reasons: h.reasons,
+        })),
         (t) => setAnswer((a) => a + t),
         viewer,
       );
@@ -366,18 +382,25 @@ function Directory({ onOpen, me }: { onOpen: (t: OpenTarget) => void; me: GNode 
         </div>
       ) : (
         <div className="space-y-2">
-          {rows.map((n, i) => (
-            <button key={n.id} type="button" onClick={() => onOpen({ node: n })}
-              className="trace-in flex w-full items-center gap-3 rounded-xl border border-line bg-surface/60 p-3 text-left transition hover:border-[#ff8c5a]/40 hover:bg-surface"
-              style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}>
-              <Avatar node={n} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-ink">{n.label}</div>
-                <div className="truncate text-xs text-dim">{n.sub}</div>
-              </div>
-              <ChevronRight size={15} className="shrink-0 text-faint" />
-            </button>
-          ))}
+          {rows.map((n, i) => {
+            const hit = rankInfo.get(n.id);
+            return (
+              <button key={n.id} type="button" onClick={() => onOpen({ node: n, match: hit ? { pct: hit.matchPct, reasons: hit.reasons } : undefined })}
+                className="trace-in flex w-full items-center gap-3 rounded-xl border border-line bg-surface/60 p-3 text-left transition hover:border-[#ff8c5a]/40 hover:bg-surface"
+                style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}>
+                <Avatar node={n} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-ink">{n.label}</div>
+                  <div className="truncate text-xs text-dim">{hit?.reasons[0] ?? n.sub}</div>
+                </div>
+                {hit && hit.matchPct > 0 && (
+                  <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                    style={{ background: "rgba(154,240,200,0.16)", color: "#9af0c8" }}>{hit.matchPct}%</span>
+                )}
+                <ChevronRight size={15} className="shrink-0 text-faint" />
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -398,6 +421,8 @@ interface AgentTrace {
   steps: ThinkStep[];
   intentChips: { k: string; v: string }[];
   found: GNode[];
+  /** Ranked hits (match % + reasons), present once the search step completes. */
+  hits?: RankedHitItem[];
 }
 
 const freshSteps = (): ThinkStep[] => [
@@ -510,16 +535,22 @@ function StepRow({ step, trace, onOpen }: { step: ThinkStep; trace: AgentTrace; 
       )}
       {open && step.id === "search" && (
         <div className="space-y-1 px-8 pb-2 pt-0.5">
-          {trace.found.slice(0, 8).map((n, i) => (
-            <button key={n.id} type="button" onClick={() => onOpen(n)}
+          {(trace.hits ?? trace.found.map((node) => ({ node, matchPct: 0, score: 0, reasons: [] as string[] }))).slice(0, 8).map((h, i) => (
+            <button key={h.node.id} type="button" onClick={() => onOpen(h.node)}
               className="trace-in flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-[#ff8c5a]/[0.06]"
               style={{ animationDelay: `${i * 45}ms` }}>
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold"
                 style={{ background: "rgba(255,140,90,0.18)", color: "#ffb98c" }}>
-                {n.label.charAt(0).toUpperCase()}
+                {h.node.label.charAt(0).toUpperCase()}
               </span>
-              <span className="truncate text-[12px] text-ink">{n.label}</span>
-              {n.entityType && <span className="ml-auto shrink-0 text-[10px] capitalize text-faint">{String(n.entityType).replace(/_/g, " ")}</span>}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] text-ink">{h.node.label}</span>
+                {h.reasons[0] && <span className="block truncate text-[10px] text-faint">{h.reasons[0]}</span>}
+              </span>
+              {h.matchPct > 0 && (
+                <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-bold"
+                  style={{ background: "rgba(154,240,200,0.16)", color: "#9af0c8" }}>{h.matchPct}%</span>
+              )}
             </button>
           ))}
         </div>
@@ -563,48 +594,6 @@ function viewerContext(me: GNode | null): ViewerContext | undefined {
   return Object.keys(ctx).length ? ctx : undefined;
 }
 
-/** Inline Markdown: **bold** and *italic* / _italic_ → real elements (safe, no HTML). */
-function renderInline(text: string, keyBase: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  const re = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_)/g;
-  let last = 0, m: RegExpExecArray | null, i = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push(text.slice(last, m.index));
-    const bold = m[2] ?? m[3];
-    if (bold != null) out.push(<strong key={`${keyBase}${i}`} className="font-semibold text-ink">{bold}</strong>);
-    else out.push(<em key={`${keyBase}${i}`}>{m[4] ?? m[5]}</em>);
-    last = m.index + m[0].length;
-    i++;
-  }
-  if (last < text.length) out.push(text.slice(last));
-  return out;
-}
-
-/** Minimal Markdown block renderer — paragraphs + `- ` bullet lists. */
-function MarkdownLite({ text }: { text: string }) {
-  const blocks: ReactNode[] = [];
-  let bullets: string[] = [];
-  const flush = () => {
-    if (!bullets.length) return;
-    const items = bullets;
-    const key = `ul${blocks.length}`;
-    blocks.push(
-      <ul key={key} className="my-1 list-disc space-y-0.5 pl-4 marker:text-[#ff8c5a]">
-        {items.map((li, i) => <li key={i}>{renderInline(li, `${key}-${i}-`)}</li>)}
-      </ul>,
-    );
-    bullets = [];
-  };
-  for (const raw of text.split("\n")) {
-    const line = raw.trimEnd();
-    const bul = line.match(/^\s*[-*]\s+(.*)$/);
-    if (bul) { bullets.push(bul[1]); continue; }
-    flush();
-    if (line.trim()) blocks.push(<p key={`p${blocks.length}`} className="mb-1.5 last:mb-0">{renderInline(line, `p${blocks.length}-`)}</p>);
-  }
-  flush();
-  return <>{blocks}</>;
-}
 
 const STAGE_LABEL: Record<string, string> = {
   discovered: "Discovered", interested: "Interested", met: "Met", conversation: "Conversation",

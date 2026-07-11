@@ -40,6 +40,7 @@ import {
   setCustomOntology,
   getCustomOntology,
   whoToMeet,
+  rankedSearch,
   materializeTags,
   BUILTIN_APP,
   earnTokens,
@@ -1069,6 +1070,26 @@ app.get("/api/directory", (req, res) => {
   const tech = slug(req.query.tech);
   const country = slug(req.query.country);
   const stage = slug(req.query.stage);
+
+  // Ranked mode — recommendation-style ordering (relevance + match-to-me +
+  // link prediction) instead of a flat filter. Needs the viewer's identity.
+  if (req.query.rank === "1" || req.query.rank === "true") {
+    const { userId } = auth(req);
+    const hits = rankedSearch(shared.nodes, shared.links, userId, {
+      app,
+      q: String(req.query.q ?? ""),
+      filters: {
+        type: type || undefined, industry: industry || undefined, tech: tech || undefined,
+        country: country || undefined, stage: stage || undefined, skill: skill || undefined,
+      },
+      limit: Number(req.query.limit ?? 40),
+    });
+    const byId = new Map(shared.nodes.map((n) => [n.id, n]));
+    const items = hits
+      .map((h) => ({ node: byId.get(h.nodeId), matchPct: h.matchPct, score: h.score, reasons: h.reasons, factors: h.factors }))
+      .filter((it) => it.node);
+    return res.json({ app, count: items.length, ranked: true, hits: items, nodes: items.map((it) => it.node) });
+  }
 
   /** Does any of `keys` hold `v` (multiselect containment or exact select)? */
   const propHas = (p: Record<string, unknown>, keys: string[], v: string): boolean =>

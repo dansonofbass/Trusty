@@ -45,6 +45,15 @@ async function jsonOrThrow(r: Response) {
   return body;
 }
 
+/** Search people & entities in the (general) app directory by free text. */
+export async function searchDirectory(q: string): Promise<import("@constellation/graph-core").GNode[]> {
+  const p = new URLSearchParams();
+  if (q.trim()) p.set("q", q.trim());
+  const r = await fetch(`/api/directory?${p}`, { cache: "no-store" });
+  const b = (await jsonOrThrow(r)) as { nodes: import("@constellation/graph-core").GNode[] };
+  return b.nodes ?? [];
+}
+
 /** Resolve a natural-language query into a structured trust scope. */
 export async function resolveScope(q: string): Promise<ResolvedScope> {
   const r = await fetch("/api/resolve-scope", {

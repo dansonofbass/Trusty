@@ -889,13 +889,20 @@ app.post("/sevan-answer/stream", async (req, res) => {
     }
   };
 
+  // mode "trust" = main-app trust-graph search; default = Sevan event directory.
+  const mode = String(req.body?.mode ?? "sevan");
+  const tailor = viewerLine
+    ? "Lightly tailor relevance to who the user is when it genuinely helps — a light touch, at most one clause; never flatter or over-personalize. "
+    : "";
   const variant = variantForRequest(req, req.body);
   const useGateway = litellmConfigured();
   try {
     if (variant.provider === "heuristic" || (!useGateway && !anthropic) || results.length === 0) {
       await fallback();
     } else {
-      const system = `You are the Trusty Sevan event concierge helping an attendee navigate the event directory. In AT MOST 80 words, conversationally point them to the best matches BY NAME and why (use the provided match reasons). ${viewerLine ? "Lightly tailor relevance to who the attendee is when it genuinely helps (e.g. a shared sector or a skill they need) — a light touch, at most one clause; never flatter or over-personalize. " : ""}You MAY use light Markdown: **bold** for names and a short bullet list (\`- \`) when several matches deserve equal billing. Keep it warm and useful, and end with a concrete next step (save a profile / request a meeting / ask for an intro).`;
+      const system = mode === "trust"
+        ? `You are the Trusty trust concierge. The user searched their trust graph for who their network trusts. In AT MOST 80 words, point them to the best people/providers BY NAME and why — lean on the trust reasons and how directly they're connected (direct vs. through the network). ${tailor}You MAY use light Markdown: **bold** for names and a short bullet list (\`- \`). Warm, candid, useful; end with a concrete next step ("I'll use this" / mark you trust them / ask your network).`
+        : `You are the Trusty Sevan event concierge helping an attendee navigate the event directory. In AT MOST 80 words, conversationally point them to the best matches BY NAME and why (use the provided match reasons). ${tailor}You MAY use light Markdown: **bold** for names and a short bullet list (\`- \`) when several matches deserve equal billing. Keep it warm and useful, and end with a concrete next step (save a profile / request a meeting / ask for an intro).`;
       const user = `${viewerLine ? viewerLine + "\n" : ""}Search: "${query}"\nResults:\n${compact}`;
       if (useGateway) {
         await gatewayChat({

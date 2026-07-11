@@ -286,3 +286,187 @@ export function whoToMeet(
 
   return scored.slice(0, opts.limit ?? 24);
 }
+
+/* ----------------------------- ranked search ----------------------------- */
+
+const lc = (s: string): string => s.toLowerCase();
+const slug = (v: unknown): string => String(v ?? "").toLowerCase().trim().replace(/\s+/g, "_");
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+export interface SearchFilters {
+  type?: string;
+  industry?: string;
+  tech?: string;
+  country?: string;
+  stage?: string;
+  skill?: string;
+}
+
+export interface SearchOptions {
+  app?: string;
+  filters?: SearchFilters;
+  /** Free-text query — matched against label, sub, and tag vocabularies. */
+  q?: string;
+  limit?: number;
+}
+
+export interface RankedHit {
+  nodeId: string;
+  score: number;
+  matchPct: number;
+  reasons: string[];
+  /** Explainable factor breakdown (the three ranking channels). */
+  factors: { relevance: number; affinity: number; proximity: number };
+}
+
+/**
+ * Directory search that RANKS instead of merely filtering — recommendation-style.
+ * Each candidate is scored on three channels, then sorted by their sum:
+ *
+ *  1. relevance   — how well it matches the query (facets + text tokens)
+ *  2. affinity    — content compatibility with ME (need↔offer, skills, overlaps)
+ *  3. proximity   — link prediction between me and the candidate: common
+ *                   neighbours + the Adamic–Adar index (rare shared connections
+ *                   count more), the classic edge-prediction signal.
+ *
+ * Hard constraints stay filters (app, explicit type/role, country); everything
+ * else is a soft signal. Pure + deterministic; every hit carries its reasons.
+ */
+export function rankedSearch(
+  nodes: GNode[],
+  links: GLink[],
+  meId: string,
+  opts: SearchOptions = {},
+): RankedHit[] {
+  const { app, filters = {}, q = "", limit = 40 } = opts;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const me = byId.get(meId);
+  const mp = me?.properties ?? {};
+
+  // Viewer side — a founder's startup enriches "me".
+  const myStartup = links
+    .filter((l) => l.type === "MEMBER_OF" && endId(l.source) === meId)
+    .map((l) => byId.get(endId(l.target)))
+    .find((n) => n?.entityType === "startup");
+  const sp = myStartup?.properties ?? {};
+  const myNeeds = [...arr(mp.needs), ...arr(sp.needs)];
+  const myOffers = [...arr(mp.offers), ...arr(sp.offers), ...arr(mp.apis), ...arr(sp.apis)];
+  const myNeeded = arr(mp.skills_needed);
+  const myOffered = arr(mp.skills_offered);
+  const myTech = [...arr(mp.technologies), ...arr(sp.technologies)];
+  const mySectors = [...arr(mp.sectors), ...arr(mp.industries), ...arr(mp.interests), ...arr(sp.sectors)];
+
+  // Full-graph adjacency + degree — for common-neighbour / Adamic–Adar link prediction.
+  const nbr = new Map<string, Set<string>>();
+  const add = (a: string, b: string) => {
+    let set = nbr.get(a);
+    if (!set) { set = new Set(); nbr.set(a, set); }
+    set.add(b);
+  };
+  for (const l of links) {
+    const s = endId(l.source), t = endId(l.target);
+    if (s === t) continue;
+    add(s, t); add(t, s);
+  }
+  const deg = (id: string): number => nbr.get(id)?.size ?? 0;
+  const myNbrs = nbr.get(meId) ?? new Set<string>();
+  const socialFriends = neighborsOf(links, meId);
+
+  const qTokens = lc(q).split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+  const wantType = filters.type;
+  const wantCountry = filters.country ? slug(filters.country) : "";
+  const hasQuery =
+    qTokens.length > 0 ||
+    !!(filters.type || filters.industry || filters.tech || filters.country || filters.stage || filters.skill);
+
+  const hits = nodes
+    .filter(
+      (n) =>
+        n.id !== meId &&
+        n.id !== myStartup?.id &&
+        !!n.entityType &&
+        (!app || appForEntityType(n.entityType) === app) &&
+        (!wantType || n.entityType === wantType || hasRole(n, wantType)) &&
+        (!wantCountry || slug((n.properties ?? {}).country) === wantCountry),
+    )
+    .map((n) => {
+      const p = n.properties ?? {};
+      const theirSectors = [...arr(p.sectors), ...arr(p.industries), ...arr(p.interests), ...arr(p.topics)];
+      const theirTech = arr(p.technologies);
+      const theirOffered = [...arr(p.skills_offered), ...arr(p.expertise)];
+      const theirOffers = [...arr(p.offers), ...arr(p.apis)];
+      const theirNeeds = arr(p.needs);
+      const theirNeeded = arr(p.skills_needed);
+      const reasons: string[] = [];
+
+      // 1 — relevance to the query (facets + free-text tokens)
+      let rel = 0;
+      if (filters.industry && theirSectors.map(lc).includes(slug(filters.industry))) {
+        rel += 3; reasons.push(`in ${filters.industry.replace(/_/g, " ")}`);
+      }
+      if (filters.tech && theirTech.map(lc).includes(slug(filters.tech))) {
+        rel += 3; reasons.push(`uses ${filters.tech.replace(/_/g, " ")}`);
+      }
+      if (filters.stage && slug(p.stage) === slug(filters.stage)) {
+        rel += 2; reasons.push(`${filters.stage.replace(/_/g, " ")} stage`);
+      }
+      if (filters.skill && [...theirOffered, ...theirOffers].map(lc).includes(slug(filters.skill))) {
+        rel += 3; reasons.push(`offers ${filters.skill.replace(/_/g, " ")}`);
+      }
+      if (qTokens.length) {
+        const roles = arr((p as { active_roles?: unknown }).active_roles);
+        const hay = lc([n.label, n.sub ?? "", n.entityType ?? "", ...roles, ...theirSectors, ...theirTech, ...theirOffered, ...theirOffers].join(" "));
+        const hitN = qTokens.filter((t) => hay.includes(t)).length;
+        if (hitN) rel += 2 * hitN;
+      }
+
+      // 2 — affinity to me (content compatibility)
+      let aff = 0;
+      const theyProvide = intersect(myNeeds, theirOffers);
+      if (theyProvide.length) {
+        aff += theyProvide.length * 4 + (theyProvide.some(isApi) ? 2 : 0);
+        reasons.push(`offers the ${pretty(theyProvide.slice(0, 2))} you need`);
+      }
+      const iProvide = intersect(theirNeeds, myOffers);
+      if (iProvide.length) { aff += iProvide.length * 3; reasons.push(`needs your ${pretty(iProvide.slice(0, 2))}`); }
+      const skillHit = intersect(myNeeded, theirOffered);
+      if (skillHit.length) { aff += 3 * skillHit.length; reasons.push(`can help with ${pretty(skillHit.slice(0, 2))}`); }
+      const techHit = intersect(myTech, theirTech);
+      if (techHit.length) { aff += 1.5 * techHit.length; reasons.push(`both use ${pretty(techHit.slice(0, 2))}`); }
+      const sectorHit = intersect(mySectors, theirSectors);
+      if (sectorHit.length) { aff += 1.5 * sectorHit.length; reasons.push(`both in ${pretty(sectorHit.slice(0, 2))}`); }
+
+      // 3 — link prediction (common neighbours + Adamic–Adar)
+      let prox = 0;
+      const common = [...(nbr.get(n.id) ?? [])].filter((x) => x !== meId && myNbrs.has(x));
+      if (common.length) {
+        const aa = common.reduce((sum, x) => sum + 1 / Math.log(2 + deg(x)), 0);
+        prox += 1.2 * aa + 0.3 * common.length;
+        const mutualPeople = common.filter((x) => byId.get(x)?.type === "person" && socialFriends.has(x));
+        if (mutualPeople.length) {
+          const names = mutualPeople.slice(0, 2).map((x) => byId.get(x)!.label);
+          reasons.push(`${mutualPeople.length} mutual connection${mutualPeople.length > 1 ? "s" : ""} (via ${names.join(", ")})`);
+        } else {
+          reasons.push(`${common.length} shared connection${common.length > 1 ? "s" : ""}`);
+        }
+      }
+
+      // Relevance leads (it's a search), affinity + link-prediction re-rank within.
+      const raw = rel * 1.5 + aff + prox;
+      return { n, rel, aff, prox, raw, reasons };
+    })
+    // With a query, require a positive signal; when browsing, keep anyone I have
+    // any affinity/proximity to (so the directory is personalized, not random).
+    .filter((h) => (hasQuery ? h.raw > 0 : h.aff + h.prox > 0))
+    .sort((a, b) => b.raw - a.raw)
+    .slice(0, limit)
+    .map((h): RankedHit => ({
+      nodeId: h.n.id,
+      score: round2(h.raw),
+      matchPct: matchPct(h.raw),
+      reasons: h.reasons.slice(0, 4),
+      factors: { relevance: round2(h.rel), affinity: round2(h.aff), proximity: round2(h.prox) },
+    }));
+
+  return hits;
+}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Search, Sparkles, Target, Network, X as XIcon } from "lucide-react";
 import { TOPIC_TAXONOMY, reasonsForTopic } from "@constellation/graph-core";
-import { TRUST_ACCENT } from "@/lib/palette";
+import { TRUST_ACCENT, withAlpha } from "@/lib/palette";
 import { useUI } from "@/lib/store";
 import {
   addTrust,
@@ -14,6 +15,8 @@ import {
 } from "@/lib/trustClient";
 import { markIntent } from "@/lib/outcomeClient";
 import { createAsk } from "@/lib/asksClient";
+import { streamConciergeAnswer } from "@/lib/conciergeClient";
+import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge/AgentTrace";
 
 /**
  * Trust Search — a docked panel (list) that drives the graph (animation +
@@ -21,6 +24,12 @@ import { createAsk } from "@/lib/asksClient";
  * resolved scope → results grouped by hop (direct vs. through your network), each
  * with its full trust path, reasons, outcome 👍/👎, and a quick "trust this".
  */
+const baseSteps = (): ThinkStep[] => [
+  { id: "intent", label: "Understanding your request", status: "active", icon: <Target size={13} /> },
+  { id: "search", label: "Tracing trust paths", status: "pending", icon: <Network size={13} /> },
+  { id: "answer", label: "Reading your graph & answering", status: "pending", icon: <Sparkles size={13} /> },
+];
+
 export default function TrustSearch() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -28,9 +37,14 @@ export default function TrustSearch() {
   const [recs, setRecs] = useState<TrustRec[]>([]);
   const [status, setStatus] = useState<"idle" | "resolving" | "searching" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [steps, setSteps] = useState<ThinkStep[] | null>(null);
+  const [answer, setAnswer] = useState("");
+  const [answerDone, setAnswerDone] = useState(true);
 
   const setTrustSearch = useUI((s) => s.setTrustSearch);
   const setTrustFocus = useUI((s) => s.setTrustFocus);
+  const setStep = (id: string, patch: Partial<ThinkStep>) =>
+    setSteps((prev) => (prev ? prev.map((s) => (s.id === id ? { ...s, ...patch } : s)) : prev));
 
   // Publish/clear the graph overlay as results change or the panel closes.
   useEffect(() => {
@@ -45,138 +59,237 @@ export default function TrustSearch() {
     setTrustFocus(null);
   };
 
-  const runSearch = useCallback(
-    async (override?: { topic: string; geo?: string; context?: string }) => {
-      setError(null);
-      try {
-        let s: ResolvedScope;
-        if (override) {
-          s = override;
-          setScope(override);
-        } else {
-          setStatus("resolving");
-          s = await resolveScope(q.trim());
-          setScope(s);
-        }
-        if (!s.topic) {
-          setRecs([]);
-          setStatus("done");
-          return;
-        }
-        setStatus("searching");
-        const { recommendations } = await trustSearch({ topic: s.topic, geo: s.geo, context: s.context });
-        setRecs(recommendations);
-        setStatus("done");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        setStatus("error");
+  /** Run search + concierge answer for a resolved scope. */
+  const runWithScope = useCallback(
+    async (s: ResolvedScope, queryText: string) => {
+      setStatus("searching");
+      setStep("search", { status: "active" });
+      const { recommendations } = await trustSearch({ topic: s.topic, geo: s.geo, context: s.context });
+      setRecs(recommendations);
+      setStep("search", {
+        status: "done",
+        summary: `${recommendations.length} trusted ${recommendations.length === 1 ? "path" : "paths"}`,
+        detail: recommendations.length ? (
+          <div className="space-y-1">
+            {recommendations.slice(0, 8).map((r) => (
+              <button key={r.nodeId} type="button" onMouseEnter={() => setTrustFocus(r.nodeId)}
+                className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-white/[0.05]">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold"
+                  style={{ background: withAlpha(TRUST_ACCENT, 0.18), color: TRUST_ACCENT }}>
+                  {r.label.charAt(0).toUpperCase()}
+                </span>
+                <span className="truncate text-[12px] text-ink">{r.label}</span>
+                <span className="ml-auto shrink-0 text-[10px] text-faint">{Math.round(Math.min(1, r.score) * 100)}% · {r.hops === 1 ? "direct" : `${r.hops} hops`}</span>
+              </button>
+            ))}
+          </div>
+        ) : undefined,
+      });
+      setStatus("done");
+
+      setStep("answer", { status: "active" });
+      if (recommendations.length === 0) {
+        setStep("answer", { status: "done" });
+        setAnswerDone(true);
+        return;
       }
+      try {
+        await streamConciergeAnswer(
+          queryText || s.topic,
+          recommendations.slice(0, 8).map((r) => ({
+            label: r.label, entityType: r.nodeType, sub: r.sub,
+            matchPct: Math.round(Math.min(1, r.score) * 100), reasons: r.reasons,
+          })),
+          (t) => setAnswer((a) => a + t),
+          undefined,
+          "trust",
+        );
+      } catch { /* answer is best-effort; trust paths still show */ }
+      setStep("answer", { status: "done" });
+      setAnswerDone(true);
     },
-    [q],
+    [setTrustFocus],
   );
+
+  const runSearch = useCallback(async () => {
+    const query = q.trim();
+    if (query.length < 2) return;
+    setOpen(true);
+    setError(null);
+    setSteps(baseSteps());
+    setAnswer("");
+    setAnswerDone(false);
+    try {
+      setStatus("resolving");
+      const s = await resolveScope(query);
+      setScope(s);
+      if (!s.topic) {
+        setStep("intent", { status: "done", summary: "couldn't pin a topic" });
+        setStep("search", { status: "done", summary: "—" });
+        setStep("answer", { status: "done" });
+        setRecs([]);
+        setStatus("done");
+        setAnswerDone(true);
+        return;
+      }
+      setStep("intent", {
+        status: "done",
+        summary: `${s.topic.replace(/_/g, " ")}${s.geo ? ` · ${s.geo}` : ""}`,
+        detail: <ScopeChips scope={s} />,
+      });
+      await runWithScope(s, query);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setStatus("error");
+      setAnswerDone(true);
+      setSteps((prev) => (prev ? prev.map((st) => (st.status === "active" || st.status === "pending" ? { ...st, status: "error" } : st)) : prev));
+    }
+  }, [q, runWithScope]);
+
+  // Change topic/geo without re-resolving — reruns search + answer.
+  const rerun = useCallback(async (next: ResolvedScope) => {
+    setScope(next);
+    setError(null);
+    setSteps(baseSteps().map((s) => (s.id === "intent"
+      ? { ...s, status: "done", summary: `${next.topic.replace(/_/g, " ")}${next.geo ? ` · ${next.geo}` : ""}`, detail: <ScopeChips scope={next} /> }
+      : s)));
+    setAnswer("");
+    setAnswerDone(false);
+    try { await runWithScope(next, q.trim()); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); setStatus("error"); setAnswerDone(true); }
+  }, [q, runWithScope]);
 
   const direct = recs.filter((r) => r.hops <= 1);
   const network = recs.filter((r) => r.hops > 1);
+  const hasPanel = open && (steps !== null || recs.length > 0);
 
   return (
     <>
-      {/* FAB */}
-      <button
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        className="fixed bottom-6 left-6 z-40 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink backdrop-blur-md shadow-lg hover:border-gold/60"
-        style={{ fontFamily: "var(--font-display)", borderColor: open ? "rgba(255,140,90,0.6)" : undefined }}
-      >
-        ✦ Trust search
-      </button>
-
-      {open && (
-        // Docked, non-blocking — the graph stays visible + interactive to the right.
-        <aside className="pointer-events-auto fixed bottom-4 left-4 top-20 z-40 flex w-[380px] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-              Who does your network trust?
-            </h2>
-            <button type="button" onClick={close} className="text-dim hover:text-ink">✕</button>
-          </div>
-
-          <div className="border-b border-line px-4 py-3">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (q.trim().length >= 2) runSearch();
-              }}
-              className="flex gap-2"
+      {/* Hero search bar — the primary action, always visible top-centre. */}
+      <div className="pointer-events-none fixed inset-x-0 top-[62px] z-40 flex justify-center px-4">
+        <form
+          onSubmit={(e) => { e.preventDefault(); runSearch(); }}
+          className="pointer-events-auto w-full max-w-[600px]"
+        >
+          <div
+            className="flex items-center gap-2 rounded-2xl border bg-nebula/90 px-3 shadow-xl backdrop-blur-md transition-colors"
+            style={{ borderColor: open ? withAlpha(TRUST_ACCENT, 0.6) : "var(--color-line)" }}
+          >
+            <Search size={16} style={{ color: TRUST_ACCENT }} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onFocus={() => setOpen(true)}
+              placeholder="Who does your network trust? — “best immigration lawyer in Yerevan”"
+              className="w-full bg-transparent py-2.5 text-sm text-ink outline-none placeholder:text-faint"
+            />
+            {q && (
+              <button type="button" onClick={() => setQ("")} className="text-faint hover:text-ink"><XIcon size={14} /></button>
+            )}
+            <button
+              type="submit"
+              disabled={q.trim().length < 2}
+              className="shrink-0 rounded-xl px-3.5 py-1.5 text-[12px] font-bold text-space disabled:opacity-40"
+              style={{ background: TRUST_ACCENT }}
             >
-              <input
-                autoFocus
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="best broker in Yerevan"
-                className="min-w-0 flex-1 rounded-lg border border-line bg-space/60 px-3 py-2 text-sm text-ink outline-none focus:border-gold/60"
-              />
-              <button type="submit" className="rounded-lg px-3 py-2 text-sm font-semibold text-space" style={{ background: TRUST_ACCENT }}>
-                Go
-              </button>
-            </form>
-
-            {scope && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-faint">as</span>
-                <select
-                  value={scope.topic}
-                  onChange={(e) => runSearch({ topic: e.target.value, geo: scope.geo, context: scope.context })}
-                  className="rounded-full border border-line bg-space/60 px-2 py-1 text-ink"
-                >
-                  {[scope.topic, ...TOPIC_TAXONOMY.filter((t) => t !== scope.topic)].filter(Boolean).map((t) => (
-                    <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
-                  ))}
-                </select>
-                <input
-                  value={scope.geo ?? ""}
-                  onChange={(e) => setScope({ ...scope, geo: e.target.value || undefined })}
-                  onBlur={() => runSearch({ topic: scope.topic, geo: scope.geo, context: scope.context })}
-                  placeholder="anywhere"
-                  className="w-24 rounded-full border border-line bg-space/60 px-2 py-1 text-ink"
-                />
-              </div>
-            )}
+              Search
+            </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-            {status === "resolving" && <p className="text-sm text-dim">Understanding your request…</p>}
-            {status === "searching" && <p className="text-sm text-dim">Tracing trust paths…</p>}
-            {error && <p className="text-sm text-rose-300">{error}</p>}
+          {hasPanel && (
+            <div className="pointer-events-auto mt-2 max-h-[72vh] overflow-auto rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md scroll-quiet">
+              {/* Scope override */}
+              {scope?.topic && (
+                <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 text-xs">
+                  <span className="text-faint">reading as</span>
+                  <select
+                    value={scope.topic}
+                    onChange={(e) => rerun({ ...scope, topic: e.target.value })}
+                    className="rounded-full border border-line bg-space/60 px-2 py-1 text-ink"
+                  >
+                    {[scope.topic, ...TOPIC_TAXONOMY.filter((t) => t !== scope.topic)].filter(Boolean).map((t) => (
+                      <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                    ))}
+                  </select>
+                  <input
+                    defaultValue={scope.geo ?? ""}
+                    onBlur={(e) => { const geo = e.target.value || undefined; if (geo !== scope.geo) rerun({ ...scope, geo }); }}
+                    placeholder="anywhere"
+                    className="w-28 rounded-full border border-line bg-space/60 px-2 py-1 text-ink"
+                  />
+                  <button type="button" onClick={close} className="ml-auto text-faint hover:text-ink"><XIcon size={14} /></button>
+                </div>
+              )}
 
-            {status === "done" && recs.length === 0 && scope?.topic && (
-              <div className="rounded-lg border border-line bg-space/40 p-4 text-sm text-dim">
-                No trusted path to a <b className="text-ink">{scope.topic.replace(/_/g, " ")}</b>
-                {scope.geo ? ` in ${scope.geo}` : ""} yet. Don&apos;t stop here — ask your network, and a
-                friend&apos;s answer becomes a recommendation you can trust.
-                <AskCTA topic={scope.topic} geo={scope.geo} />
+              {/* Concierge trace */}
+              {steps && (
+                <div className="border-b border-line px-3 py-2.5">
+                  <span className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: TRUST_ACCENT }}>
+                    <Sparkles size={12} /> Trust concierge
+                  </span>
+                  <AgentTrace steps={steps} accent={TRUST_ACCENT} />
+                  {(answer || !answerDone) && (
+                    <div className="mt-2 border-t border-line/60 px-1 pt-2 text-[13px] leading-relaxed text-ink">
+                      <MarkdownLite text={answer} />
+                      {!answerDone && <span className="ml-0.5 inline-block h-3.5 w-[7px] animate-pulse align-middle" style={{ background: TRUST_ACCENT }} />}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="px-4 py-3">
+                {error && <p className="text-sm text-rose-300">{error}</p>}
+
+                {status === "done" && recs.length === 0 && scope?.topic && (
+                  <div className="rounded-lg border border-line bg-space/40 p-4 text-sm text-dim">
+                    No trusted path to a <b className="text-ink">{scope.topic.replace(/_/g, " ")}</b>
+                    {scope.geo ? ` in ${scope.geo}` : ""} yet. Don&apos;t stop here — ask your network, and a
+                    friend&apos;s answer becomes a recommendation you can trust.
+                    <AskCTA topic={scope.topic} geo={scope.geo} />
+                  </div>
+                )}
+
+                {direct.length > 0 && (
+                  <Group title="You trust directly">
+                    {direct.map((r) => (
+                      <TrustResult key={r.nodeId} rec={r} topic={scope?.topic ?? ""} geo={scope?.geo}
+                        onHover={() => setTrustFocus(r.nodeId)} />
+                    ))}
+                  </Group>
+                )}
+                {network.length > 0 && (
+                  <Group title="Trusted through your network">
+                    {network.map((r) => (
+                      <TrustResult key={r.nodeId} rec={r} topic={scope?.topic ?? ""} geo={scope?.geo}
+                        onHover={() => setTrustFocus(r.nodeId)} />
+                    ))}
+                  </Group>
+                )}
               </div>
-            )}
-
-            {direct.length > 0 && (
-              <Group title="You trust directly">
-                {direct.map((r) => (
-                  <TrustResult key={r.nodeId} rec={r} topic={scope?.topic ?? ""} geo={scope?.geo}
-                    onHover={() => setTrustFocus(r.nodeId)} />
-                ))}
-              </Group>
-            )}
-            {network.length > 0 && (
-              <Group title="Trusted through your network">
-                {network.map((r) => (
-                  <TrustResult key={r.nodeId} rec={r} topic={scope?.topic ?? ""} geo={scope?.geo}
-                    onHover={() => setTrustFocus(r.nodeId)} />
-                ))}
-              </Group>
-            )}
-          </div>
-        </aside>
-      )}
+            </div>
+          )}
+        </form>
+      </div>
     </>
+  );
+}
+
+/** The resolved scope shown as chips inside the intent step. */
+function ScopeChips({ scope }: { scope: ResolvedScope }) {
+  const chips = [
+    { k: "topic", v: scope.topic.replace(/_/g, " ") },
+    ...(scope.geo ? [{ k: "where", v: scope.geo }] : []),
+    ...(scope.context ? [{ k: "context", v: scope.context }] : []),
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {chips.map((c) => (
+        <span key={c.k} className="rounded-md border px-2 py-0.5 text-[11px] capitalize"
+          style={{ borderColor: withAlpha(TRUST_ACCENT, 0.3), background: withAlpha(TRUST_ACCENT, 0.1), color: TRUST_ACCENT }}>
+          <span style={{ opacity: 0.7 }}>{c.k}:</span> {c.v}
+        </span>
+      ))}
+    </div>
   );
 }
 

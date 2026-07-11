@@ -82,7 +82,7 @@ export {
   type PlaceLinkSubmittedEvent,
   type PlaceLinkResolvedEvent,
 } from "./events";
-export { whoToMeet, matchPct, type MeetSuggestion, type MeetMode, type MeetOptions } from "./summitMatch";
+export { whoToMeet, matchPct, rankedSearch, type MeetSuggestion, type MeetMode, type MeetOptions, type SearchFilters, type SearchOptions, type RankedHit } from "./summitMatch";
 export { materializeTags, tagConceptId } from "./summitGraph";
 export {
   SUMMIT_EXTRACTION_SYSTEM_PROMPT,
