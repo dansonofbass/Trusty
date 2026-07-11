@@ -35,6 +35,7 @@ import {
   ENTITY_TYPES,
   allEntityTypes,
   appForEntityType,
+  getOntology,
   scopeToApp,
   setCustomOntology,
   getCustomOntology,
@@ -540,6 +541,195 @@ app.delete("/api/admin/apps/:slug/relations/:id", async (req, res) => {
   try {
     await deleteRelation(req.params.slug, req.params.id);
     await reloadOntology();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/* ---------------- admin: people & entities manager ----------------- */
+/* List / edit / delete / import / export every node (persons + ontology
+ * entities), separable by app. Admin-gated at the BFF. */
+
+/** Merged ontology (built-ins + custom) → the app + entity-type pickers +
+ *  the field schema the editor renders. */
+app.get("/api/admin/entities/schema", (_req, res) => {
+  const o = getOntology();
+  const apps = [
+    { slug: BUILTIN_APP, label: "Trusty (general)" },
+    ...o.apps.filter((a) => a.slug !== BUILTIN_APP).map((a) => ({ slug: a.slug, label: a.label })),
+  ];
+  const entityTypes = o.entityTypes.map((t) => ({
+    id: t.id, label: t.label, app: appForEntityType(t.id) ?? BUILTIN_APP,
+    baseType: t.baseType, category: t.category ?? null, fields: t.fields,
+  }));
+  res.json({ apps, entityTypes });
+});
+
+/** Export matching entities as import-ready rows (round-trips with import). */
+app.get("/api/admin/entities/export", (req, res) => {
+  auth(req);
+  const app = String(req.query.app ?? "");
+  const type = String(req.query.type ?? "");
+  const rows = shared.nodes
+    .filter((n) => n.entityType)
+    .filter((n) => !app || appForEntityType(n.entityType) === app)
+    .filter((n) => !type || type === "person" || n.entityType === type)
+    .map((n) => ({ entityType: n.entityType, label: n.label, properties: n.properties ?? {} }));
+  res.json({ rows });
+});
+
+/** List people + entities, scoped to an app (persons are shared across apps).
+ *  `type` = an entityType, or "person" for every person node. */
+app.get("/api/admin/entities", (req, res) => {
+  auth(req);
+  const app = String(req.query.app ?? "");
+  const type = String(req.query.type ?? "");
+  const q = String(req.query.q ?? "").toLowerCase();
+  let nodes = shared.nodes;
+  if (app) nodes = nodes.filter((n) => inApp(n, app));
+  if (type === "person") nodes = nodes.filter((n) => n.type === "person");
+  else if (type) nodes = nodes.filter((n) => n.entityType === type);
+  if (q) nodes = nodes.filter((n) => n.label.toLowerCase().includes(q) || (n.sub ?? "").toLowerCase().includes(q));
+  res.json({
+    total: nodes.length,
+    nodes: nodes.slice(0, 1000).map((n) => ({
+      id: n.id, label: n.label, sub: n.sub, type: n.type, entityType: n.entityType,
+      app: n.entityType ? (appForEntityType(n.entityType) ?? null) : null,
+      isMe: n.isMe === true, properties: n.properties ?? {}, photos: n.photos ?? [],
+    })),
+  });
+});
+
+/** Update any node's label + properties (schema-validated for ontology entities;
+ *  free-form for role-less person nodes). */
+app.put("/api/admin/entities/:id", async (req, res) => {
+  auth(req);
+  const id = String(req.params.id);
+  const node = shared.nodes.find((n) => n.id === id);
+  if (!node) return res.status(404).json({ error: "not found" });
+  const label = typeof req.body?.label === "string" ? req.body.label : undefined;
+  const properties = req.body?.properties && typeof req.body.properties === "object" ? (req.body.properties as Record<string, unknown>) : undefined;
+  try {
+    await serialize(async () => {
+      let next;
+      if (node.entityType) {
+        next = updateEntity({ nodes: shared.nodes, links: shared.links, meId: "system", recommendations: [] }, { id, label, properties, now: Date.now() });
+        next = refreshDerived(materializeTags(next, id)); // keep curated tags → concept nodes in sync
+      } else {
+        const nodes = shared.nodes.map((n) => n.id === id
+          ? { ...n, label: label?.trim() || n.label, properties: properties ? { ...(n.properties ?? {}), ...properties } : n.properties }
+          : n);
+        next = refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] });
+      }
+      await commitShared(next);
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Delete any node + its PART_OF children (e.g. menu items) + all touching edges. */
+app.delete("/api/admin/entities/:id", async (req, res) => {
+  auth(req);
+  const id = String(req.params.id);
+  if (!shared.nodes.some((n) => n.id === id)) return res.status(404).json({ error: "not found" });
+  try {
+    await serialize(async () => {
+      const children = new Set(shared.links.filter((l) => l.type === "PART_OF" && endId(l.target) === id).map((l) => endId(l.source)));
+      const dead = new Set([id, ...children]);
+      const nodes = shared.nodes.filter((n) => !dead.has(n.id));
+      const links = shared.links.filter((l) => !dead.has(endId(l.source)) && !dead.has(endId(l.target)));
+      await commitShared({ nodes, links, meId: "system", recommendations: [] });
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/* ----- ontology relations between entities (MEMBER_OF, ADVISES, …) ----- */
+
+const typeMatches = (etype: string | undefined, list: string[]) => list.includes("*") || (!!etype && list.includes(etype));
+
+/** A node's relation edges (typed as an ontology relation id) + what's addable. */
+app.get("/api/admin/entities/:id/relations", (req, res) => {
+  auth(req);
+  const id = String(req.params.id);
+  const node = shared.nodes.find((n) => n.id === id);
+  if (!node) return res.status(404).json({ error: "not found" });
+  const defs = getOntology().relations;
+  const relById = new Map(defs.map((d) => [d.id, d] as const));
+  const byId = new Map(shared.nodes.map((n) => [n.id, n] as const));
+  // ALL edges touching this node (matching what shows in the graph), not just
+  // ontology relations — friendships, reads, trust, tag edges, member_of, …
+  // (RECOMMENDED ghost edges are ephemeral, so skip them.)
+  const relations = shared.links
+    .filter((l) => String(l.type) !== "RECOMMENDED" && (endId(l.source) === id || endId(l.target) === id))
+    .map((l) => {
+      const out = endId(l.source) === id;
+      const other = byId.get(out ? endId(l.target) : endId(l.source));
+      const t = String(l.type);
+      return {
+        edgeId: l.id, relationId: t,
+        label: relById.get(t)?.label ?? t.toLowerCase().replace(/_/g, " "),
+        direction: out ? "out" : "in", otherId: other?.id, otherLabel: other?.label,
+        otherType: other?.entityType ?? other?.type, ontology: relById.has(t),
+      };
+    })
+    .filter((r) => r.otherId)
+    .slice(0, 250);
+  // Offer a relation only when this node EXPLICITLY matches a side, or matches by
+  // wildcard toward a CONCRETE other side — drops pure "*"↔"*" noise (REFERS/NEAR).
+  const available: { relationId: string; label: string; direction: "out" | "in"; otherTypes: string[] }[] = [];
+  const et = node.entityType;
+  for (const d of defs) {
+    const fromExp = !!et && d.from.includes(et), toExp = !!et && d.to.includes(et);
+    const fromWild = d.from.includes("*"), toWild = d.to.includes("*");
+    if (fromExp || (fromWild && !toWild)) available.push({ relationId: d.id, label: d.label, direction: "out", otherTypes: d.to });
+    if (toExp || (toWild && !fromWild)) available.push({ relationId: d.id, label: d.label, direction: "in", otherTypes: d.from });
+  }
+  available.sort((a, b) => (a.otherTypes.includes("*") ? 1 : 0) - (b.otherTypes.includes("*") ? 1 : 0)); // concrete first
+  res.json({ relations, available });
+});
+
+/** Create an ontology relation edge (validated against the relation's from/to). */
+app.post("/api/admin/relations", async (req, res) => {
+  auth(req);
+  const relationId = String(req.body?.relationId ?? "");
+  const source = String(req.body?.source ?? "");
+  const target = String(req.body?.target ?? "");
+  const def = getOntology().relations.find((d) => d.id === relationId);
+  if (!def) return res.status(400).json({ error: "unknown relation" });
+  const s = shared.nodes.find((n) => n.id === source);
+  const t = shared.nodes.find((n) => n.id === target);
+  if (!s || !t) return res.status(404).json({ error: "unknown source/target" });
+  if (s.id === t.id) return res.status(400).json({ error: "cannot relate a node to itself" });
+  if (!typeMatches(s.entityType, def.from) || !typeMatches(t.entityType, def.to)) {
+    return res.status(400).json({ error: `${relationId} must go ${def.from.join("/")} → ${def.to.join("/")}` });
+  }
+  try {
+    await serialize(async () => {
+      const edgeId = `rel_${relationId}_${source}_${target}`;
+      if (shared.links.some((l) => l.id === edgeId)) return; // idempotent
+      const link: GLink = { id: edgeId, source, target, type: relationId as GLink["type"], weight: 1, scope: "global" };
+      await commitShared(refreshDerived({ nodes: shared.nodes, links: [...shared.links, link], meId: "system", recommendations: [] }));
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Remove a relation edge. */
+app.delete("/api/admin/relations/:edgeId", async (req, res) => {
+  auth(req);
+  const edgeId = String(req.params.edgeId);
+  try {
+    await serialize(async () => {
+      await commitShared(refreshDerived({ nodes: shared.nodes, links: shared.links.filter((l) => l.id !== edgeId), meId: "system", recommendations: [] }));
+    });
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json(asError(e));

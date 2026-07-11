@@ -238,7 +238,24 @@ async function seedSummitData() {
     ["sv_mariam", "sv_elena", "potential_customer", "opportunity"],
   ];
   for (const [uid, target, label, stage] of saved) await post("/api/contacts", { targetId: target, label, stage }, { user: uid });
-  console.log(`  ✓ ${workshopIds.length} programme items, attendance + saved contacts`);
+
+  // ontology relations — founders MEMBER_OF startups, mentors ADVISE, investors BACK.
+  // (ids are lowercased by the ontology store: member_of / advises / backs.)
+  const relations = [
+    ["member_of", "sv_ani", "InvoiceAI"], ["member_of", "sv_davit", "MediGraph"],
+    ["member_of", "sv_mariam", "RecoStack"], ["member_of", "sv_gor", "CargoNest"],
+    ["advises", "sv_karen", "InvoiceAI"], ["advises", "sv_hovhannes", "CargoNest"],
+    ["advises", "sv_nina", "MediGraph"],
+    ["backs", "sv_sarah", "InvoiceAI"], ["backs", "sv_raffi", "CargoNest"],
+  ];
+  let rel = 0;
+  for (const [relationId, source, label] of relations) {
+    const target = idByLabel[label];
+    if (!target) continue;
+    try { await post("/api/admin/relations", { relationId, source, target }); rel++; }
+    catch (e) { console.log(`    relation ${relationId} ${source}→${label} skipped: ${e.message.slice(0, 80)}`); }
+  }
+  console.log(`  ✓ ${workshopIds.length} programme items, attendance + saved contacts + ${rel} relations`);
 }
 
 /* =================================================================== */

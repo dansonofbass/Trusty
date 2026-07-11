@@ -293,9 +293,9 @@ export default function GraphCanvas({
         const s = endId(link.source);
         const t = endId(link.target);
         if (highlightNodes.has(s) && highlightNodes.has(t))
-          return EDGE_BASE[link.type].width * 1.5;
+          return (EDGE_BASE[link.type]?.width ?? 0.8) * 1.5;
       }
-      return EDGE_BASE[link.type].width;
+      return EDGE_BASE[link.type]?.width ?? 0.8;
     },
     [highlightLinks, highlightNodes],
   );
