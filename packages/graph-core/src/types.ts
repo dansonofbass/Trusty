@@ -136,6 +136,9 @@ export interface GLink {
    * long_term → trust. Trust is the *final* stage, not the starting signal.
    */
   stage?: string;
+  /** SAVED-contact reason tags (Trusty Sevan) — a contact can have several
+   *  (potential_investor + potential_mentor, …). `label` mirrors `labels[0]`. */
+  labels?: string[];
 }
 
 /**

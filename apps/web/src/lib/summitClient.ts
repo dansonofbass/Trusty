@@ -87,13 +87,15 @@ export const LIFECYCLE_STAGES = [
 export interface ContactItem {
   node: GNode;
   label: string;
+  labels: string[];
   stage: string;
 }
 
 export const getContacts = () => jget<{ nodes: GNode[] }>("/api/contacts").then((r) => r.nodes ?? []);
 export const getContactItems = () => jget<{ items: ContactItem[] }>("/api/contacts").then((r) => r.items ?? []);
-export const saveContact = (targetId: string, label?: string, stage?: string) =>
-  jsend("/api/contacts", "POST", { targetId, label, stage });
+/** Save a contact with one or more reason tags. Accepts a single label or an array. */
+export const saveContact = (targetId: string, labels?: string | string[], stage?: string) =>
+  jsend("/api/contacts", "POST", { targetId, labels: labels == null ? [] : Array.isArray(labels) ? labels : [labels], stage });
 export const removeContact = (id: string) => jsend(`/api/contacts/${encodeURIComponent(id)}`, "DELETE");
 export const setContactStage = (id: string, stage: string) =>
   jsend(`/api/contacts/${encodeURIComponent(id)}/stage`, "POST", { stage });
@@ -211,16 +213,25 @@ export interface SevanFilters {
 export const resolveSevanQuery = (query: string, vocab: Record<string, string[]>) =>
   jsend<{ filters: SevanFilters; via: string }>("/api/sevan/query", "POST", { query, vocab });
 
+/** A light, non-creepy summary of the viewer so the concierge can tailor answers. */
+export interface ViewerContext {
+  role?: string;
+  skills?: string[];
+  sectors?: string[];
+  venture?: string;
+}
+
 /** Stream the concierge answer; calls onToken per chunk. Resolves when done. */
 export async function streamSevanAnswer(
   query: string,
   results: { label: string; entityType?: string; sub?: string; matchPct?: number; reasons?: string[] }[],
   onToken: (t: string) => void,
+  viewer?: ViewerContext,
 ): Promise<void> {
   const r = await fetch("/api/sevan/answer", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ query, results }),
+    body: JSON.stringify({ query, results, viewer }),
   });
   if (!r.ok || !r.body) throw new Error(`answer stream failed (${r.status})`);
   const reader = r.body.getReader();

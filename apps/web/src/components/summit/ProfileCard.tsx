@@ -4,7 +4,7 @@ import { useState } from "react";
 import { entityTypeById, activeRolesOf, type GNode } from "@constellation/graph-core";
 import {
   saveContact, removeContact, requestMeeting, getLocations, getNotesAbout,
-  CONTACT_LABELS, type MeetingNoteRecord, type EventLocation, type CommunityNote,
+  CONTACT_LABELS, SUMMIT_APP, type MeetingNoteRecord, type EventLocation, type CommunityNote,
 } from "@/lib/summitClient";
 import { useEffect } from "react";
 import { createAsk } from "@/lib/asksClient";
@@ -36,15 +36,17 @@ export default function ProfileCard({
   const [isSaved, setIsSaved] = useState(saved);
   const [busy, setBusy] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
   const def = node.entityType ? entityTypeById(node.entityType) : undefined;
   const props = node.properties ?? {};
 
-  /** Save = bookmark with a label (F3). Tapping Save opens the label chips;
-   *  picking one saves + labels in a single step. Saved again → unsave. */
-  const saveWithLabel = async (label: string) => {
+  /** Save = bookmark with one or MORE reason tags (F3). Tap Save to open the
+   *  chips, toggle any that apply, then Save. Saved again → unsave. */
+  const toggleLabel = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const saveWithLabels = async () => {
     setBusy(true);
     try {
-      await saveContact(node.id, label);
+      await saveContact(node.id, picked.length ? picked : ["interesting"]);
       setIsSaved(true);
       setLabelOpen(false);
       onChange?.();
@@ -108,7 +110,7 @@ export default function ProfileCard({
   const requestIntro = async () => {
     if (introSent) return;
     try {
-      await createAsk({ topic: def?.topic ?? "intro", note: `Intro to ${node.label}` });
+      await createAsk({ topic: def?.topic ?? "intro", note: `Intro to ${node.label}` }, SUMMIT_APP);
       setIntroSent(true);
     } catch {
       /* best-effort — needs network reach */
@@ -239,18 +241,36 @@ export default function ProfileCard({
             {isSaved ? <><BookmarkCheck size={16} /> Saved — tap to remove</> : <><Bookmark size={16} /> Save contact</>}
           </button>
           {labelOpen && !isSaved && (
-            <div className="mt-2 flex flex-wrap gap-1.5 rounded-xl border border-line p-2.5">
-              {CONTACT_LABELS.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void saveWithLabel(l.id)}
-                  className="rounded-full border border-line px-2.5 py-1 text-[12px] text-dim hover:border-[#9af0c8]/60 hover:text-ink"
-                >
-                  {l.label}
-                </button>
-              ))}
+            <div className="mt-2 rounded-xl border border-line p-2.5">
+              <p className="mb-2 text-[11px] text-faint">Tag why (pick any that apply):</p>
+              <div className="flex flex-wrap gap-1.5">
+                {CONTACT_LABELS.map((l) => {
+                  const on = picked.includes(l.id);
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => toggleLabel(l.id)}
+                      className="rounded-full border px-2.5 py-1 text-[12px] transition"
+                      style={on
+                        ? { borderColor: "rgba(154,240,200,0.6)", color: "#9af0c8", background: "rgba(154,240,200,0.1)" }
+                        : { borderColor: "var(--color-line)", color: "var(--color-dim)" }}
+                    >
+                      {l.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void saveWithLabels()}
+                className="mt-2.5 w-full rounded-lg py-2 text-[13px] font-semibold text-[#04121a] disabled:opacity-60"
+                style={{ background: "#9af0c8" }}
+              >
+                {picked.length ? `Save with ${picked.length} tag${picked.length > 1 ? "s" : ""}` : "Save"}
+              </button>
             </div>
           )}
         </div>

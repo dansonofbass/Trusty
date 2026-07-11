@@ -40,8 +40,14 @@ async function jsonOrThrow(r: Response) {
   return body;
 }
 
-export async function createAsk(input: { topic: string; geo?: string; note?: string }): Promise<MyAsk> {
-  const r = await fetch("/api/asks", {
+/** Append ?app= so asks stay scoped to the space they were raised in. */
+const appQ = (app?: string) => (app ? `?app=${encodeURIComponent(app)}` : "");
+
+export async function createAsk(
+  input: { topic: string; geo?: string; note?: string },
+  app?: string,
+): Promise<MyAsk> {
+  const r = await fetch(`/api/asks${appQ(app)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -49,21 +55,22 @@ export async function createAsk(input: { topic: string; geo?: string; note?: str
   return (await jsonOrThrow(r)) as MyAsk;
 }
 
-export async function myAsks(): Promise<MyAsk[]> {
-  const r = await fetch("/api/asks/mine", { cache: "no-store" });
+export async function myAsks(app?: string): Promise<MyAsk[]> {
+  const r = await fetch(`/api/asks/mine${appQ(app)}`, { cache: "no-store" });
   return (await jsonOrThrow(r)) as MyAsk[];
 }
 
-export async function askInbox(): Promise<InboxAsk[]> {
-  const r = await fetch("/api/asks/inbox", { cache: "no-store" });
+export async function askInbox(app?: string): Promise<InboxAsk[]> {
+  const r = await fetch(`/api/asks/inbox${appQ(app)}`, { cache: "no-store" });
   return (await jsonOrThrow(r)) as InboxAsk[];
 }
 
 export async function answerAsk(
   id: string,
   input: { label?: string; nodeId?: string; note?: string },
+  app?: string,
 ): Promise<{ ok: boolean; nodeId?: string; reason?: string }> {
-  const r = await fetch(`/api/asks/${encodeURIComponent(id)}/answer`, {
+  const r = await fetch(`/api/asks/${encodeURIComponent(id)}/answer${appQ(app)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),

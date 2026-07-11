@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { entityTypesForApp, hasRole, type GNode } from "@constellation/graph-core";
 import { hydrateOntology } from "@/lib/ontologyClient";
 import {
@@ -8,9 +8,10 @@ import {
   getMeetings, respondMeeting, getProgramme, setAttending, formatSlot,
   getMyNotes, deleteNoteApi, resolveSevanQuery, streamSevanAnswer,
   CONTACT_LABELS, LIFECYCLE_STAGES,
-  SUMMIT_APP, type Meeting, type ContactItem, type ProgrammeItem, type MyNote,
+  SUMMIT_APP, type Meeting, type ContactItem, type ProgrammeItem, type MyNote, type ViewerContext,
 } from "@/lib/summitClient";
-import { myAsks, type MyAsk } from "@/lib/asksClient";
+import { myAsks, askInbox, answerAsk, type MyAsk, type InboxAsk } from "@/lib/asksClient";
+import { createInvite, inviteUrl } from "@/lib/inviteClient";
 import ProfileCard from "./ProfileCard";
 import ProfileEditor from "./ProfileEditor";
 import Home from "./Home";
@@ -19,6 +20,7 @@ import { QRShare, QRScan, QRButtons } from "./QRConnect";
 import {
   Compass, BookOpen, Calendar, Bookmark, User, Loader2, Download, Sparkles,
   Check, X as XIcon, Handshake, Lock, Users as UsersIcon, Globe, Pencil, Trash2, NotebookPen,
+  Search, UserPlus, Copy, ChevronRight, Target, Network, AlertCircle,
 } from "lucide-react";
 
 type Tab = "discover" | "directory" | "schedule" | "contacts" | "me";
@@ -126,7 +128,7 @@ export default function SummitApp() {
         )}
 
         {tab === "discover" && <Home onOpen={setSelected} savedIds={savedIds} />}
-        {tab === "directory" && <Directory onOpen={setSelected} />}
+        {tab === "directory" && <Directory onOpen={setSelected} me={me} />}
         {tab === "schedule" && <Schedule />}
         {tab === "contacts" && <Contacts onOpen={setSelected} version={savedIds.size} />}
         {tab === "me" && (
@@ -195,8 +197,9 @@ export default function SummitApp() {
 
 /* ------------------------------- tabs ------------------------------- */
 
-function Directory({ onOpen }: { onOpen: (t: OpenTarget) => void }) {
+function Directory({ onOpen, me }: { onOpen: (t: OpenTarget) => void; me: GNode | null }) {
   const types = useMemo(() => entityTypesForApp(SUMMIT_APP), []);
+  const viewer = useMemo(() => viewerContext(me), [me]);
   const [type, setType] = useState<string>("");
   const [q, setQ] = useState("");
   const [industry, setIndustry] = useState("");
@@ -232,16 +235,24 @@ function Directory({ onOpen }: { onOpen: (t: OpenTarget) => void }) {
   }, [type, q, industry, tech, country, stage]);
   useEffect(() => { void load(); }, [load]);
 
-  /* Agent search: NL query → AI-built filters → results → streamed answer. */
+  /* Agent search: NL query → AI-built filters → results → streamed answer.
+     The work runs as visible, expandable steps (Cursor/Claude-style trace). */
   const [asking, setAsking] = useState(false);
-  const [answer, setAnswer] = useState<string | null>(null);
+  const [answer, setAnswer] = useState("");
   const [answerDone, setAnswerDone] = useState(true);
+  const [trace, setTrace] = useState<AgentTrace | null>(null);
+  const setStep = (id: StepId, patch: Partial<ThinkStep>) =>
+    setTrace((t) => (t ? { ...t, steps: t.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) } : t));
+
+  const closeConcierge = () => { setTrace(null); setAnswer(""); setAnswerDone(true); };
+
   const ask = async () => {
     const query = q.trim();
     if (query.length < 3 || asking) return;
     setAsking(true);
     setAnswer("");
     setAnswerDone(false);
+    setTrace({ query, steps: freshSteps(), intentChips: [], found: [] });
     try {
       const vocab = {
         types: types.map((t) => t.id),
@@ -251,26 +262,42 @@ function Directory({ onOpen }: { onOpen: (t: OpenTarget) => void }) {
         stage: facetOptions.stage,
         skill: [...new Set(types.flatMap((t) => t.fields.filter((f) => ["skills_offered", "expertise"].includes(f.key)).flatMap((f) => f.options ?? [])))],
       };
+
+      // Step 1 — intent.
       const { filters } = await resolveSevanQuery(query, vocab);
-      // Show the AI's query as live facet chips + load the matching rows.
+      const chips = intentChips(filters, types);
+      setTrace((t) => (t ? { ...t, intentChips: chips } : t));
+      setStep("intent", { status: "done", summary: chips.length ? chips.map((c) => c.v).join(" · ") : "General browse" });
+      // Reflect the AI's read as live facet chips.
       setType(filters.type ?? "");
       setIndustry(filters.industry ?? "");
       setTech(filters.tech ?? "");
       setCountry(filters.country ?? "");
       setStage(filters.stage ?? "");
       setQ("");
+
+      // Step 2 — search.
+      setStep("search", { status: "active" });
       const found = (await getDirectoryFiltered({
         type: filters.type, industry: filters.industry, tech: filters.tech,
         country: filters.country, stage: filters.stage, skill: filters.skill,
       })).nodes;
       setRows(found);
+      setTrace((t) => (t ? { ...t, found } : t));
+      setStep("search", { status: "done", summary: countLabel(found.length, filters.type, types) });
+
+      // Step 3 — read the graph & compose the answer.
+      setStep("answer", { status: "active" });
       await streamSevanAnswer(
         query,
         found.slice(0, 8).map((n) => ({ label: n.label, entityType: n.entityType, sub: n.sub })),
-        (t) => setAnswer((a) => (a ?? "") + t),
+        (t) => setAnswer((a) => a + t),
+        viewer,
       );
+      setStep("answer", { status: "done" });
     } catch (e) {
       setAnswer(e instanceof Error ? `Search assistant unavailable — ${e.message}` : "Search assistant unavailable.");
+      setTrace((t) => (t ? { ...t, steps: t.steps.map((s) => (s.status === "active" || s.status === "pending" ? { ...s, status: "error" as const } : s)) } : t));
     } finally {
       setAnswerDone(true);
       setAsking(false);
@@ -279,31 +306,32 @@ function Directory({ onOpen }: { onOpen: (t: OpenTarget) => void }) {
 
   const facetCls = "min-w-0 flex-1 rounded-lg border border-line bg-space/60 px-2 py-1.5 text-[12px] text-ink outline-none";
 
+  const activeFacets = [type, industry, tech, country, stage].filter(Boolean).length;
+
   return (
     <div className="space-y-3 pt-1">
       <form onSubmit={(e) => { e.preventDefault(); void ask(); }} className="relative">
-        <input value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder={`Ask the directory… "find AI startups at seed"`}
-          className="w-full rounded-xl border border-line bg-space/60 py-2.5 pl-3 pr-16 text-sm text-ink outline-none focus:border-gold/60" />
-        <button type="submit" disabled={asking || q.trim().length < 3}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold disabled:opacity-40"
-          style={{ background: "#ff8c5a", color: "#04121a" }}>
-          {asking ? "…" : "✦ Ask"}
-        </button>
+        <div className={`flex items-center gap-2 rounded-2xl border bg-space/60 px-3 transition-colors ${asking ? "border-[#ff8c5a]/60" : "border-line focus-within:border-[#ff8c5a]/60"}`}>
+          <Sparkles size={16} className={asking ? "text-[#ff8c5a] animate-pulse" : "text-[#ff8c5a]"} />
+          <input value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Ask anything — “AI startups at seed from Armenia”"
+            className="w-full bg-transparent py-2.5 text-sm text-ink outline-none placeholder:text-faint" />
+          {q && !asking && (
+            <button type="button" onClick={() => setQ("")} className="text-faint hover:text-ink"><XIcon size={14} /></button>
+          )}
+          <button type="submit" disabled={asking || q.trim().length < 3}
+            className="shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-bold transition disabled:opacity-40"
+            style={{ background: "#ff8c5a", color: "#04121a" }}>
+            {asking ? <Loader2 size={13} className="animate-spin" /> : "Ask"}
+          </button>
+        </div>
       </form>
 
-      {answer !== null && (
-        <div className="rounded-xl border border-[#ff8c5a]/30 bg-[#ff8c5a]/5 px-3.5 py-3">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ff8c5a]">✦ Concierge</span>
-            <button type="button" onClick={() => setAnswer(null)} className="text-faint hover:text-ink"><XIcon size={12} /></button>
-          </div>
-          <p className="text-[13px] leading-relaxed text-ink">
-            {answer}
-            {!answerDone && <span className="ml-0.5 inline-block h-3.5 w-[7px] animate-pulse bg-[#ff8c5a]" />}
-          </p>
-        </div>
+      {trace && (
+        <ConciergePanel trace={trace} answer={answer} answerDone={answerDone}
+          onClose={closeConcierge} onOpen={(n) => onOpen({ node: n })} />
       )}
+
       <div className="flex flex-wrap gap-1.5">
         <Chip active={type === ""} onClick={() => setType("")}>All</Chip>
         {types.map((t) => <Chip key={t.id} active={type === t.id} onClick={() => setType(t.id)}>{t.label}</Chip>)}
@@ -315,24 +343,267 @@ function Directory({ onOpen }: { onOpen: (t: OpenTarget) => void }) {
         <FacetSelect value={country} onChange={setCountry} placeholder="Country" options={facetOptions.country} cls={facetCls} />
         <FacetSelect value={stage} onChange={setStage} placeholder="Stage" options={facetOptions.stage} cls={facetCls} />
       </div>
+
+      {rows && rows.length > 0 && (
+        <div className="flex items-center justify-between px-0.5 pt-0.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">
+            {rows.length} {rows.length === 1 ? "result" : "results"}
+          </span>
+          {activeFacets > 0 && (
+            <button type="button"
+              onClick={() => { setType(""); setIndustry(""); setTech(""); setCountry(""); setStage(""); }}
+              className="text-[11px] text-dim hover:text-ink">Clear filters</button>
+          )}
+        </div>
+      )}
       {rows === null ? (
-        <div className="flex justify-center py-8 text-dim"><Loader2 className="animate-spin" size={18} /></div>
+        <div className="space-y-2">{[0, 1, 2, 3].map((i) => <SkeletonRow key={i} />)}</div>
       ) : rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-faint">No one here yet.</p>
+        <div className="flex flex-col items-center gap-1.5 py-10 text-center">
+          <Search className="text-faint" size={24} />
+          <p className="text-sm text-dim">No one here yet.</p>
+          <p className="text-xs text-faint">Try a broader question or clear the filters.</p>
+        </div>
       ) : (
-        rows.map((n) => (
-          <button key={n.id} type="button" onClick={() => onOpen({ node: n })}
-            className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface/60 p-3 text-left">
-            <Avatar node={n} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-ink">{n.label}</div>
-              <div className="truncate text-xs text-dim">{n.sub}</div>
-            </div>
-          </button>
-        ))
+        <div className="space-y-2">
+          {rows.map((n, i) => (
+            <button key={n.id} type="button" onClick={() => onOpen({ node: n })}
+              className="trace-in flex w-full items-center gap-3 rounded-xl border border-line bg-surface/60 p-3 text-left transition hover:border-[#ff8c5a]/40 hover:bg-surface"
+              style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}>
+              <Avatar node={n} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-ink">{n.label}</div>
+                <div className="truncate text-xs text-dim">{n.sub}</div>
+              </div>
+              <ChevronRight size={15} className="shrink-0 text-faint" />
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
+}
+
+/* --------------------- concierge agent trace ----------------------- */
+
+type StepId = "intent" | "search" | "answer";
+interface ThinkStep {
+  id: StepId;
+  label: string;
+  status: "pending" | "active" | "done" | "error";
+  summary?: string;
+}
+interface AgentTrace {
+  query: string;
+  steps: ThinkStep[];
+  intentChips: { k: string; v: string }[];
+  found: GNode[];
+}
+
+const freshSteps = (): ThinkStep[] => [
+  { id: "intent", label: "Understanding your question", status: "active" },
+  { id: "search", label: "Searching people & entities", status: "pending" },
+  { id: "answer", label: "Reading the graph & answering", status: "pending" },
+];
+
+/** Turn the AI's parsed filters into readable "intent" chips. */
+function intentChips(
+  filters: { type?: string; industry?: string; tech?: string; country?: string; stage?: string; skill?: string },
+  types: ReturnType<typeof entityTypesForApp>,
+): { k: string; v: string }[] {
+  const out: { k: string; v: string }[] = [];
+  if (filters.type) out.push({ k: "type", v: typeLabel(filters.type, types) });
+  if (filters.industry) out.push({ k: "industry", v: filters.industry });
+  if (filters.tech) out.push({ k: "tech", v: filters.tech });
+  if (filters.country) out.push({ k: "country", v: filters.country });
+  if (filters.stage) out.push({ k: "stage", v: filters.stage });
+  if (filters.skill) out.push({ k: "skill", v: filters.skill });
+  return out.map((c) => ({ ...c, v: c.v.replace(/_/g, " ") }));
+}
+
+const typeLabel = (id: string, types: ReturnType<typeof entityTypesForApp>): string =>
+  types.find((t) => t.id === id)?.label ?? id.replace(/_/g, " ");
+
+function countLabel(n: number, type: string | undefined, types: ReturnType<typeof entityTypesForApp>): string {
+  const noun = type ? typeLabel(type, types).toLowerCase() : "match";
+  const plural = n === 1 ? noun : noun.endsWith("s") ? noun : `${noun}s`;
+  return `${n} ${plural}`;
+}
+
+function ConciergePanel({
+  trace, answer, answerDone, onClose, onOpen,
+}: {
+  trace: AgentTrace;
+  answer: string;
+  answerDone: boolean;
+  onClose: () => void;
+  onOpen: (n: GNode) => void;
+}) {
+  return (
+    <div className="trace-in overflow-hidden rounded-2xl border border-[#ff8c5a]/30 bg-gradient-to-b from-[#ff8c5a]/[0.07] to-transparent">
+      <div className="flex items-center justify-between px-3.5 pt-3">
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#ff8c5a]">
+          <Sparkles size={12} /> Concierge
+        </span>
+        <button type="button" onClick={onClose} className="text-faint hover:text-ink"><XIcon size={13} /></button>
+      </div>
+
+      {/* Step-by-step thinking trace — each row reveals as its work begins */}
+      <div className="mt-2 space-y-0.5 px-2.5">
+        {trace.steps.map((s, i) => (
+          <div key={s.id} className="trace-in" style={{ animationDelay: `${i * 70}ms` }}>
+            <StepRow step={s} trace={trace} onOpen={onOpen} />
+          </div>
+        ))}
+      </div>
+
+      {/* Final concierge answer — streamed, Markdown-rendered */}
+      {(answer || !answerDone) && (
+        <div className="mt-2 border-t border-[#ff8c5a]/15 px-3.5 py-3 text-[13px] leading-relaxed text-ink">
+          <MarkdownLite text={answer} />
+          {!answerDone && <span className="ml-0.5 inline-block h-3.5 w-[7px] animate-pulse bg-[#ff8c5a] align-middle" />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const STEP_ICON: Record<StepId, typeof Target> = { intent: Target, search: Search, answer: Network };
+
+function StepRow({ step, trace, onOpen }: { step: ThinkStep; trace: AgentTrace; onOpen: (n: GNode) => void }) {
+  const [open, setOpen] = useState(false);
+  const Icon = STEP_ICON[step.id];
+  const hasDetail =
+    (step.id === "intent" && trace.intentChips.length > 0) ||
+    (step.id === "search" && trace.found.length > 0);
+  const canToggle = hasDetail && step.status === "done";
+
+  return (
+    <div className="rounded-lg">
+      <button type="button" disabled={!canToggle} onClick={() => setOpen((v) => !v)}
+        className={`flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left ${canToggle ? "hover:bg-[#ff8c5a]/[0.06]" : ""}`}>
+        {/* status glyph */}
+        <span className="grid h-5 w-5 shrink-0 place-items-center">
+          {step.status === "active" ? <Loader2 size={13} className="animate-spin text-[#ff8c5a]" />
+            : step.status === "done" ? <Check size={13} className="text-[#9af0c8]" />
+            : step.status === "error" ? <AlertCircle size={13} className="text-rose-300" />
+            : <span className="h-1.5 w-1.5 rounded-full bg-faint" />}
+        </span>
+        <Icon size={13} className={step.status === "pending" ? "text-faint" : "text-dim"} />
+        <span className={`flex-1 truncate text-[12.5px] ${step.status === "pending" ? "text-faint" : "text-ink"}`}>
+          {step.label}
+          {step.summary && <span className="ml-1.5 text-dim">· {step.summary}</span>}
+        </span>
+        {canToggle && (
+          <ChevronRight size={14} className={`shrink-0 text-faint transition-transform ${open ? "rotate-90" : ""}`} />
+        )}
+      </button>
+
+      {open && step.id === "intent" && (
+        <div className="flex flex-wrap gap-1.5 px-8 pb-2 pt-0.5">
+          {trace.intentChips.map((c) => (
+            <span key={c.k} className="rounded-md border border-[#ff8c5a]/30 bg-[#ff8c5a]/10 px-2 py-0.5 text-[11px] capitalize text-[#ffb98c]">
+              <span className="text-[#ff8c5a]/70">{c.k}:</span> {c.v}
+            </span>
+          ))}
+        </div>
+      )}
+      {open && step.id === "search" && (
+        <div className="space-y-1 px-8 pb-2 pt-0.5">
+          {trace.found.slice(0, 8).map((n, i) => (
+            <button key={n.id} type="button" onClick={() => onOpen(n)}
+              className="trace-in flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-[#ff8c5a]/[0.06]"
+              style={{ animationDelay: `${i * 45}ms` }}>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold"
+                style={{ background: "rgba(255,140,90,0.18)", color: "#ffb98c" }}>
+                {n.label.charAt(0).toUpperCase()}
+              </span>
+              <span className="truncate text-[12px] text-ink">{n.label}</span>
+              {n.entityType && <span className="ml-auto shrink-0 text-[10px] capitalize text-faint">{String(n.entityType).replace(/_/g, " ")}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Shimmer placeholder while results load. */
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-line bg-surface/40 p-3">
+      <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-line/60" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-1/3 animate-pulse rounded bg-line/60" />
+        <div className="h-2.5 w-1/2 animate-pulse rounded bg-line/40" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A light, non-creepy read of the viewer for the concierge — their role,
+ * a few skills, sectors, and their venture (from their own profile only).
+ */
+function viewerContext(me: GNode | null): ViewerContext | undefined {
+  if (!me) return undefined;
+  const p = me.properties ?? {};
+  const arr = (k: string) => (Array.isArray(p[k]) ? (p[k] as unknown[]).map(String) : []);
+  const skills = [...arr("skills_offered"), ...arr("expertise"), ...arr("skills")];
+  const sectors = [...arr("sectors"), ...arr("industries"), ...arr("interests")];
+  const venture = ["company", "startup", "venture", "organization"]
+    .map((k) => (typeof p[k] === "string" ? (p[k] as string) : "")).find(Boolean);
+  const roles = Array.isArray(p.active_roles) ? (p.active_roles as unknown[]).map(String) : [];
+  const role = roles[0] ?? me.entityType ?? undefined;
+  const ctx: ViewerContext = {};
+  if (role) ctx.role = String(role).replace(/_/g, " ");
+  if (skills.length) ctx.skills = [...new Set(skills)].slice(0, 5);
+  if (sectors.length) ctx.sectors = [...new Set(sectors)].slice(0, 3);
+  if (venture) ctx.venture = venture;
+  return Object.keys(ctx).length ? ctx : undefined;
+}
+
+/** Inline Markdown: **bold** and *italic* / _italic_ → real elements (safe, no HTML). */
+function renderInline(text: string, keyBase: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  const re = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_)/g;
+  let last = 0, m: RegExpExecArray | null, i = 0;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const bold = m[2] ?? m[3];
+    if (bold != null) out.push(<strong key={`${keyBase}${i}`} className="font-semibold text-ink">{bold}</strong>);
+    else out.push(<em key={`${keyBase}${i}`}>{m[4] ?? m[5]}</em>);
+    last = m.index + m[0].length;
+    i++;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+/** Minimal Markdown block renderer — paragraphs + `- ` bullet lists. */
+function MarkdownLite({ text }: { text: string }) {
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = () => {
+    if (!bullets.length) return;
+    const items = bullets;
+    const key = `ul${blocks.length}`;
+    blocks.push(
+      <ul key={key} className="my-1 list-disc space-y-0.5 pl-4 marker:text-[#ff8c5a]">
+        {items.map((li, i) => <li key={i}>{renderInline(li, `${key}-${i}-`)}</li>)}
+      </ul>,
+    );
+    bullets = [];
+  };
+  for (const raw of text.split("\n")) {
+    const line = raw.trimEnd();
+    const bul = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bul) { bullets.push(bul[1]); continue; }
+    flush();
+    if (line.trim()) blocks.push(<p key={`p${blocks.length}`} className="mb-1.5 last:mb-0">{renderInline(line, `p${blocks.length}-`)}</p>);
+  }
+  flush();
+  return <>{blocks}</>;
 }
 
 const STAGE_LABEL: Record<string, string> = {
@@ -369,9 +640,9 @@ function Contacts({ onOpen, version }: { onOpen: (t: OpenTarget) => void; versio
     download("sevan-contacts.vcf", "text/vcard", vcf);
   };
 
-  // Grouped by bookmark label (F6) — groups appear in labelled order.
+  // Grouped by bookmark tag (F6) — a contact with several tags appears in each.
   const groups = CONTACT_LABELS
-    .map((l) => ({ ...l, rows: (items ?? []).filter((it) => it.label === l.id) }))
+    .map((l) => ({ ...l, rows: (items ?? []).filter((it) => (it.labels?.length ? it.labels : [it.label]).includes(l.id)) }))
     .filter((g) => g.rows.length > 0);
 
   return (
@@ -446,10 +717,12 @@ function Contacts({ onOpen, version }: { onOpen: (t: OpenTarget) => void; versio
 function Schedule() {
   const [data, setData] = useState<{ incoming: Meeting[]; outgoing: Meeting[] } | null>(null);
   const [intros, setIntros] = useState<MyAsk[]>([]);
+  const [inbox, setInbox] = useState<InboxAsk[]>([]);
   const [programme, setProgramme] = useState<ProgrammeItem[]>([]);
   const load = useCallback(() => {
     getMeetings().then(setData).catch(() => setData({ incoming: [], outgoing: [] }));
-    myAsks().then(setIntros).catch(() => setIntros([]));
+    myAsks(SUMMIT_APP).then(setIntros).catch(() => setIntros([]));
+    askInbox(SUMMIT_APP).then(setInbox).catch(() => setInbox([]));
     getProgramme().then(setProgramme).catch(() => setProgramme([]));
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -472,7 +745,7 @@ function Schedule() {
 
   if (!data) return <div className="flex justify-center py-10 text-dim"><Loader2 className="animate-spin" size={18} /></div>;
   const noMeetings = data.incoming.length === 0 && data.outgoing.length === 0 && intros.length === 0;
-  if (noMeetings && programme.length === 0) {
+  if (noMeetings && programme.length === 0 && inbox.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
         <Calendar className="text-faint" size={26} />
@@ -492,6 +765,18 @@ function Schedule() {
     <div className="space-y-4 pt-1">
       {respondErr && (
         <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{respondErr}</p>
+      )}
+      {inbox.length > 0 && (
+        <section>
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">
+            <Handshake size={13} /> Your network needs help
+          </div>
+          <div className="space-y-2">
+            {inbox.map((a) => (
+              <AskInboxCard key={a.id} ask={a} onDone={load} />
+            ))}
+          </div>
+        </section>
       )}
       {programme.length > 0 && (
         <section>
@@ -590,6 +875,142 @@ function Schedule() {
             ))}
           </div>
         </section>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One answerable ask from your network. Respond by recommending ANY entity
+ * (person, startup, mentor…) you search the directory for, or — if the right
+ * person isn't here yet — mint an invite link to bring them in.
+ */
+function AskInboxCard({ ask, onDone }: { ask: InboxAsk; onDone: () => void }) {
+  const [mode, setMode] = useState<"idle" | "recommend" | "invite">("idle");
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<GNode[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [doneMsg, setDoneMsg] = useState<string | null>(null);
+  const [invite, setInvite] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Debounced directory search across every entity type in the summit space.
+  useEffect(() => {
+    if (mode !== "recommend") return;
+    const term = q.trim();
+    if (term.length < 2) { setResults([]); return; }
+    let alive = true;
+    setSearching(true);
+    const t = setTimeout(() => {
+      getDirectoryFiltered({ q: term })
+        .then((r) => { if (alive) setResults(r.nodes.slice(0, 8)); })
+        .catch(() => { if (alive) setResults([]); })
+        .finally(() => { if (alive) setSearching(false); });
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [q, mode]);
+
+  const recommend = async (node: GNode) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await answerAsk(ask.id, { nodeId: node.id }, SUMMIT_APP);
+      if (r.ok) {
+        setDoneMsg(`Recommended ${node.label} to ${ask.askerName}`);
+        setTimeout(onDone, 1200);
+      } else {
+        setDoneMsg(r.reason === "self" ? "That's your own ask." : "This ask is no longer open.");
+      }
+    } catch {
+      setDoneMsg("Couldn't send that recommendation.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doInvite = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { code } = await createInvite(`Intro for ${ask.askerName}${ask.note ? ` — ${ask.note}` : ""}`);
+      setInvite(inviteUrl(code));
+    } catch {
+      setDoneMsg("Couldn't create an invite link.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyInvite = async () => {
+    if (!invite) return;
+    try { await navigator.clipboard.writeText(invite); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* noop */ }
+  };
+
+  return (
+    <div className="rounded-xl border border-line bg-surface/60 p-3">
+      <div className="text-sm text-ink">
+        <span className="font-semibold">{ask.askerName}</span>{" "}
+        <span className="text-dim">{ask.note || `is looking for help with ${ask.topic}`}</span>
+      </div>
+      {doneMsg ? (
+        <div className="mt-2 text-xs font-medium text-[#9af0c8]">{doneMsg}</div>
+      ) : invite ? (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-xs text-dim">Share this link to bring them to Sevan:</p>
+          <div className="flex items-center gap-1.5">
+            <input readOnly value={invite}
+              className="min-w-0 flex-1 truncate rounded-lg border border-line bg-space/60 px-2 py-1.5 text-[11px] text-dim" />
+            <button type="button" onClick={copyInvite}
+              className="flex shrink-0 items-center gap-1 rounded-lg bg-[#9af0c8] px-2.5 py-1.5 text-xs font-semibold text-[#04121a]">
+              <Copy size={12} /> {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      ) : mode === "idle" ? (
+        <div className="mt-2 flex gap-2">
+          <button type="button" onClick={() => setMode("recommend")}
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-[#ff8c5a] py-1.5 text-xs font-semibold text-[#04121a]">
+            <Handshake size={13} /> Recommend someone
+          </button>
+          <button type="button" onClick={() => { setMode("invite"); void doInvite(); }} disabled={busy}
+            className="flex items-center justify-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs text-dim">
+            <UserPlus size={13} /> Invite
+          </button>
+        </div>
+      ) : (
+        <div className="mt-2 space-y-2">
+          <div className="flex items-center gap-1.5 rounded-lg border border-line bg-space/60 px-2">
+            <Search size={13} className="text-faint" />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="Search people & entities…"
+              className="w-full bg-transparent py-1.5 text-sm text-ink outline-none placeholder:text-faint" />
+            <button type="button" onClick={() => { setMode("idle"); setQ(""); }}
+              className="text-faint hover:text-ink"><XIcon size={13} /></button>
+          </div>
+          {searching ? (
+            <div className="flex justify-center py-2 text-dim"><Loader2 className="animate-spin" size={14} /></div>
+          ) : results.length > 0 ? (
+            <div className="space-y-1">
+              {results.map((n) => (
+                <button key={n.id} type="button" disabled={busy} onClick={() => void recommend(n)}
+                  className="flex w-full items-center gap-2 rounded-lg border border-line/60 bg-space/40 px-2 py-1.5 text-left hover:border-[#ff8c5a]/50">
+                  <Avatar node={n} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-ink">{n.label}</div>
+                    <div className="truncate text-[11px] text-faint">
+                      {String(n.entityType ?? n.type ?? "").replace(/_/g, " ")}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : q.trim().length >= 2 ? (
+            <p className="py-1.5 text-center text-[11px] text-faint">
+              No match — <button type="button" className="text-[#9af0c8] underline" onClick={() => { setMode("invite"); void doInvite(); }}>invite them instead</button>.
+            </p>
+          ) : null}
+        </div>
       )}
     </div>
   );
@@ -706,7 +1127,7 @@ function FacetSelect({ value, onChange, placeholder, options, cls }: {
   );
 }
 
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button type="button" onClick={onClick} className="rounded-full border px-3 py-1 text-[12px]"
       style={active ? { borderColor: "rgba(255,140,90,0.6)", background: "rgba(255,140,90,0.12)", color: "var(--color-ink)" } : { borderColor: "var(--color-line)", color: "var(--color-dim)" }}>

@@ -35,6 +35,9 @@ export async function initAsks(): Promise<void> {
       status      TEXT NOT NULL DEFAULT 'open',   -- open | answered | closed
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  // App scope (App = Space = URL) — an ask stays in the app it was raised in.
+  // Existing rows keep NULL and are treated as the "general" app via COALESCE.
+  await p.query(`ALTER TABLE asks ADD COLUMN IF NOT EXISTS app TEXT`);
   await p.query(`CREATE INDEX IF NOT EXISTS asks_asker_idx ON asks(asker_id, created_at DESC)`);
   await p.query(`CREATE INDEX IF NOT EXISTS asks_open_idx ON asks(status, created_at DESC)`);
   await p.query(`
@@ -62,9 +65,13 @@ export interface Ask {
   topic: string;
   geo?: string;
   note?: string;
+  app: string;
   status: string;
   createdAt: string;
 }
+
+/** Rows created before app scoping have NULL app → treated as the general app. */
+const GENERAL_APP = "general";
 
 function rowToAsk(row: Record<string, unknown>): Ask {
   return {
@@ -73,6 +80,7 @@ function rowToAsk(row: Record<string, unknown>): Ask {
     topic: row.topic as string,
     geo: (row.geo as string) ?? undefined,
     note: (row.note as string) ?? undefined,
+    app: (row.app as string) ?? GENERAL_APP,
     status: row.status as string,
     createdAt: String(row.created_at),
   };
@@ -80,13 +88,13 @@ function rowToAsk(row: Record<string, unknown>): Ask {
 
 export async function createAsk(
   askerId: string,
-  input: { topic: string; geo?: string; note?: string },
+  input: { topic: string; geo?: string; note?: string; app?: string },
 ): Promise<Ask> {
   if (!pool) throw new Error("asks disabled");
   const r = await pool.query(
-    `INSERT INTO asks (asker_id, topic, geo, note) VALUES ($1, $2, $3, $4)
-     RETURNING id, asker_id, topic, geo, note, status, created_at`,
-    [askerId, input.topic, input.geo ?? null, input.note ?? null],
+    `INSERT INTO asks (asker_id, topic, geo, note, app) VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, asker_id, topic, geo, note, app, status, created_at`,
+    [askerId, input.topic, input.geo ?? null, input.note ?? null, input.app ?? GENERAL_APP],
   );
   return rowToAsk(r.rows[0]);
 }
@@ -112,30 +120,40 @@ export interface AskAnswer {
  * friends that the viewer hasn't already answered. `friendIds` is computed by
  * the caller from the social graph.
  */
-export async function asksInbox(responderId: string, friendIds: string[]): Promise<Ask[]> {
+export async function asksInbox(
+  responderId: string,
+  friendIds: string[],
+  app?: string,
+): Promise<Ask[]> {
   if (!pool || friendIds.length === 0) return [];
   const r = await pool.query(
     `SELECT a.* FROM asks a
       WHERE a.status <> 'closed'
         AND a.asker_id = ANY($1)
         AND a.asker_id <> $2
+        AND ($3::text IS NULL OR COALESCE(a.app, '${GENERAL_APP}') = $3)
         AND NOT EXISTS (
           SELECT 1 FROM ask_answers ans
            WHERE ans.ask_id = a.id AND ans.responder_id = $2
         )
       ORDER BY a.created_at DESC
       LIMIT 50`,
-    [friendIds, responderId],
+    [friendIds, responderId, app ?? null],
   );
   return r.rows.map(rowToAsk);
 }
 
 /** The viewer's own asks, newest first, each with its answers. */
-export async function myAsks(askerId: string): Promise<Array<Ask & { answers: AskAnswer[] }>> {
+export async function myAsks(
+  askerId: string,
+  app?: string,
+): Promise<Array<Ask & { answers: AskAnswer[] }>> {
   if (!pool) return [];
   const a = await pool.query(
-    `SELECT * FROM asks WHERE asker_id = $1 ORDER BY created_at DESC LIMIT 50`,
-    [askerId],
+    `SELECT * FROM asks WHERE asker_id = $1
+       AND ($2::text IS NULL OR COALESCE(app, '${GENERAL_APP}') = $2)
+     ORDER BY created_at DESC LIMIT 50`,
+    [askerId, app ?? null],
   );
   const asks = a.rows.map(rowToAsk);
   if (asks.length === 0) return [];

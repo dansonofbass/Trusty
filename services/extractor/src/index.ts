@@ -862,15 +862,26 @@ app.post("/sevan-answer/stream", async (req, res) => {
     )
     .join("\n");
 
+  // The attendee's own profile — lets the concierge tailor relevance to who
+  // they are (role, skills, sectors, their venture) without over-personalizing.
+  const v = (req.body?.viewer ?? {}) as Record<string, unknown>;
+  const viewerBits = [
+    v.role && `a ${String(v.role).replace(/_/g, " ")}`,
+    Array.isArray(v.sectors) && v.sectors.length && `in ${(v.sectors as string[]).slice(0, 2).join("/")}`,
+    Array.isArray(v.skills) && v.skills.length && `skilled in ${(v.skills as string[]).slice(0, 3).join(", ")}`,
+    v.venture && `building ${v.venture}`,
+  ].filter(Boolean);
+  const viewerLine = viewerBits.length ? `The attendee is ${viewerBits.join(", ")}.` : "";
+
   const fallback = async () => {
     // Deterministic concierge template, streamed in phrases for the agent feel.
-    const top = results.slice(0, 3).map((r: Record<string, unknown>) => r.label).join(", ");
+    const top = results.slice(0, 3).map((r: Record<string, unknown>) => `**${r.label}**`).join(", ");
     const text =
       results.length === 0
         ? `I looked for “${query}” but nobody matches yet — try widening the filters, or ask your network for an intro.`
         : `Looking at “${query}” — I found ${results.length} match${results.length > 1 ? "es" : ""}. ` +
           `Top picks: ${top}. ` +
-          (results[0]?.reasons ? `${results[0].label} stands out: ${(results[0].reasons as string[]).join(", ")}. ` : "") +
+          (results[0]?.reasons ? `**${results[0].label}** stands out: ${(results[0].reasons as string[]).join(", ")}. ` : "") +
           `Open a card to save them or request a meeting.`;
     for (const chunk of text.match(/[^ ]+ ?/g) ?? []) {
       send({ type: "token", content: chunk });
@@ -884,8 +895,8 @@ app.post("/sevan-answer/stream", async (req, res) => {
     if (variant.provider === "heuristic" || (!useGateway && !anthropic) || results.length === 0) {
       await fallback();
     } else {
-      const system = `You are the Trusty Sevan event concierge. An attendee searched the event directory. In AT MOST 70 words, conversationally point them to the best matches BY NAME and why (use the provided match reasons). No lists, no markdown — one warm, useful paragraph. End with a next step (save / request a meeting).`;
-      const user = `Search: "${query}"\nResults:\n${compact}`;
+      const system = `You are the Trusty Sevan event concierge helping an attendee navigate the event directory. In AT MOST 80 words, conversationally point them to the best matches BY NAME and why (use the provided match reasons). ${viewerLine ? "Lightly tailor relevance to who the attendee is when it genuinely helps (e.g. a shared sector or a skill they need) — a light touch, at most one clause; never flatter or over-personalize. " : ""}You MAY use light Markdown: **bold** for names and a short bullet list (\`- \`) when several matches deserve equal billing. Keep it warm and useful, and end with a concrete next step (save a profile / request a meeting / ask for an intro).`;
+      const user = `${viewerLine ? viewerLine + "\n" : ""}Search: "${query}"\nResults:\n${compact}`;
       if (useGateway) {
         await gatewayChat({
           model: variant.model,

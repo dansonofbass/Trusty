@@ -96,6 +96,7 @@ function linkProps(l: GLink) {
     supporters: l.supporters?.length ? JSON.stringify(l.supporters) : null,
     trust: l.trust ? JSON.stringify(l.trust) : null,
     stage: l.stage ?? null,
+    labels: l.labels?.length ? l.labels : [],
   };
 }
 
@@ -166,6 +167,7 @@ function parseLink(p: Record<string, unknown>, source: string, target: string): 
     supporters,
     trust: parseTrust(p.trust),
     stage: typeof p.stage === "string" ? p.stage : undefined,
+    labels: Array.isArray(p.labels) && p.labels.length ? (p.labels as string[]) : undefined,
   };
 }
 
@@ -302,7 +304,7 @@ export class Neo4jStore implements GraphStore {
            MERGE (a)-[r:REL {id: l.id}]->(b)
            SET r.type = l.type, r.weight = l.weight, r.label = l.label,
                r.scope = l.scope, r.userId = l.userId, r.supporters = l.supporters,
-               r.trust = l.trust, r.stage = l.stage`,
+               r.trust = l.trust, r.stage = l.stage, r.labels = l.labels`,
           { links },
         );
         await tx.run("MATCH ()-[r:REL]->() WHERE NOT r.id IN $linkIds DELETE r", { linkIds });

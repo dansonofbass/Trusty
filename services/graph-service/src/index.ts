@@ -1178,7 +1178,11 @@ app.post("/api/contacts", async (req, res) => {
   const { userId, meta } = auth(req);
   const body = req.body ?? {};
   const targetId = String(body.targetId ?? "");
-  const label = CONTACT_LABELS.has(String(body.label ?? "")) ? String(body.label) : "interesting";
+  // A contact can carry SEVERAL reason tags (potential_investor + potential_mentor…).
+  const raw = Array.isArray(body.labels) ? body.labels.map(String) : body.label != null ? [String(body.label)] : [];
+  const labels = [...new Set(raw.filter((l) => CONTACT_LABELS.has(l)))];
+  if (!labels.length) labels.push("interesting");
+  const label = labels[0]; // primary (back-compat with anything reading a single label)
   const stage = (LIFECYCLE_STAGES as readonly string[]).includes(String(body.stage ?? "")) ? String(body.stage) : "interested";
   if (!targetId || targetId === userId) return res.status(400).json({ error: "bad target" });
   try {
@@ -1188,10 +1192,10 @@ app.post("/api/contacts", async (req, res) => {
       const edgeId = `saved_${userId}_${targetId}`;
       const existing = ws.links.find((l) => l.id === edgeId);
       const links = existing
-        ? ws.links.map((l) => (l.id === edgeId ? { ...l, label, stage: l.stage && l.stage !== "interested" ? l.stage : stage } : l))
+        ? ws.links.map((l) => (l.id === edgeId ? { ...l, label, labels, stage: l.stage && l.stage !== "interested" ? l.stage : stage } : l))
         : [
             ...ws.links,
-            { id: edgeId, source: userId, target: targetId, type: "SAVED" as const, scope: "user" as const, userId, weight: 1, label, stage },
+            { id: edgeId, source: userId, target: targetId, type: "SAVED" as const, scope: "user" as const, userId, weight: 1, label, labels, stage },
           ];
       return commitGraph(userId, refreshDerived({ ...ws, links }));
     });
@@ -1263,6 +1267,7 @@ app.get("/api/contacts", (req, res) => {
     .map((l) => ({
       node: byId.get(endId(l.target)),
       label: l.label ?? "interesting",
+      labels: l.labels?.length ? l.labels : l.label ? [l.label] : ["interesting"],
       stage: l.stage ?? "interested",
     }))
     .filter((x) => x.node);
@@ -2644,15 +2649,24 @@ app.post("/api/outcomes/resolve", async (req, res) => {
  * answer creates the TRUSTS edge that makes the asker's search succeed. */
 
 /** People the user is friends with (FRIENDS_WITH neighbors, either direction). */
-function friendIdsOf(userId: string): string[] {
+/**
+ * The people who count as "your network" for asks. Broader than friendship:
+ * at an event you connect via SAVED / MET_AT / TRUSTS, not FRIENDS_WITH — so an
+ * intro ask must reach everyone you've actually engaged with, in either
+ * direction. Persons only (an ask is answered by a person).
+ */
+const NETWORK_EDGE_TYPES = new Set(["FRIENDS_WITH", "SAVED", "MET_AT", "TRUSTS"]);
+function networkIdsOf(userId: string): string[] {
+  const persons = new Set(shared.nodes.filter((n) => n.type === "person").map((n) => n.id));
   const s = new Set<string>();
   for (const l of shared.links) {
-    if (l.type !== "FRIENDS_WITH") continue;
+    if (!NETWORK_EDGE_TYPES.has(String(l.type))) continue;
     const a = typeof l.source === "string" ? l.source : l.source.id;
     const b = typeof l.target === "string" ? l.target : l.target.id;
-    if (a === userId) s.add(b);
-    if (b === userId) s.add(a);
+    if (a === userId && persons.has(b)) s.add(b);
+    if (b === userId && persons.has(a)) s.add(a);
   }
+  s.delete(userId);
   return [...s];
 }
 
@@ -2673,6 +2687,7 @@ app.post("/api/asks", async (req, res) => {
         topic: String(topic),
         geo: geo ? String(geo) : undefined,
         note: note ? String(note).slice(0, 200) : undefined,
+        app: appOf(req),
       }),
     );
   } catch (e) {
@@ -2684,7 +2699,7 @@ app.post("/api/asks", async (req, res) => {
 app.get("/api/asks/mine", async (req, res) => {
   const { userId } = auth(req);
   try {
-    const asks = await myAsks(userId);
+    const asks = await myAsks(userId, appOf(req));
     const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
     res.json(
       asks.map((a) => ({
@@ -2705,7 +2720,7 @@ app.get("/api/asks/mine", async (req, res) => {
 app.get("/api/asks/inbox", async (req, res) => {
   const { userId } = auth(req);
   try {
-    const asks = await asksInbox(userId, friendIdsOf(userId));
+    const asks = await asksInbox(userId, networkIdsOf(userId), appOf(req));
     const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
     res.json(asks.map((a) => ({ ...a, askerName: labelOf.get(a.askerId) ?? "A friend" })));
   } catch (e) {
@@ -2724,11 +2739,25 @@ app.post("/api/asks/:id/answer", async (req, res) => {
     if (ask.askerId === userId) return res.json({ ok: false, reason: "self" });
     const topic = ask.topic;
     const geo = ask.geo;
+    // In an event/space (non-general app) an answer is a *recommendation* — you
+    // point at any existing entity (person, startup, …) or invite a newcomer.
+    // No topic trust edge is minted; the recommendation surfaces via the answer
+    // record on the asker's panel. The general app keeps its "vouch = trust edge"
+    // model where naming a provider grows your trust graph.
+    const isRecommendation = (ask.app ?? BUILTIN_APP) !== BUILTIN_APP;
 
     const result = await serialize(async () => {
       let next = workingSet(userId, meta);
       let providerId =
         nodeId && shared.nodes.some((n) => n.id === String(nodeId)) ? String(nodeId) : undefined;
+
+      if (isRecommendation) {
+        // Recommend any existing entity; creating one isn't allowed here (use invite).
+        if (!providerId) throw new Error("pick an entity to recommend");
+        await commitGraph(userId, next);
+        return { providerId, edgeId: undefined as string | undefined };
+      }
+
       if (!providerId) {
         const name = String(label ?? "").trim();
         if (!name) throw new Error("provider name required");
