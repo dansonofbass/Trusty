@@ -131,6 +131,16 @@ export {
   type RankingConfig,
 } from "./ranking";
 export {
+  createRecommendation,
+  attachOutcome,
+  outcomesForRecommendation,
+  recommendationsForTarget,
+  recommendationConsensus,
+  type RecommendationInput,
+  type OutcomeInput,
+  type RecommendationProps,
+} from "./recommendations";
+export {
   DOMAIN_LABEL,
   ENTITY_TYPES,
   RELATION_TYPES,

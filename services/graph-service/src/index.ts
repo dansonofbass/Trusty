@@ -27,6 +27,11 @@ import {
   computeTrustRecommendations,
   rankCandidates,
   RANKING_CONFIG,
+  createRecommendation,
+  attachOutcome,
+  outcomesForRecommendation,
+  recommendationsForTarget,
+  recommendationConsensus,
   haversineKm,
   createEntity,
   updateEntity,
@@ -2040,6 +2045,128 @@ app.post("/api/trust-search", async (req, res) => {
     source: "trust-search",
   });
   res.json({ query, recommendations: ordered });
+});
+
+/* --------------- first-class recommendation entities (Doc #9/#11) --------------- */
+/* Recommendations are immutable graph nodes carrying who/what/why/context/for-whom;
+ * Outcomes are independent nodes that accrue as evidence via SUPPORTED_BY. Persisted
+ * through the generic :Entity/:REL store — no schema change. */
+
+let recSeq = 0;
+const newEntityId = (prefix: string): string =>
+  `${prefix}_${Date.now().toString(36)}${(recSeq++ % 46656).toString(36)}`;
+
+/** Publish an immutable recommendation. Author = the viewer. */
+app.post("/api/recs", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const b = req.body ?? {};
+  const targetId = str(b.targetId, 200);
+  const topic = str(b.topic, 60)?.toLowerCase();
+  if (!targetId || !topic) return res.status(400).json({ error: "targetId and topic required" });
+  if (!shared.nodes.some((n) => n.id === targetId))
+    return res.status(404).json({ error: "target not found" });
+  try {
+    const id = newEntityId("rec");
+    const reasons = Array.isArray(b.reasons)
+      ? (b.reasons as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 10)
+      : [];
+    await serialize(() =>
+      commitGraph(
+        userId,
+        createRecommendation(workingSet(userId, meta), {
+          id,
+          authorId: userId,
+          targetId,
+          topic,
+          context: str(b.context, 120),
+          audience: str(b.audience, 120),
+          reasons,
+          note: str(b.note, 500),
+          createdAt: Date.now(),
+        }),
+      ),
+    );
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Attach an outcome to a recommendation (evidence accumulation, never a rewrite). */
+app.post("/api/recs/:id/outcomes", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const recId = String(req.params.id);
+  const b = req.body ?? {};
+  const value = Math.max(-1, Math.min(1, Number(b.value)));
+  if (!Number.isFinite(Number(b.value))) return res.status(400).json({ error: "value in [-1,1] required" });
+  const rec = shared.nodes.find((n) => n.id === recId && n.type === "recommendation");
+  if (!rec) return res.status(404).json({ error: "recommendation not found" });
+  try {
+    const id = newEntityId("oc");
+    await serialize(() =>
+      commitGraph(
+        userId,
+        attachOutcome(workingSet(userId, meta), recId, {
+          id,
+          contributorId: userId,
+          value,
+          kind: str(b.kind, 40),
+          detail: str(b.detail, 300),
+          at: Date.now(),
+        }),
+      ),
+    );
+    // Also feed the append-only outcome log so DERIVED reputation reflects it.
+    const props = rec.properties as { targetId?: string; topic?: string } | undefined;
+    void recordOutcome({
+      edgeId: recId,
+      fromId: userId,
+      toId: props?.targetId,
+      userId,
+      recNodeId: recId,
+      kind: value >= 0 ? "positive" : "negative",
+      value,
+      scope: props?.topic ? { topic: props.topic } : undefined,
+    });
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** All recommendations pointing at a specialist/provider, with consensus. */
+app.get("/api/recs", (req, res) => {
+  const { userId } = auth(req);
+  const target = String(req.query.target ?? "");
+  if (!target) return res.status(400).json({ error: "target query param required" });
+  const ds: Dataset = { nodes: shared.nodes, links: shared.links, meId: userId, recommendations: [] };
+  const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+  const recs = recommendationsForTarget(ds, target).map((n) => {
+    const p = (n.properties ?? {}) as Record<string, unknown>;
+    return {
+      id: n.id,
+      author: { id: p.authorId, name: labelOf.get(String(p.authorId)) },
+      topic: p.topic,
+      context: p.context,
+      audience: p.audience,
+      reasons: p.reasons,
+      note: p.note,
+      createdAt: p.createdAt,
+      consensus: recommendationConsensus(ds, n.id),
+    };
+  });
+  res.json({ target, recommendations: recs });
+});
+
+/** A single recommendation with its accumulated outcome evidence. */
+app.get("/api/recs/:id", (req, res) => {
+  const { userId } = auth(req);
+  const recId = String(req.params.id);
+  const rec = shared.nodes.find((n) => n.id === recId && n.type === "recommendation");
+  if (!rec) return res.status(404).json({ error: "recommendation not found" });
+  const ds: Dataset = { nodes: shared.nodes, links: shared.links, meId: userId, recommendations: [] };
+  const outcomes = outcomesForRecommendation(ds, recId).map((o) => o.properties);
+  res.json({ id: recId, properties: rec.properties, outcomes, consensus: recommendationConsensus(ds, recId) });
 });
 
 /* ------------------------------ invites ---------------------------- */

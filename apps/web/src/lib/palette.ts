@@ -18,6 +18,8 @@ export const NODE_COLOR: Record<NodeType, string> = {
   thought: "#ffd97a", // gold — your own writing, kin to the frontier
   concept: "#9af0c8", // mint — extracted ideas
   menu_item: "#ffb347", // warm amber — a dish, kin to its place's gold
+  recommendation: "#ff8c5a", // coral — kin to the trust graph (evidence)
+  outcome: "#54d26e", // green — verified evidence
 };
 
 export const GOLD = "#ffd97a";
@@ -38,6 +40,8 @@ export const NODE_GLYPH: Record<NodeType, string> = {
   thought: "✎",
   concept: "◆",
   menu_item: "🍴",
+  recommendation: "✦",
+  outcome: "✓",
 };
 
 export const EDGE_BASE: Record<EdgeType, { color: string; width: number }> = {
@@ -58,6 +62,9 @@ export const EDGE_BASE: Record<EdgeType, { color: string; width: number }> = {
   PART_OF: { color: "rgba(255,179,71,0.35)", width: 0.9 },
   TRUSTS: { color: "rgba(255,140,90,0.65)", width: 1.6 },
   INVITED: { color: "rgba(124,150,255,0.30)", width: 0.9 },
+  AUTHORED: { color: "rgba(255,140,90,0.45)", width: 1.0 },
+  TARGETS: { color: "rgba(255,140,90,0.55)", width: 1.2 },
+  SUPPORTED_BY: { color: "rgba(84,210,110,0.50)", width: 1.0 },
   MEMBER_OF: { color: "rgba(124,150,255,0.45)", width: 1.2 },
   SAVED: { color: "rgba(154,240,200,0.45)", width: 1.0 },
   // Event relationship graph (Trusty Sevan) — concept/attribute links stay quiet
