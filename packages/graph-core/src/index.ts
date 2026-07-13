@@ -13,7 +13,7 @@ export {
   type BlendWeights,
   type RecommendOptions,
 } from "./recommend";
-export { inferEdgeType, addEdge, removeEdge, addMutualFriendship, createPost, acceptRecommendation, dismissRecommendation } from "./mutations";
+export { inferEdgeType, addEdge, removeEdge, addMutualFriendship, addInviteEdge, createPost, acceptRecommendation, dismissRecommendation } from "./mutations";
 export {
   EXTRACTION_SYSTEM_PROMPT,
   ingestThought,
@@ -113,6 +113,23 @@ export {
   computeTrustRecommendations,
   type TrustQuery,
 } from "./trust";
+export {
+  aggregateReputation,
+  REPUTATION_DEFAULTS,
+  type ReputationSample,
+  type ReputationScore,
+  type ReputationOptions,
+} from "./reputation";
+export {
+  rankCandidates,
+  explainRanking,
+  RANKING_CONFIG,
+  FORBIDDEN_SIGNALS,
+  type RankingCandidate,
+  type RankingFactor,
+  type RankingResult,
+  type RankingConfig,
+} from "./ranking";
 export {
   DOMAIN_LABEL,
   ENTITY_TYPES,

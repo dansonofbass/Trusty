@@ -38,6 +38,7 @@ export type EdgeType =
   | "REFLECTS_ON" // person → thought (you authored / are thinking through it)
   | "PART_OF" // menu_item → restaurant | cafe (a dish belongs to a place's menu)
   | "TRUSTS" // person → person | provider, directed + topic-scoped (Trust Graph)
+  | "INVITED" // person → person, directed "registration origin" — NOT trust, NOT friendship
   | "MEMBER_OF" // person → org/startup (a founder/member belongs to a team)
   | "SAVED" // person → person, one-directional "saved this contact for follow-up"
   // Event relationship graph (Trusty Sevan) — relationships, not trust:

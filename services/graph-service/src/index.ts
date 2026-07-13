@@ -17,7 +17,7 @@ import cors from "cors";
 import {
   acceptRecommendation,
   addEdge,
-  addMutualFriendship,
+  addInviteEdge,
   addTrustEdge,
   addUserEntityLink,
   applyOutcomeToEdge,
@@ -25,6 +25,8 @@ import {
   buyTokens,
   computeCommunities,
   computeTrustRecommendations,
+  rankCandidates,
+  RANKING_CONFIG,
   haversineKm,
   createEntity,
   updateEntity,
@@ -83,20 +85,52 @@ import {
   writingsEnabled,
 } from "./writings";
 import { initTrustLog, outcomeStats, recordOutcome, trustLogEnabled } from "./trustLog";
+import { initReputation, reputationEnabled, reputationIndex } from "./reputation";
+import {
+  initRelationshipStrength,
+  relationshipStrengthEnabled,
+  strengthMap,
+} from "./relationshipStrength";
 import { initSavedPlaces, isSaved, listSaved, savePlace, savedPlacesEnabled, unsavePlace } from "./savedPlaces";
 import {
   initPlaceSuggestions, placeSuggestionsEnabled, createSuggestion, listSuggestions, getSuggestion, setSuggestionStatus,
 } from "./placeSuggestions";
 import {
+  consumeInvite,
   createInvite,
   getInvite,
   initInvites,
   inviteStats,
   invitesEnabled,
   listInvitesFor,
-  recordAccepted,
   recordVisit,
+  INVITE_DEFAULT_MAX_USES,
 } from "./invites";
+import {
+  accessEnabled,
+  bindInvite,
+  bindWaitlist,
+  ensureAccess,
+  getAccess,
+  initAccess,
+  setStatus,
+} from "./access";
+import {
+  getWaitlistByUser,
+  incrementReferral,
+  initWaitlist,
+  joinWaitlist,
+  waitlistEnabled,
+  WAITLIST_UNLOCK_THRESHOLD,
+} from "./waitlist";
+import {
+  completeOnboarding,
+  getOnboarding,
+  initOnboarding,
+  onboardingEnabled,
+  saveStep,
+  type OnboardingStep,
+} from "./onboarding";
 import {
   createPrompt,
   initOutcomePrompts,
@@ -363,6 +397,8 @@ async function ensureUser(
         await store.persistGraph(shared);
       });
     }
+    // Established user — grandfather them past the invite-only gate.
+    await ensureAccess(userId, "active");
     return cached;
   }
 
@@ -370,8 +406,14 @@ async function ensureUser(
     // re-check inside the write lock (another request may have created it)
     const again = userMeta.get(userId);
     const nodeExists = shared.nodes.some((n) => n.id === userId);
-    if (again && nodeExists) return again;
+    if (again && nodeExists) {
+      await ensureAccess(userId, "active");
+      return again;
+    }
 
+    // A user we've never materialized is brand-new → invite-only gate applies
+    // (default `waitlisted`); a pre-existing node is an established user.
+    const brandNew = !nodeExists;
     if (!nodeExists) {
       const { node, links } = newUserRoot(shared, userId, profile);
       shared = { nodes: [...shared.nodes, node], links: [...shared.links, ...links] };
@@ -383,6 +425,7 @@ async function ensureUser(
       meta = { meId: userId, dismissed: [], wallet: defaultWallet() };
       await store.persistUserMeta(userId, meta);
     }
+    await ensureAccess(userId, brandNew ? "waitlisted" : "active");
     userMeta.set(userId, meta);
     return meta;
   });
@@ -396,6 +439,41 @@ const decodeHeader = (v?: string): string | undefined => {
     return v;
   }
 };
+
+/** Trim + length-cap an untrusted string field; undefined when empty/absent. */
+const str = (v: unknown, max: number): string | undefined => {
+  if (typeof v !== "string") return undefined;
+  const t = v.trim().slice(0, max);
+  return t || undefined;
+};
+
+/**
+ * Apply the basic onboarding profile to the user's own node (identity, not a
+ * relationship): sets the display label + stores city/language/known-topics/
+ * looking-for in `properties`. Intentionally does NOT use `upsertProfile` (which
+ * would force an expertise role — forbidden during onboarding). Deterministic.
+ */
+function applyOnboardingProfile(
+  d: Dataset,
+  userId: string,
+  ob: { profile?: { name?: string; city?: string; language?: string; photo?: string }; topics?: string[]; lookingFor?: string[] },
+): Dataset {
+  const node = d.nodes.find((n) => n.id === userId);
+  if (!node) return d;
+  const p = ob.profile ?? {};
+  const properties: Record<string, unknown> = {
+    ...(node.properties ?? {}),
+    ...(p.city ? { city: p.city } : {}),
+    ...(p.language ? { language: p.language } : {}),
+    ...(p.photo ? { photo: p.photo } : {}),
+    ...(ob.topics?.length ? { known_topics: ob.topics } : {}),
+    ...(ob.lookingFor?.length ? { looking_for: ob.lookingFor } : {}),
+  };
+  if (properties.joined_at == null) properties.joined_at = Date.now();
+  const label = p.name?.trim() || node.label;
+  const updated: GNode = { ...node, label, properties, ...(p.photo ? { photos: [p.photo] } : {}) };
+  return refreshDerived({ ...d, nodes: d.nodes.map((n) => (n.id === userId ? updated : n)) });
+}
 
 interface AuthedRequest extends express.Request {
   auth?: { userId: string; meta: UserMeta };
@@ -415,6 +493,11 @@ app.get("/health", (_req, res) => {
     writings: writingsEnabled() ? "postgres" : "disabled",
     trustLog: trustLogEnabled() ? "postgres" : "disabled",
     invites: invitesEnabled() ? "postgres" : "disabled",
+    reputation: reputationEnabled() ? "postgres" : "disabled",
+    relationshipStrength: relationshipStrengthEnabled() ? "postgres" : "priors-only",
+    access: accessEnabled() ? "postgres" : "disabled",
+    waitlist: waitlistEnabled() ? "postgres" : "disabled",
+    onboarding: onboardingEnabled() ? "postgres" : "disabled",
     outcomePrompts: outcomePromptsEnabled() ? "postgres" : "disabled",
     asks: asksEnabled() ? "postgres" : "disabled",
     embeddings: embeddingsEnabled() ? "pgvector" : "disabled",
@@ -1846,9 +1929,17 @@ app.post("/api/trust-search", async (req, res) => {
       /* fall back to equality matching */
     }
   }
+  // Relationship strength (personalization only) modulates how much trust flows
+  // across the viewer's own friendships — never creates trust, never touches
+  // reputation. Absent ⇒ transfer is identical to the legacy flat-friend model.
+  const relationshipStrength = await strengthMap(userId, shared.links);
   const recs = computeTrustRecommendations(shared.nodes, shared.links, userId, query, {
     dismissed: meta.dismissed,
+    relationshipStrength,
   });
+  // Topic-scoped derived reputation for the queried topic (independent of the
+  // viewer's trust path — historical provider reliability only).
+  const repIndex = reputationEnabled() ? await reputationIndex(query.topic) : new Map();
   // Attach labels + path context so the UI can render results + the graph
   // animation without a second lookup.
   const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
@@ -1867,6 +1958,11 @@ app.post("/api/trust-search", async (req, res) => {
       here && typeof node?.lat === "number" && typeof node?.lng === "number"
         ? Math.round(haversineKm(here, { lat: node.lat, lng: node.lng }) * 10) / 10
         : undefined;
+    const rep = repIndex.get(r.nodeId);
+    const reputationReason =
+      rep && rep.score > 0.1 && rep.contributors >= 2
+        ? `${rep.contributors} independent contributors reported positive outcomes on ${query.topic}`
+        : undefined;
     return {
       ...r,
       label: labelOf.get(r.nodeId) ?? r.nodeId,
@@ -1879,12 +1975,60 @@ app.post("/api/trust-search", async (req, res) => {
       distanceKm,
       viaLabels: r.via.map((id) => labelOf.get(id) ?? id),
       hops,
-      reasons,
+      reasons: reputationReason ? [...reasons, reputationReason] : reasons,
+      reputation: rep
+        ? { score: rep.score, confidence: rep.confidence, samples: rep.samples, contributors: rep.contributors }
+        : null,
       pathLabels,
     };
   })
     // Hard radius filter only applies to results we could locate.
     .filter((r) => !radius || r.distanceKm === undefined || r.distanceKm <= radius);
+
+  // Unified ranking pipeline (Doc #10): layer topic reputation + recommendation
+  // quality + context match on top of the trust base, producing an explainable
+  // factor breakdown + a stable order. Relationship strength is already applied
+  // inside trust transfer (it shaped `score`), so it isn't re-applied here — no
+  // double counting. Outcome is likewise already folded into `score`.
+  const candidates = enriched.map((e) => {
+    const lastHop = e.trustPath?.[(e.trustPath?.length ?? 1) - 1];
+    const edge = lastHop ? linkById.get(lastHop.edgeId) : undefined;
+    const reasonsCount = edge?.trust?.reasons?.length ?? 0;
+    const hasContext = !!edge?.trust?.scope?.context;
+    const quality = Math.min(1, 0.3 + 0.15 * reasonsCount + (hasContext ? 0.2 : 0));
+    const contextMatch = query.context
+      ? edge?.trust?.scope?.context === query.context
+        ? 1
+        : 0.8
+      : 1;
+    const rep = e.reputation;
+    return {
+      nodeId: e.nodeId,
+      trustStrength: e.score, // base already includes trust path + relationship + outcome
+      reputation: rep ? rep.score * rep.confidence : 0, // effective topic reputation
+      outcome: 0, // already in trustStrength
+      relationship: 0, // already applied in transfer
+      quality,
+      contextMatch,
+      personalization: 0,
+      label: e.label,
+    };
+  });
+  const ranked = rankCandidates(candidates, RANKING_CONFIG);
+  const byId = new Map(enriched.map((e) => [e.nodeId, e] as const));
+  const ordered = ranked
+    .map((rr) => {
+      const e = byId.get(rr.nodeId);
+      if (!e) return null;
+      return {
+        ...e,
+        rankScore: rr.score,
+        factors: rr.factors,
+        reasons: [...new Set([...e.reasons, ...rr.reasons])],
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
   void recordSearch({
     userId,
     rawQuery: query.topic,
@@ -1892,10 +2036,10 @@ app.post("/api/trust-search", async (req, res) => {
     geo: query.geo,
     context: query.context,
     expanded: query.expandedTopics,
-    resultCount: enriched.length,
+    resultCount: ordered.length,
     source: "trust-search",
   });
-  res.json({ query, recommendations: enriched });
+  res.json({ query, recommendations: ordered });
 });
 
 /* ------------------------------ invites ---------------------------- */
@@ -1906,9 +2050,11 @@ app.post("/api/invites", async (req, res) => {
   const { userId } = auth(req);
   if (!invitesEnabled()) return res.status(503).json({ error: "invites unavailable" });
   const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 200) : undefined;
+  const maxUses =
+    typeof req.body?.maxUses === "number" ? req.body.maxUses : INVITE_DEFAULT_MAX_USES;
   try {
-    const invite = await createInvite(userId, note);
-    res.json({ code: invite.code, path: `/invite/${invite.code}` });
+    const invite = await createInvite(userId, note, maxUses);
+    res.json({ code: invite.code, path: `/invite/${invite.code}`, maxUses: invite.maxUses });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -1931,11 +2077,16 @@ app.get("/api/invites", async (req, res) => {
 });
 
 /**
- * Accept an invite: befriend the inviter (mutual bridge) + log the conversion.
- * Called server-side by the BFF callback once the new user's session exists.
+ * Accept an invite: validate + consume it (quota-enforced) and grant the user
+ * `pending_onboarding` access, binding their registration origin. Called
+ * server-side by the BFF callback once the new user's session exists.
+ *
+ * NOTE: this deliberately creates NO graph edge. The inviter connection is a
+ * distinct `INVITED` edge created only after onboarding completes (spec: "graph
+ * relationships should not be created until onboarding has been completed").
  */
 app.post("/api/invites/accept", async (req, res) => {
-  const { userId, meta } = auth(req);
+  const { userId } = auth(req);
   const code = String(req.body?.code ?? "");
   try {
     const invite = await getInvite(code);
@@ -1944,18 +2095,206 @@ app.post("/api/invites/accept", async (req, res) => {
     if (!shared.nodes.some((n) => n.id === invite.inviterId))
       return res.json({ ok: false, reason: "inviter_gone" });
 
-    const firstTime = await recordAccepted(code, userId);
-    await serialize(() =>
-      commitGraph(userId, addMutualFriendship(workingSet(userId, meta), invite.inviterId, userId)),
-    );
+    const result = await consumeInvite(code, userId);
+    if (!result.ok) return res.json({ ok: false, reason: result.reason });
+    await bindInvite(userId, code, invite.inviterId);
     const inviter = shared.nodes.find((n) => n.id === invite.inviterId);
     res.json({
       ok: true,
       inviter: { id: invite.inviterId, name: inviter?.label ?? "A friend" },
-      newConnection: firstTime,
+      newConnection: result.firstTime,
     });
   } catch (e) {
     res.status(400).json(asError(e));
+  }
+});
+
+/* --------------------- access / waitlist / onboarding -------------------- */
+
+/** The viewer's front-door state: account status + config + referral progress. */
+app.get("/api/access", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const access = await getAccess(userId);
+    const status = access?.status ?? (accessEnabled() ? "waitlisted" : "active");
+    const waitlist = status === "waitlisted" ? await getWaitlistByUser(userId) : null;
+    const onboarding = await getOnboarding(userId);
+    res.json({
+      status,
+      onboardingComplete: onboarding.completed,
+      inviterId: access?.inviterId,
+      config: {
+        inviteDefaultMaxUses: INVITE_DEFAULT_MAX_USES,
+        waitlistUnlockThreshold: WAITLIST_UNLOCK_THRESHOLD,
+      },
+      waitlist: waitlist
+        ? {
+            code: waitlist.code,
+            referralPath: `/invite/${waitlist.code}`,
+            referredCount: waitlist.referredCount,
+            threshold: waitlist.threshold,
+            unlocked: waitlist.unlocked,
+          }
+        : undefined,
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Join the waitlist: mint a personal referral link and record the entry. */
+app.post("/api/waitlist/join", async (req, res) => {
+  const { userId } = auth(req);
+  if (!waitlistEnabled() || !invitesEnabled())
+    return res.status(503).json({ error: "waitlist unavailable" });
+  const email = typeof req.body?.email === "string" ? req.body.email.slice(0, 200) : undefined;
+  try {
+    const existing = await getWaitlistByUser(userId);
+    // Referral link = an invite whose inviter is this user; generous quota so the
+    // referral drive isn't capped below the unlock threshold.
+    const code =
+      existing?.code ??
+      (await createInvite(userId, "waitlist referral", Math.max(INVITE_DEFAULT_MAX_USES, WAITLIST_UNLOCK_THRESHOLD * 4))).code;
+    const entry = await joinWaitlist(userId, code, email);
+    await bindWaitlist(userId, entry.code);
+    res.json({
+      ok: true,
+      code: entry.code,
+      referralPath: `/invite/${entry.code}`,
+      referredCount: entry.referredCount,
+      threshold: entry.threshold,
+      unlocked: entry.unlocked,
+    });
+  } catch (e) {
+    // Unique-violation on the email index → friendly 409, no DB internals leaked.
+    if ((e as { code?: string })?.code === "23505") {
+      return res.status(409).json({ error: "That email is already on the waitlist." });
+    }
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Waitlist progress for the viewer. */
+app.get("/api/waitlist/status", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const entry = await getWaitlistByUser(userId);
+    if (!entry) return res.json({ ok: false });
+    res.json({
+      ok: true,
+      code: entry.code,
+      referralPath: `/invite/${entry.code}`,
+      referredCount: entry.referredCount,
+      threshold: entry.threshold,
+      unlocked: entry.unlocked,
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Resumable onboarding state. */
+app.get("/api/onboarding", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    res.json(await getOnboarding(userId));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Persist one onboarding step (merge). */
+app.patch("/api/onboarding", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const body = req.body ?? {};
+    const profile =
+      body.profile && typeof body.profile === "object"
+        ? {
+            name: str(body.profile.name, 120),
+            city: str(body.profile.city, 120),
+            language: str(body.profile.language, 40),
+            photo: str(body.profile.photo, 2000),
+          }
+        : undefined;
+    const next = await saveStep(userId, {
+      step: typeof body.step === "string" ? (body.step as OnboardingStep) : undefined,
+      topics: Array.isArray(body.topics) ? body.topics : undefined,
+      lookingFor: Array.isArray(body.lookingFor) ? body.lookingFor : undefined,
+      profile,
+    });
+    res.json(next);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * First recommendation from the INVITER's network (the aha-moment). The new user
+ * has no edges of their own, so we transfer trust from their inviter, scoped to
+ * the requested topic. Falls back to nothing if the inviter has no in-scope
+ * trust (the UI degrades to a friendly "explore" state).
+ */
+app.get("/api/onboarding/first-rec", async (req, res) => {
+  const { userId } = auth(req);
+  const topic = String(req.query.topic ?? "").trim();
+  try {
+    const access = await getAccess(userId);
+    const seedId = access?.inviterId;
+    if (!topic || !seedId || !shared.nodes.some((n) => n.id === seedId)) {
+      return res.json({ recommendations: [] });
+    }
+    const recs = computeTrustRecommendations(shared.nodes, shared.links, seedId, { topic }, { limit: 3 });
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const enriched = recs.map((r) => {
+      const node = shared.nodes.find((n) => n.id === r.nodeId);
+      return {
+        ...r,
+        label: labelOf.get(r.nodeId) ?? r.nodeId,
+        nodeType: node?.type,
+        sub: node?.sub,
+        entityType: node?.entityType,
+        properties: node?.properties,
+        viaLabels: r.via.map((id) => labelOf.get(id) ?? id),
+      };
+    });
+    res.json({ recommendations: enriched, seededFrom: labelOf.get(seedId) ?? "your inviter" });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * Complete onboarding: create the INVITED edge (once), flip status to `active`,
+ * and — if the inviter is a waitlisted user — credit their referral toward
+ * unlock. All origin/graph side-effects happen HERE, never at registration.
+ */
+app.post("/api/onboarding/complete", async (req, res) => {
+  const { userId, meta } = auth(req);
+  try {
+    const firstCompletion = await completeOnboarding(userId);
+    const access = await getAccess(userId);
+    const inviterId = access?.inviterId;
+    const hasInviter = !!inviterId && shared.nodes.some((n) => n.id === inviterId);
+    // All graph side-effects happen once, on first completion.
+    if (firstCompletion) {
+      const ob = await getOnboarding(userId);
+      await serialize(() => {
+        let ws = applyOnboardingProfile(workingSet(userId, meta), userId, ob);
+        // The one place the inviter connection enters the graph.
+        if (hasInviter) ws = addInviteEdge(ws, inviterId!, userId);
+        return commitGraph(userId, ws);
+      });
+      // Credit the referral if the inviter is still on the waitlist.
+      if (hasInviter) {
+        const ref = await incrementReferral(inviterId!);
+        if (ref.unlockedNow) await setStatus(inviterId!, "pending_onboarding");
+      }
+    }
+    await setStatus(userId, "active");
+    res.json({ ok: true, status: "active" });
+  } catch (e) {
+    res.status(500).json(asError(e));
   }
 });
 
@@ -2903,6 +3242,21 @@ async function main() {
   );
   await initInvites().catch((e) =>
     console.error("graph-service: invites init failed:", e instanceof Error ? e.message : e),
+  );
+  await initReputation().catch((e) =>
+    console.error("graph-service: reputation init failed:", e instanceof Error ? e.message : e),
+  );
+  await initRelationshipStrength().catch((e) =>
+    console.error("graph-service: relationship strength init failed:", e instanceof Error ? e.message : e),
+  );
+  await initAccess().catch((e) =>
+    console.error("graph-service: access init failed:", e instanceof Error ? e.message : e),
+  );
+  await initWaitlist().catch((e) =>
+    console.error("graph-service: waitlist init failed:", e instanceof Error ? e.message : e),
+  );
+  await initOnboarding().catch((e) =>
+    console.error("graph-service: onboarding init failed:", e instanceof Error ? e.message : e),
   );
   await initOutcomePrompts().catch((e) =>
     console.error("graph-service: outcome prompts init failed:", e instanceof Error ? e.message : e),

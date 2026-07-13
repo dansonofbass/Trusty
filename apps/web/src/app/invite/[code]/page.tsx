@@ -105,18 +105,25 @@ export default async function InvitePage({
                 This invite link isn't active
               </h1>
               <p className="mt-3 text-[15px] leading-relaxed text-dim">
-                It may have expired or been revoked. You can still join
-                Trusty and start building your own trusted network.
+                It may have been fully used or revoked. Trusty is invite-only, but
+                you can join the waitlist — refer a few friends and your access
+                unlocks automatically.
               </p>
               <a
-                href="/api/auth/login?register=1"
+                href="/api/auth/login?waitlist=1&register=1"
                 className="mt-7 flex w-full items-center justify-center rounded-xl px-4 py-3.5 text-[15px] font-bold text-[#05060d] transition hover:brightness-110"
                 style={{
                   fontFamily: "var(--font-display)",
                   background: "linear-gradient(180deg,#ffe08a,#ffc24d)",
                 }}
               >
-                Continue to Trusty
+                Join the waitlist
+              </a>
+              <a
+                href="/api/auth/login"
+                className="mt-3 block text-center text-[13px] text-dim underline-offset-4 hover:text-ink hover:underline"
+              >
+                Already have an account? Sign in
               </a>
             </>
           )}

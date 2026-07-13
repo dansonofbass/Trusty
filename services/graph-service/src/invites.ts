@@ -17,6 +17,12 @@ import { randomBytes } from "node:crypto";
 const DATABASE_URL = process.env.DATABASE_URL?.trim();
 let pool: pg.Pool | null = null;
 
+/** How many people a single invite link may bring in, unless overridden per-link. */
+export const INVITE_DEFAULT_MAX_USES = Math.max(
+  1,
+  Number(process.env.INVITE_DEFAULT_MAX_USES ?? 5) || 5,
+);
+
 export function invitesEnabled(): boolean {
   return !!pool;
 }
@@ -32,9 +38,12 @@ export async function initInvites(): Promise<void> {
       code        TEXT PRIMARY KEY,
       inviter_id  TEXT NOT NULL,
       note        TEXT,
+      max_uses    INT NOT NULL DEFAULT 5,
       revoked     BOOLEAN NOT NULL DEFAULT false,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  // Migrate older tables that predate the quota column.
+  await p.query(`ALTER TABLE invites ADD COLUMN IF NOT EXISTS max_uses INT NOT NULL DEFAULT 5`);
   await p.query(`CREATE INDEX IF NOT EXISTS invites_inviter_idx ON invites(inviter_id, created_at DESC)`);
   // The funnel: one row per stage. `invitee_id` is set once someone accepts.
   await p.query(`
@@ -65,22 +74,27 @@ export interface InviteMeta {
   code: string;
   inviterId: string;
   note?: string;
+  maxUses: number;
   revoked: boolean;
 }
 
-export async function createInvite(inviterId: string, note?: string): Promise<InviteMeta> {
+export async function createInvite(
+  inviterId: string,
+  note?: string,
+  maxUses: number = INVITE_DEFAULT_MAX_USES,
+): Promise<InviteMeta> {
   if (!pool) throw new Error("invites disabled");
+  const cap = Math.max(1, Math.floor(maxUses) || INVITE_DEFAULT_MAX_USES);
   // Retry once on the astronomically-unlikely code collision.
   for (let attempt = 0; attempt < 3; attempt++) {
     const code = newCode();
     try {
-      await pool.query(`INSERT INTO invites (code, inviter_id, note) VALUES ($1, $2, $3)`, [
-        code,
-        inviterId,
-        note ?? null,
-      ]);
+      await pool.query(
+        `INSERT INTO invites (code, inviter_id, note, max_uses) VALUES ($1, $2, $3, $4)`,
+        [code, inviterId, note ?? null, cap],
+      );
       await pool.query(`INSERT INTO invite_events (code, kind) VALUES ($1, 'created')`, [code]);
-      return { code, inviterId, note, revoked: false };
+      return { code, inviterId, note, maxUses: cap, revoked: false };
     } catch (e) {
       if (attempt === 2) throw e;
     }
@@ -91,12 +105,61 @@ export async function createInvite(inviterId: string, note?: string): Promise<In
 export async function getInvite(code: string): Promise<InviteMeta | null> {
   if (!pool) return null;
   const r = await pool.query(
-    `SELECT code, inviter_id, note, revoked FROM invites WHERE code = $1`,
+    `SELECT code, inviter_id, note, max_uses, revoked FROM invites WHERE code = $1`,
     [code],
   );
   const row = r.rows[0];
   if (!row) return null;
-  return { code: row.code, inviterId: row.inviter_id, note: row.note ?? undefined, revoked: row.revoked };
+  return {
+    code: row.code,
+    inviterId: row.inviter_id,
+    note: row.note ?? undefined,
+    maxUses: Number(row.max_uses ?? INVITE_DEFAULT_MAX_USES),
+    revoked: row.revoked,
+  };
+}
+
+/** How many distinct people have accepted this invite (the funnel is the source of truth). */
+export async function acceptedCount(code: string): Promise<number> {
+  if (!pool) return 0;
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM invite_events WHERE code = $1 AND kind = 'accepted'`,
+    [code],
+  );
+  return Number(r.rows[0]?.n ?? 0);
+}
+
+export type ConsumeResult =
+  | { ok: true; inviterId: string; firstTime: boolean }
+  | { ok: false; reason: "disabled" | "invalid" | "revoked" | "self" | "exhausted" };
+
+/**
+ * Validate + consume an invite for a joining user. Records the acceptance in the
+ * funnel (idempotent per invitee). Rejects revoked / self / over-quota invites.
+ * Consumption is deliberately NOT a graph edge — the INVITED edge is created only
+ * after onboarding completes (graph-core `addInviteEdge`).
+ */
+export async function consumeInvite(code: string, inviteeId: string): Promise<ConsumeResult> {
+  if (!pool) return { ok: false, reason: "disabled" };
+  const invite = await getInvite(code);
+  if (!invite) return { ok: false, reason: "invalid" };
+  if (invite.revoked) return { ok: false, reason: "revoked" };
+  if (invite.inviterId === inviteeId) return { ok: false, reason: "self" };
+  // Already accepted by this invitee? Idempotent success (re-entry is fine).
+  const firstTime = await recordAccepted(code, inviteeId);
+  if (!firstTime) return { ok: true, inviterId: invite.inviterId, firstTime: false };
+  // First-time accept: enforce the quota AFTER recording, then roll back if over.
+  const used = await acceptedCount(code);
+  if (used > invite.maxUses) {
+    await pool
+      .query(`DELETE FROM invite_events WHERE code = $1 AND kind = 'accepted' AND invitee_id = $2`, [
+        code,
+        inviteeId,
+      ])
+      .catch(() => undefined);
+    return { ok: false, reason: "exhausted" };
+  }
+  return { ok: true, inviterId: invite.inviterId, firstTime: true };
 }
 
 /** Log a landing-page view (best-effort — a bad code is just ignored). */
@@ -125,6 +188,7 @@ export interface InviteRow {
   code: string;
   note?: string;
   revoked: boolean;
+  maxUses: number;
   createdAt: string;
   visits: number;
   joined: number;
@@ -135,7 +199,7 @@ export interface InviteRow {
 export async function listInvitesFor(inviterId: string): Promise<InviteRow[]> {
   if (!pool) return [];
   const r = await pool.query(
-    `SELECT i.code, i.note, i.revoked, i.created_at,
+    `SELECT i.code, i.note, i.revoked, i.max_uses, i.created_at,
             COUNT(*) FILTER (WHERE e.kind = 'visited')  AS visits,
             COUNT(*) FILTER (WHERE e.kind = 'accepted') AS joined,
             COALESCE(
@@ -145,7 +209,7 @@ export async function listInvitesFor(inviterId: string): Promise<InviteRow[]> {
        FROM invites i
        LEFT JOIN invite_events e ON e.code = i.code
       WHERE i.inviter_id = $1
-      GROUP BY i.code, i.note, i.revoked, i.created_at
+      GROUP BY i.code, i.note, i.revoked, i.max_uses, i.created_at
       ORDER BY i.created_at DESC
       LIMIT 100`,
     [inviterId],
@@ -154,6 +218,7 @@ export async function listInvitesFor(inviterId: string): Promise<InviteRow[]> {
     code: row.code,
     note: row.note ?? undefined,
     revoked: row.revoked,
+    maxUses: Number(row.max_uses ?? INVITE_DEFAULT_MAX_USES),
     createdAt: row.created_at,
     visits: Number(row.visits),
     joined: Number(row.joined),

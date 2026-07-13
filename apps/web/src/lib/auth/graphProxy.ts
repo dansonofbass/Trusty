@@ -4,7 +4,7 @@ import { isAdmin } from "./roles";
 
 const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
 
-type Method = "GET" | "POST" | "PUT" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 async function forward(
   req: NextRequest,

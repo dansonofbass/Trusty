@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import AccessGuard from "@/components/AccessGuard";
 
 export const metadata: Metadata = {
   title: "Trusty — your social universe as a graph",
@@ -31,6 +32,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <div className="nebula" aria-hidden />
+        <AccessGuard />
         {children}
       </body>
     </html>

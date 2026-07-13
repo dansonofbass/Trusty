@@ -112,6 +112,43 @@ export function addMutualFriendship(d: Dataset, aId: string, bId: string): Datas
   return addEdge(addEdge(d, aId, bId, aId), bId, aId, bId);
 }
 
+/**
+ * Record a registration origin: `inviter → invitee` as a directed `INVITED`
+ * edge. This is deliberately NOT `addMutualFriendship` and NOT a trust edge — it
+ * only marks where the invitee entered the network (spec: "It simply records the
+ * origin of the user's entry… Trust must still emerge from future evidence").
+ * Created once, after onboarding completes. Idempotent per pair. The edge is
+ * owned by the invitee (whose origin it records) so it sits in their overlay
+ * without polluting anyone else's canvas or the trust fabric.
+ */
+export function addInviteEdge(d: Dataset, inviterId: string, inviteeId: string): Dataset {
+  if (inviterId === inviteeId) throw new Error("cannot invite yourself");
+  const byId = new Map(d.nodes.map((n) => [n.id, n]));
+  const inviter = byId.get(inviterId);
+  const invitee = byId.get(inviteeId);
+  if (!inviter || !invitee) throw new Error("unknown node");
+  if (inviter.type !== "person" || invitee.type !== "person")
+    throw new Error("invites connect people");
+  const k = pairKey(inviterId, inviteeId);
+  const exists = d.links.some(
+    (l) =>
+      l.type === "INVITED" &&
+      pairKey(endId(l.source), endId(l.target)) === k &&
+      l.userId === inviteeId,
+  );
+  if (exists) return refreshDerived(d);
+  const link: GLink = {
+    id: `ux_invited_${inviteeId}__${k}`,
+    source: inviterId,
+    target: inviteeId,
+    type: "INVITED",
+    weight: 1,
+    scope: "user",
+    userId: inviteeId,
+  };
+  return refreshDerived({ ...d, links: [...d.links, link] });
+}
+
 export function removeEdge(d: Dataset, a: string, b: string, owner?: string): Dataset {
   const k = pairKey(a, b);
   const removable = (l: GLink): boolean => {
