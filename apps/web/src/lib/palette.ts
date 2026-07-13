@@ -57,6 +57,7 @@ export const EDGE_BASE: Record<EdgeType, { color: string; width: number }> = {
   REFLECTS_ON: { color: "rgba(255,217,122,0.40)", width: 1.1 },
   PART_OF: { color: "rgba(255,179,71,0.35)", width: 0.9 },
   TRUSTS: { color: "rgba(255,140,90,0.65)", width: 1.6 },
+  INVITED: { color: "rgba(124,150,255,0.30)", width: 0.9 },
   MEMBER_OF: { color: "rgba(124,150,255,0.45)", width: 1.2 },
   SAVED: { color: "rgba(154,240,200,0.45)", width: 1.0 },
   // Event relationship graph (Trusty Sevan) — concept/attribute links stay quiet

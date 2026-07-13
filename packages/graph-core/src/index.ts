@@ -13,7 +13,7 @@ export {
   type BlendWeights,
   type RecommendOptions,
 } from "./recommend";
-export { inferEdgeType, addEdge, removeEdge, addMutualFriendship, createPost, acceptRecommendation, dismissRecommendation } from "./mutations";
+export { inferEdgeType, addEdge, removeEdge, addMutualFriendship, addInviteEdge, createPost, acceptRecommendation, dismissRecommendation } from "./mutations";
 export {
   EXTRACTION_SYSTEM_PROMPT,
   ingestThought,

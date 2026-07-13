@@ -10,28 +10,50 @@ import {
 
 const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
 
+function identityHeaders(session: Session): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-user-id": session.sub,
+    ...(session.name ? { "x-user-name": encodeURIComponent(session.name) } : {}),
+    ...(session.email ? { "x-user-email": encodeURIComponent(session.email) } : {}),
+  };
+}
+
 /**
- * Redeem an invite against graph-service as the freshly-authenticated user.
- * Creates the mutual FRIENDS_WITH bridge + records the conversion. Returns the
- * inviter's display name on success, or null (any failure is swallowed — an
- * invite hiccup must not break sign-in).
+ * Consume an invite against graph-service as the freshly-authenticated user.
+ * Grants `pending_onboarding` access + binds registration origin — but creates
+ * NO graph edge (the INVITED edge is deferred to onboarding completion). Returns
+ * true if the invite was valid/consumed. Best-effort: a hiccup must not break
+ * sign-in.
  */
-async function redeemInvite(code: string, session: Session): Promise<string | null> {
+async function consumeInvite(code: string, session: Session): Promise<boolean> {
   try {
     const r = await fetch(`${GRAPH}/api/invites/accept`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-user-id": session.sub,
-        ...(session.name ? { "x-user-name": encodeURIComponent(session.name) } : {}),
-        ...(session.email ? { "x-user-email": encodeURIComponent(session.email) } : {}),
-      },
+      headers: identityHeaders(session),
       body: JSON.stringify({ code }),
       cache: "no-store",
     });
+    if (!r.ok) return false;
+    const data = (await r.json()) as { ok?: boolean };
+    return !!data.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Read the user's front-door status to decide where to land them. */
+async function fetchStatus(session: Session): Promise<string | null> {
+  try {
+    const r = await fetch(`${GRAPH}/api/access`, {
+      method: "GET",
+      headers: identityHeaders(session),
+      cache: "no-store",
+    });
     if (!r.ok) return null;
-    const data = (await r.json()) as { ok?: boolean; inviter?: { name?: string } };
-    return data.ok && data.inviter?.name ? data.inviter.name : null;
+    const data = (await r.json()) as { status?: string; onboardingComplete?: boolean };
+    if (data.onboardingComplete) return "active";
+    return data.status ?? null;
   } catch {
     return null;
   }
@@ -48,7 +70,7 @@ export async function GET(req: NextRequest) {
   if (!code || !state || !pkceRaw) {
     return NextResponse.redirect(`${appBase}/api/auth/login`);
   }
-  let pkce: { state: string; verifier: string; invite?: string };
+  let pkce: { state: string; verifier: string; invite?: string; waitlist?: boolean };
   try {
     pkce = JSON.parse(pkceRaw);
   } catch {
@@ -68,16 +90,22 @@ export async function GET(req: NextRequest) {
       tokens,
     );
 
-    // Redeem an invite (if the user arrived from one): befriend the inviter and
-    // log the conversion. Best-effort — a failed redemption must never block
-    // sign-in. Returns the inviter's name so we can show a warm welcome.
-    let landing = appBase;
-    if (pkce.invite) {
-      const inviter = await redeemInvite(pkce.invite, session);
-      if (inviter) {
-        landing = `${appBase}/?welcome=1&from=${encodeURIComponent(inviter)}`;
-      }
-    }
+    // Consume an invite if the user arrived from one (grants onboarding access +
+    // binds origin — no graph edge yet). Best-effort: a failure must not block
+    // sign-in. Then read the resulting front-door status to route the landing:
+    //   active             → Home
+    //   pending_onboarding → /onboarding (invited or unlocked)
+    //   waitlisted         → /waitlist
+    if (pkce.invite) await consumeInvite(pkce.invite, session);
+    const status = await fetchStatus(session);
+    const landing =
+      status === "active"
+        ? appBase
+        : status === "pending_onboarding"
+          ? `${appBase}/onboarding`
+          : status === "waitlisted"
+            ? `${appBase}/waitlist`
+            : appBase; // gating disabled (open mode) → straight to Home
 
     const res = NextResponse.redirect(landing);
     await setSessionCookie(res, session);

@@ -38,7 +38,6 @@ import PlaceModalHost from "./PlaceModalHost";
 import HintBar from "./HintBar";
 import ThoughtComposer from "./ThoughtComposer";
 import EntityLinkPicker from "./EntityLinkPicker";
-import TrustOnboarding from "./TrustOnboarding";
 import { logImpressions } from "@/lib/interactionClient";
 import LayerToggle from "./LayerToggle";
 
@@ -143,27 +142,10 @@ export default function GraphExplorer() {
   const removePeek = useUI((s) => s.removePeek);
   const setUser = useUI((s) => s.setUser);
   const user = useUI((s) => s.user);
-  const [onboardDismissed, setOnboardDismissed] = useState(false);
 
-  // Persisted "already onboarded" flag, per user — so the wizard doesn't reappear
-  // on reload once someone has been through (or skipped) it.
-  useEffect(() => {
-    if (!user?.sub) return;
-    try {
-      if (localStorage.getItem(`constellation:onboarded:${user.sub}`)) setOnboardDismissed(true);
-    } catch {
-      /* storage blocked — fall back to session-only dismissal */
-    }
-  }, [user?.sub]);
-
-  const dismissOnboarding = useCallback(() => {
-    setOnboardDismissed(true);
-    try {
-      if (user?.sub) localStorage.setItem(`constellation:onboarded:${user.sub}`, "1");
-    } catch {
-      /* ignore */
-    }
-  }, [user?.sub]);
+  // Onboarding now lives on the dedicated /onboarding route (a new user reaches
+  // Home only after completing it — enforced by the access gate). The old
+  // in-canvas wizard has been retired.
 
   // Hydrate the signed-in identity for the header (no-op in mock mode → 401).
   useEffect(() => {
@@ -231,17 +213,6 @@ export default function GraphExplorer() {
     return s;
   }, [directIds, nodeById]);
 
-  // Has the viewer vouched for anyone yet? Trust onboarding's goal is the first
-  // trust edge — once it exists, the wizard has done its job and steps aside.
-  const meTrusts = useMemo(
-    () =>
-      dataset.links.some(
-        (l) =>
-          l.type === "TRUSTS" &&
-          (typeof l.source === "string" ? l.source : l.source.id) === dataset.meId,
-      ),
-    [dataset.links, dataset.meId],
-  );
 
   // The bounded galaxy you can currently see: your 2-hop ego ∪ each friend's
   // IMMEDIATE neighborhood (followRadius 1, so a few hub friends don't unbound
@@ -904,13 +875,6 @@ export default function GraphExplorer() {
           onWeave={handleWeave}
           onExplore={handleExploreThought}
           onClose={() => setView("universe")}
-        />
-      )}
-
-      {user && view === "universe" && !meTrusts && !onboardDismissed && (
-        <TrustOnboarding
-          name={user.name ?? nodeById.get(dataset.meId)?.label ?? "Explorer"}
-          onDismiss={dismissOnboarding}
         />
       )}
 
