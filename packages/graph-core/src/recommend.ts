@@ -26,8 +26,14 @@ export interface SignalMaps {
   topicAffinity?: Map<string, number>;
   /** node → 1 if in the viewer's Louvain community, else 0. */
   communityBoost?: Map<string, number>;
-  /** node → feedback/outcome signal, [-1,1] (the only signed channel). */
+  /** node → feedback/outcome signal, [-1,1] (signed). */
   outcomeSignal?: Map<string, number>;
+  /**
+   * node → topic-scoped DERIVED reputation for that node's own topic, [-1,1]
+   * (signed). Independent of trust and of the viewer's relationship — historical
+   * provider reliability only (Doc #10). Populated by the reputation service.
+   */
+  reputation?: Map<string, number>;
   /** node → recency-decayed seen/dismiss penalty, [0,1] (subtractive). */
   fatigue?: Map<string, number>;
 }
@@ -39,6 +45,7 @@ export interface BlendWeights {
   community?: number;
   embed?: number;
   outcome?: number;
+  reputation?: number;
   fatigue?: number;
 }
 
@@ -48,6 +55,7 @@ export const DEFAULT_WEIGHTS: Required<BlendWeights> = {
   community: 0.17,
   embed: 0, // reserved for the future content-embedding tier
   outcome: 0.3, // == TRUST_W_OUTCOME so social + trust recs share a scale
+  reputation: 0.3, // topic-scoped provider reliability (independent of outcome/trust)
   fatigue: 0.25,
 };
 
@@ -215,6 +223,7 @@ const CHANNEL_PHRASE: Record<string, string> = {
   topic: "In line with what you've been looking for",
   community: "Popular in your circle",
   outcome: "Backed by good outcomes",
+  reputation: "Strong track record on this topic",
   embed: "Similar to things you like",
 };
 
@@ -231,10 +240,12 @@ function applyBlend(
     const community = s.communityBoost?.get(rec.nodeId) ?? 0;
     const embed = s.embeddingAffinity?.get(rec.nodeId) ?? 0;
     const outcome = s.outcomeSignal?.get(rec.nodeId) ?? 0;
+    const reputation = s.reputation?.get(rec.nodeId) ?? 0;
     const fatigue = s.fatigue?.get(rec.nodeId) ?? 0;
 
     const base = w.struct * struct + w.topic * topic + w.community * community + w.embed * embed;
-    const blended = base * (1 + w.outcome * outcome) - w.fatigue * fatigue;
+    // outcome + reputation are independent signed modifiers on the structural base.
+    const blended = base * (1 + w.outcome * outcome + w.reputation * reputation) - w.fatigue * fatigue;
     rec.score = Math.round(blended * 1000) / 1000;
 
     const factors = [
@@ -243,6 +254,7 @@ function applyBlend(
       { channel: "community", contribution: w.community * community },
       { channel: "embed", contribution: w.embed * embed },
       { channel: "outcome", contribution: w.outcome * outcome * base },
+      { channel: "reputation", contribution: w.reputation * reputation * base },
       { channel: "fatigue", contribution: -w.fatigue * fatigue },
     ]
       .filter((f) => Math.abs(f.contribution) > 0.001)

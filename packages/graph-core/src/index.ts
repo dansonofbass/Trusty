@@ -114,6 +114,23 @@ export {
   type TrustQuery,
 } from "./trust";
 export {
+  aggregateReputation,
+  REPUTATION_DEFAULTS,
+  type ReputationSample,
+  type ReputationScore,
+  type ReputationOptions,
+} from "./reputation";
+export {
+  rankCandidates,
+  explainRanking,
+  RANKING_CONFIG,
+  FORBIDDEN_SIGNALS,
+  type RankingCandidate,
+  type RankingFactor,
+  type RankingResult,
+  type RankingConfig,
+} from "./ranking";
+export {
   DOMAIN_LABEL,
   ENTITY_TYPES,
   RELATION_TYPES,

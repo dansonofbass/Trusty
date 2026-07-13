@@ -336,6 +336,7 @@ function transferTrust(
   meId: string,
   query: TrustQuery,
   maxHops = TRUST_MAX_HOPS,
+  relStrength?: Map<string, number>,
 ): Map<string, TrustResult> {
   const best = new Map<string, TrustResult>();
   const queue: { node: string; strength: number; hops: number; path: TrustPathHop[] }[] = [
@@ -356,7 +357,13 @@ function transferTrust(
         topic = e.link.trust.scope.topic;
         outcome = e.link.trust.outcome ?? 0;
       } else {
-        hopTrust = FRIEND_TRUST; // a friend bridge — topic-agnostic, light
+        // A friend bridge — topic-agnostic, light. Relationship strength (a
+        // derived, personalization-only tie weight) modulates HOW MUCH trust
+        // flows across MY direct friendships; it never creates trust and never
+        // changes reputation (Doc #9). Only applied on the first hop out of me,
+        // where a viewer→friend strength is meaningful; deeper friend bridges
+        // keep the flat default. Absent map ⇒ exactly the legacy FRIEND_TRUST.
+        hopTrust = (cur.node === meId ? relStrength?.get(e.to) : undefined) ?? FRIEND_TRUST;
         topic = query.topic;
       }
       const decay = Math.pow(TRUST_DECAY, cur.hops); // first hop = no decay
@@ -418,7 +425,7 @@ export function computeTrustRecommendations(
   links: GLink[],
   meId: string,
   query: TrustQuery,
-  opts: { dismissed?: string[]; limit?: number } = {},
+  opts: { dismissed?: string[]; limit?: number; relationshipStrength?: Map<string, number> } = {},
 ): Recommendation[] {
   const q: TrustQuery = { ...query, topic: normalizeTopic(query.topic), geo: query.geo ? norm(query.geo) : undefined };
   if (!q.topic) return [];
@@ -427,7 +434,7 @@ export function computeTrustRecommendations(
   const dismissed = new Set(opts.dismissed ?? []);
 
   const adj = buildAdj(links);
-  const reached = transferTrust(adj, meId, q);
+  const reached = transferTrust(adj, meId, q, TRUST_MAX_HOPS, opts.relationshipStrength);
 
   const recs: Recommendation[] = [];
   for (const r of reached.values()) {
