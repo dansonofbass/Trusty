@@ -130,6 +130,13 @@ test("ranking: pay-to-rank signals are structurally excluded (anti-manipulation)
   assert.ok(FORBIDDEN_SIGNALS.includes("listen_count"));
 });
 
+test("ranking: the base factor can be renamed so non-trust surfaces never report 'trust'", () => {
+  const [r] = rankCandidates([cand({ nodeId: "x" })], { baseStage: "eligibility" });
+  const stages = r.factors.map((f) => f.stage);
+  assert.ok(stages.includes("eligibility"));
+  assert.ok(!stages.includes("trust"), "a Listen-style surface must not report a trust factor");
+});
+
 test("ranking: explanation references evidence, not raw scores", () => {
   const [r] = rankCandidates([cand({ reputation: 0.8, outcome: 0.6 })]);
   const why = explainRanking(r);

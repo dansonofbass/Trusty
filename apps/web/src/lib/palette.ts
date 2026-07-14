@@ -62,6 +62,7 @@ export const EDGE_BASE: Record<EdgeType, { color: string; width: number }> = {
   PART_OF: { color: "rgba(255,179,71,0.35)", width: 0.9 },
   TRUSTS: { color: "rgba(255,140,90,0.65)", width: 1.6 },
   INVITED: { color: "rgba(124,150,255,0.30)", width: 0.9 },
+  LISTENS_TO_PERSON: { color: "rgba(63,198,244,0.45)", width: 1.0 },
   AUTHORED: { color: "rgba(255,140,90,0.45)", width: 1.0 },
   TARGETS: { color: "rgba(255,140,90,0.55)", width: 1.2 },
   SUPPORTED_BY: { color: "rgba(84,210,110,0.50)", width: 1.0 },

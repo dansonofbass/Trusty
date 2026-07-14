@@ -41,6 +41,12 @@ export type EdgeType =
   | "PART_OF" // menu_item → restaurant | cafe (a dish belongs to a place's menu)
   | "TRUSTS" // person → person | provider, directed + topic-scoped (Trust Graph)
   | "INVITED" // person → person, directed "registration origin" — NOT trust, NOT friendship
+  // NOTE: the spec (Doc #6/#7) calls this "LISTENS_TO", but that name is already
+  // taken by the taste graph (person → music), so the permission edge is
+  // LISTENS_TO_PERSON. Directed: listener → speaker. Acceptance-based. It grants
+  // RECOMMENDATION ELIGIBILITY ONLY — never trust, never reputation. It is
+  // deliberately absent from the trust adjacency (see trust.ts buildAdj).
+  | "LISTENS_TO_PERSON" // person → person, "consider their future recommendations for me"
   // Recommendation-evidence graph (Doc #11) — single-meaning edges:
   | "AUTHORED" // person → recommendation (who made it)
   | "TARGETS" // recommendation → specialist/provider (what it points to)

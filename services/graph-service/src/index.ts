@@ -32,6 +32,14 @@ import {
   outcomesForRecommendation,
   recommendationsForTarget,
   recommendationConsensus,
+  listenCapacity,
+  addListenEdge,
+  removeListenEdge,
+  listeningTo,
+  listenersOf,
+  activeListenCount,
+  isListening,
+  recommendationsFromListened,
   haversineKm,
   createEntity,
   updateEntity,
@@ -91,6 +99,21 @@ import {
 } from "./writings";
 import { initTrustLog, outcomeStats, recordOutcome, trustLogEnabled } from "./trustLog";
 import { initReputation, reputationEnabled, reputationIndex } from "./reputation";
+import {
+  initListen,
+  listenEnabled,
+  LISTEN_CONFIG,
+  contributionScore,
+  createRequest,
+  getRequest,
+  incomingRequests,
+  outgoingRequests,
+  resolveRequest,
+  markAccepted,
+  getPolicy,
+  setPolicy,
+  type ListenPolicy,
+} from "./listen";
 import {
   initRelationshipStrength,
   relationshipStrengthEnabled,
@@ -500,6 +523,7 @@ app.get("/health", (_req, res) => {
     invites: invitesEnabled() ? "postgres" : "disabled",
     reputation: reputationEnabled() ? "postgres" : "disabled",
     relationshipStrength: relationshipStrengthEnabled() ? "postgres" : "priors-only",
+    listen: listenEnabled() ? "postgres" : "disabled",
     access: accessEnabled() ? "postgres" : "disabled",
     waitlist: waitlistEnabled() ? "postgres" : "disabled",
     onboarding: onboardingEnabled() ? "postgres" : "disabled",
@@ -2169,6 +2193,243 @@ app.get("/api/recs/:id", (req, res) => {
   res.json({ id: recId, properties: rec.properties, outcomes, consensus: recommendationConsensus(ds, recId) });
 });
 
+/* ------------------------- Listen (Doc #6/#7) ------------------------- */
+/* A permission to receive someone's FUTURE recommendations. Directional,
+ * acceptance-based, capacity-bounded, EARNED (never bought). It grants
+ * eligibility only — never trust, never reputation. The edge is
+ * LISTENS_TO_PERSON (the spec's "LISTENS_TO" name is taken by person→music). */
+
+/** How many recommendations this user has authored (a contribution signal). */
+function authoredRecCount(userId: string): number {
+  return shared.nodes.filter(
+    (n) => n.type === "recommendation" && (n.properties as { authorId?: string } | undefined)?.authorId === userId,
+  ).length;
+}
+
+/** This user's EARNED listen capacity (slots). No payment term exists. */
+async function capacityFor(userId: string): Promise<{ capacity: number; contribution: number }> {
+  const contribution = await contributionScore(userId, authoredRecCount(userId));
+  return { capacity: listenCapacity(contribution, LISTEN_CONFIG), contribution };
+}
+
+const listenDataset = (userId: string): Dataset => ({
+  nodes: shared.nodes,
+  links: shared.links,
+  meId: userId,
+  recommendations: [],
+});
+
+/** My listening state: who I listen to, my audience, slots and earned capacity. */
+app.get("/api/listen", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ds = listenDataset(userId);
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const { capacity, contribution } = await capacityFor(userId);
+    const used = activeListenCount(ds, userId);
+    res.json({
+      listening: listeningTo(ds, userId).map((id) => ({ id, name: labelOf.get(id) })),
+      listeners: listenersOf(ds, userId).map((id) => ({ id, name: labelOf.get(id) })),
+      slots: { used, capacity, remaining: Math.max(0, capacity - used) },
+      contribution,
+      policy: await getPolicy(userId),
+      config: {
+        baseSlots: LISTEN_CONFIG.baseSlots,
+        contributionPerSlot: LISTEN_CONFIG.contributionPerSlot,
+        maxSlots: LISTEN_CONFIG.maxSlots,
+      },
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Set my permission policy (manual | auto_accept) — pluggable for future policies. */
+app.post("/api/listen/policy", async (req, res) => {
+  const { userId } = auth(req);
+  const policy = String(req.body?.policy ?? "");
+  if (policy !== "manual" && policy !== "auto_accept")
+    return res.status(400).json({ error: "policy must be manual | auto_accept" });
+  try {
+    await setPolicy(userId, policy as ListenPolicy);
+    res.json({ ok: true, policy });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Request to listen to someone. Auto-accepted if their policy says so. */
+app.post("/api/listen/requests", async (req, res) => {
+  const { userId, meta } = auth(req);
+  if (!listenEnabled()) return res.status(503).json({ error: "listen unavailable" });
+  const targetId = str(req.body?.targetId, 200);
+  if (!targetId) return res.status(400).json({ error: "targetId required" });
+  if (targetId === userId) return res.status(400).json({ error: "cannot listen to yourself" });
+  const target = shared.nodes.find((n) => n.id === targetId && n.type === "person");
+  if (!target) return res.status(404).json({ error: "person not found" });
+  try {
+    const ds = listenDataset(userId);
+    if (isListening(ds, userId, targetId))
+      return res.json({ ok: true, status: "already_listening" });
+
+    // Guard the slot budget up-front so we never queue a request we can't honour.
+    const { capacity } = await capacityFor(userId);
+    if (activeListenCount(ds, userId) >= capacity)
+      return res.status(409).json({ error: "listen capacity reached", capacity });
+
+    const request = await createRequest(userId, targetId);
+    if ((await getPolicy(targetId)) === "auto_accept") {
+      await serialize(() =>
+        commitGraph(userId, addListenEdge(workingSet(userId, meta), userId, targetId, capacity)),
+      );
+      await markAccepted(request.id);
+      return res.json({ ok: true, status: "accepted", requestId: request.id });
+    }
+    res.json({ ok: true, status: "pending", requestId: request.id, expiresAt: request.expiresAt });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Requests awaiting my decision + the ones I've sent. */
+app.get("/api/listen/requests", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const [incoming, outgoing] = await Promise.all([incomingRequests(userId), outgoingRequests(userId)]);
+    res.json({
+      incoming: incoming.map((r) => ({ ...r, requesterName: labelOf.get(r.requesterId) })),
+      outgoing: outgoing.map((r) => ({ ...r, targetName: labelOf.get(r.targetId) })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * Accept a listen request — ONLY the target may accept, and this is the one place
+ * the LISTENS_TO_PERSON edge is created. Acceptance is NOT reciprocal.
+ */
+app.post("/api/listen/requests/:id/accept", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const id = Number(req.params.id);
+  try {
+    const request = await getRequest(id);
+    if (!request) return res.status(404).json({ error: "request not found" });
+    if (request.targetId !== userId) return res.status(403).json({ error: "not your request to accept" });
+
+    // The REQUESTER is the listener — their slot budget applies, re-checked now.
+    const { capacity } = await capacityFor(request.requesterId);
+    const resolved = await resolveRequest(id, userId, "accepted");
+    if (!resolved) return res.status(409).json({ error: "request is no longer pending (or expired)" });
+
+    await serialize(() =>
+      commitGraph(
+        userId,
+        addListenEdge(workingSet(userId, meta), request.requesterId, request.targetId, capacity),
+      ),
+    );
+    res.json({ ok: true, status: "accepted" });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Decline a listen request. No edge, no trace beyond the request record. */
+app.post("/api/listen/requests/:id/decline", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const resolved = await resolveRequest(Number(req.params.id), userId, "declined");
+    if (!resolved) return res.status(409).json({ error: "request is no longer pending (or not yours)" });
+    res.json({ ok: true, status: "declined" });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Stop listening — frees the slot immediately. */
+app.delete("/api/listen/:targetId", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const targetId = String(req.params.targetId);
+  try {
+    await serialize(() =>
+      commitGraph(userId, removeListenEdge(workingSet(userId, meta), userId, targetId)),
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/**
+ * The payoff: recommendations authored by the people I listen to become ELIGIBLE.
+ * Ranked by EVIDENCE only (quality + topic reputation + outcome consensus) — the
+ * base here is *eligibility*, NOT trust. Listening makes knowledge visible; it
+ * never makes it trusted, and no trust score is computed or returned.
+ */
+app.get("/api/listen/feed", async (req, res) => {
+  const { userId } = auth(req);
+  const topic = str(req.query.topic as unknown, 60)?.toLowerCase();
+  try {
+    const ds = listenDataset(userId);
+    const eligible = recommendationsFromListened(ds, userId, topic);
+    if (eligible.length === 0) return res.json({ recommendations: [] });
+
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const repIndex = topic && reputationEnabled() ? await reputationIndex(topic) : new Map();
+
+    const candidates = eligible.map((n) => {
+      const p = (n.properties ?? {}) as Record<string, unknown>;
+      const consensus = recommendationConsensus(ds, n.id);
+      const reasonsCount = Array.isArray(p.reasons) ? (p.reasons as unknown[]).length : 0;
+      const quality = Math.min(1, 0.3 + 0.15 * reasonsCount + (p.context ? 0.2 : 0));
+      const rep = repIndex.get(String(p.targetId));
+      return {
+        nodeId: n.id,
+        trustStrength: 1, // eligibility base — NOT a trust score
+        reputation: rep ? rep.score * rep.confidence : 0,
+        outcome: consensus.mean,
+        quality,
+        contextMatch: 1,
+        relationship: 0,
+        personalization: 0,
+      };
+    });
+    // baseStage "eligibility", NOT "trust" — nothing here is trusted, it is merely
+    // audible to me because I chose to listen. Reporting a "trust" factor on this
+    // surface would contradict the frozen Listen guarantee.
+    const ranked = rankCandidates(candidates, { ...RANKING_CONFIG, baseStage: "eligibility" });
+    const byId = new Map(eligible.map((n) => [n.id, n] as const));
+
+    res.json({
+      recommendations: ranked
+        .map((r) => {
+          const n = byId.get(r.nodeId);
+          if (!n) return null;
+          const p = (n.properties ?? {}) as Record<string, unknown>;
+          return {
+            id: n.id,
+            author: { id: p.authorId, name: labelOf.get(String(p.authorId)) },
+            target: { id: p.targetId, name: labelOf.get(String(p.targetId)) },
+            topic: p.topic,
+            context: p.context,
+            audience: p.audience,
+            reasons: p.reasons,
+            consensus: recommendationConsensus(ds, n.id),
+            score: r.score,
+            factors: r.factors,
+            why: r.reasons.length
+              ? r.reasons
+              : [`${labelOf.get(String(p.authorId)) ?? "Someone"} — whom you listen to — recommended this`],
+          };
+        })
+        .filter(Boolean),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /* ------------------------------ invites ---------------------------- */
 /* Shareable friend-invite links + the conversion funnel (Phase 2).     */
 
@@ -3375,6 +3636,9 @@ async function main() {
   );
   await initRelationshipStrength().catch((e) =>
     console.error("graph-service: relationship strength init failed:", e instanceof Error ? e.message : e),
+  );
+  await initListen().catch((e) =>
+    console.error("graph-service: listen init failed:", e instanceof Error ? e.message : e),
   );
   await initAccess().catch((e) =>
     console.error("graph-service: access init failed:", e instanceof Error ? e.message : e),

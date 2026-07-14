@@ -74,6 +74,13 @@ export interface RankingConfig {
   fraudThreshold: number;
   /** Score rounding decimals — stability against tiny deltas. */
   stabilityDecimals: number;
+  /**
+   * Name of the base factor. Defaults to "trust" (the trust-transfer strength).
+   * Surfaces that rank an ELIGIBLE set with no trust behind it — e.g. the Listen
+   * feed — must override this (e.g. "eligibility"), because reporting a "trust"
+   * factor where no trust exists would contradict the frozen Listen guarantee.
+   */
+  baseStage?: string;
 }
 
 /** Signals that must NEVER influence ranking (#10 anti-manipulation). Documented
@@ -112,6 +119,7 @@ export function rankCandidates(
   const w = { ...RANKING_CONFIG.weights, ...(cfg.weights ?? {}) };
   const fraudThreshold = cfg.fraudThreshold ?? RANKING_CONFIG.fraudThreshold;
   const decimals = cfg.stabilityDecimals ?? RANKING_CONFIG.stabilityDecimals;
+  const baseStage = cfg.baseStage ?? RANKING_CONFIG.baseStage ?? "trust";
   const round = (v: number) => {
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
@@ -126,9 +134,9 @@ export function rankCandidates(
     const factors: RankingFactor[] = [];
     const reasons: string[] = [];
 
-    // Base = structural trust.
+    // Base = structural trust (or, for a non-trust surface, plain eligibility).
     const base = Math.max(0, c.trustStrength);
-    factors.push({ stage: "trust", contribution: base });
+    factors.push({ stage: baseStage, contribution: base });
 
     // Stage 3: context match — a gate on the base [0,1] (missing = neutral 1).
     const context = num(c.contextMatch, 1);
