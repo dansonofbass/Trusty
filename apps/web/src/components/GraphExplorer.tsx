@@ -33,6 +33,8 @@ import { useUI } from "@/lib/store";
 import GraphCanvas, { type CanvasApi } from "./GraphCanvas";
 import TopBar from "./TopBar";
 import LeftRail from "./LeftRail";
+import FeedPanel from "./FeedPanel";
+import { Radio } from "lucide-react";
 import Inspector from "./Inspector";
 import PlaceModalHost from "./PlaceModalHost";
 import HintBar from "./HintBar";
@@ -100,6 +102,9 @@ export default function GraphExplorer() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Feed dual-view (#36): list docked beside the graph, two-way synced.
+  const [feedOpen, setFeedOpen] = useState(false);
+  const [feedMatch, setFeedMatch] = useState<Set<string> | null>(null);
 
   const graphNonce = useUI((s) => s.graphNonce);
   useEffect(() => {
@@ -648,8 +653,19 @@ export default function GraphExplorer() {
       }
     }
 
+    // Feed dual-view sync: an active list filter lights up its graph nodes
+    // (Airbnb-style list↔map). Selection and overlays take precedence.
+    if (!highlightNodes && feedMatch && feedMatch.size > 0) {
+      highlightNodes = new Set(feedMatch);
+      highlightLinks = new Set();
+      for (const l of visLinks) {
+        if (feedMatch.has(endId(l.source)) && feedMatch.has(endId(l.target)))
+          highlightLinks.add(l.id);
+      }
+    }
+
     return { highlightNodes, highlightLinks, pathNodes, pathMissing };
-  }, [view, pathPick, selectedId, graph, recsById, dataset.meId, nodeById, visLinks, linkKey, trustOverlay]);
+  }, [view, pathPick, selectedId, graph, recsById, dataset.meId, nodeById, visLinks, linkKey, trustOverlay, feedMatch]);
 
   // Trust search → graph animation: frame the top result when results land, and
   // fly to whichever result the user hovers in the panel.
@@ -795,16 +811,40 @@ export default function GraphExplorer() {
         pending={pending}
       />
 
-      <LeftRail
-        counts={typeCounts}
-        communities={communities.infos.filter((i) => i.size >= 3)}
-        mode={mode}
-        onSwitchMode={() => switchMode(mode === "mock" ? "api" : "mock")}
-        onReset={() => {
-          resetAll();
-          setTimeout(() => apiRef.current?.fit(), 120);
-        }}
-      />
+      {/* Feed dual-view (#36): the list docks where the rail sits; both sides stay in sync. */}
+      {!feedOpen && (
+        <LeftRail
+          counts={typeCounts}
+          communities={communities.infos.filter((i) => i.size >= 3)}
+          mode={mode}
+          onSwitchMode={() => switchMode(mode === "mock" ? "api" : "mock")}
+          onReset={() => {
+            resetAll();
+            setTimeout(() => apiRef.current?.fit(), 120);
+          }}
+        />
+      )}
+      {view !== "write" && !feedOpen && (
+        <button
+          onClick={() => setFeedOpen(true)}
+          title="Recommendations from people you listen to — synced with the graph"
+          className="rise fixed left-4 top-[64px] z-30 hidden items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1 text-[11.5px] font-medium text-[var(--color-dim)] backdrop-blur-md transition hover:text-ink md:flex"
+        >
+          <Radio size={12} /> Feed
+        </button>
+      )}
+      {view !== "write" && feedOpen && (
+        <FeedPanel
+          selected={selectedNode ? { id: selectedNode.id, label: selectedNode.label } : null}
+          onJump={handleJump}
+          onMatch={setFeedMatch}
+          onClearSelection={() => select(null)}
+          onClose={() => {
+            setFeedOpen(false);
+            setFeedMatch(null);
+          }}
+        />
+      )}
 
       {view !== "write" && <LayerToggle layers={layers} onToggle={toggleLayer} />}
 

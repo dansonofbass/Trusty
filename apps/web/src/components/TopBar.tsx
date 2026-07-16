@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Brain, LogOut, Orbit, PenLine, Route, Search, Sparkles, Users } from "lucide-react";
+import { Brain, LogOut, Orbit, PenLine, Radio, Route, Search, Sparkles, Users } from "lucide-react";
 import type { GNode, Wallet } from "@constellation/graph-core";
 import { GOLD } from "@/lib/palette";
 import { useUI, type ViewId } from "@/lib/store";
