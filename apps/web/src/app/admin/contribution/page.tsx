@@ -72,7 +72,21 @@ export default function ContributionAdminPage() {
     try {
       const r = await fetch("/api/admin/contribution", { cache: "no-store" });
       if (!r.ok) throw new Error(`contribution fetch failed (${r.status})`);
-      const data = (await r.json()) as Overview;
+      const raw = (await r.json()) as Partial<Overview> & { users?: Partial<Row>[] };
+      // Normalize defensively — an older graph-service may not send the newer
+      // fields (credits, capacityBreakdown); render with defaults, never crash.
+      const data: Overview = {
+        envConfig: raw.envConfig ?? {},
+        listen: { baseSlots: 5, contributionPerSlot: 5, maxSlots: 50, weeksPerSlot: 4, ...raw.listen },
+        credits: { pointsPerCredit: 2, boostCost: 3, ...raw.credits },
+        users: (raw.users ?? []).map((u) => ({
+          events: 0, lifetime: 0, momentum: 0, consistency: 1, diversity: 1,
+          capacity: 0, score: 0, stage: "New Contributor", userId: "", factors: [],
+          capacityBreakdown: { base: 5, fromContribution: 0, fromTenure: 0, fromBoosts: 0 },
+          credits: { earned: 0, ledger: 0, balance: 0 },
+          ...u,
+        }) as Row),
+      };
       setBaseline(data);
       const live: Knobs = {
         momentumHalfLifeDays: data.envConfig.momentumHalfLifeDays ?? 90,
