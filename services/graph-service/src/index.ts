@@ -2250,7 +2250,43 @@ const contributionAdminView = async (req: express.Request, res: express.Response
       shared.nodes,
       override,
     );
-    const statusOf = new Map(accounts.map((a) => [a.userId, a.status] as const));
+    const accountOf = new Map(accounts.map((a) => [a.userId, a] as const));
+    const users = [];
+    for (const r of rows) {
+      const node = byId.get(r.userId);
+      const account = accountOf.get(r.userId);
+      const tenureWeeks = account
+        ? Math.max(0, (Date.now() - Date.parse(account.createdAt)) / (7 * 86_400_000))
+        : 0;
+      const boosts = await activeBoostSlots(r.userId);
+      const earned = earnedCredits(r.score.score);
+      const ledger = await ledgerSum(r.userId);
+      users.push({
+        userId: r.userId,
+        name: node?.label,
+        email: (node as { sub?: string } | undefined)?.sub,
+        accountStatus: account?.status,
+        score: r.score.score,
+        stage: r.score.stage,
+        events: r.score.events,
+        lifetime: r.score.lifetime,
+        momentum: r.score.momentum,
+        consistency: r.score.consistency,
+        diversity: r.score.diversity,
+        capacity: listenCapacity(r.score.score, LISTEN_CONFIG, tenureWeeks) + boosts,
+        capacityBreakdown: {
+          base: LISTEN_CONFIG.baseSlots,
+          fromContribution: Math.floor(r.score.score / Math.max(1, LISTEN_CONFIG.contributionPerSlot)),
+          fromTenure:
+            LISTEN_CONFIG.weeksPerSlot > 0
+              ? Math.min(LISTEN_CONFIG.maxTenureSlots, Math.floor(tenureWeeks / LISTEN_CONFIG.weeksPerSlot))
+              : 0,
+          fromBoosts: boosts,
+        },
+        credits: { earned, ledger, balance: Math.max(0, earned + ledger) },
+        factors: r.score.factors,
+      });
+    }
     res.json({
       envConfig: CONTRIBUTION_ENV,
       appliedOverride: override,
@@ -2258,25 +2294,10 @@ const contributionAdminView = async (req: express.Request, res: express.Response
         baseSlots: LISTEN_CONFIG.baseSlots,
         contributionPerSlot: LISTEN_CONFIG.contributionPerSlot,
         maxSlots: LISTEN_CONFIG.maxSlots,
+        weeksPerSlot: LISTEN_CONFIG.weeksPerSlot,
       },
-      users: rows.map((r) => {
-        const node = byId.get(r.userId);
-        return {
-          userId: r.userId,
-          name: node?.label,
-          email: (node as { sub?: string } | undefined)?.sub,
-          accountStatus: statusOf.get(r.userId),
-          score: r.score.score,
-          stage: r.score.stage,
-          events: r.score.events,
-          lifetime: r.score.lifetime,
-          momentum: r.score.momentum,
-          consistency: r.score.consistency,
-          diversity: r.score.diversity,
-          capacity: listenCapacity(r.score.score, LISTEN_CONFIG),
-          factors: r.score.factors,
-        };
-      }),
+      credits: { pointsPerCredit: CREDITS_CONFIG.pointsPerCredit, boostCost: CREDITS_CONFIG.boostCost },
+      users,
     });
   } catch (e) {
     res.status(500).json(asError(e));

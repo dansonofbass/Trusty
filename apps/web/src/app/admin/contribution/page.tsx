@@ -1,7 +1,9 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { Gauge, Loader2, Play, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Gauge, Loader2, Play, RotateCcw, ChevronDown, ChevronRight, Coins, Info, FlaskConical, Plus,
+} from "lucide-react";
 
 interface Factor { kind: string; category: string; count: number; value: number; phrase: string }
 interface Row {
@@ -17,11 +19,14 @@ interface Row {
   consistency: number;
   diversity: number;
   capacity: number;
+  capacityBreakdown: { base: number; fromContribution: number; fromTenure: number; fromBoosts: number };
+  credits: { earned: number; ledger: number; balance: number };
   factors: Factor[];
 }
 interface Overview {
   envConfig: Record<string, number>;
-  listen: { baseSlots: number; contributionPerSlot: number; maxSlots: number };
+  listen: { baseSlots: number; contributionPerSlot: number; maxSlots: number; weeksPerSlot: number };
+  credits: { pointsPerCredit: number; boostCost: number };
   users: Row[];
 }
 
@@ -34,11 +39,11 @@ interface Knobs {
   recordedMultiplier: number;
 }
 const KNOB_META: { key: keyof Knobs; label: string; step: number; hint: string }[] = [
-  { key: "momentumHalfLifeDays", label: "Momentum half-life (days)", step: 10, hint: "How fast recent-value emphasis fades. Lifetime value never decays." },
-  { key: "burstDecay", label: "Burst decay", step: 0.05, hint: "The nth same-kind event in one day is worth decay^(n-1). Lower = harsher on flooding." },
-  { key: "lifetimeWeight", label: "Lifetime weight", step: 0.05, hint: "Weight of the never-decaying history component." },
-  { key: "momentumWeight", label: "Momentum weight", step: 0.05, hint: "Weight of the recency component." },
-  { key: "recordedMultiplier", label: "Recorded (pending) multiplier", step: 0.05, hint: "Value of a submitted-but-not-yet-validated contribution. Validated/accepted earn 1×; rejected always 0." },
+  { key: "momentumHalfLifeDays", label: "Momentum half-life (days)", step: 10, hint: "How long recent work keeps its recency bonus. History itself never decays." },
+  { key: "burstDecay", label: "Burst decay", step: 0.05, hint: "Repeating the same action within one day: each repeat is worth this fraction of the previous. Lower = harsher on spam." },
+  { key: "lifetimeWeight", label: "Lifetime weight", step: 0.05, hint: "How much all-time accumulated value counts." },
+  { key: "momentumWeight", label: "Momentum weight", step: 0.05, hint: "How much recent value counts extra." },
+  { key: "recordedMultiplier", label: "Pending-submission value", step: 0.05, hint: "Worth of a suggestion still awaiting moderation (approved = 1×, rejected = always 0)." },
 ];
 
 const STAGE_COLOR: Record<string, string> = {
@@ -58,7 +63,10 @@ export default function ContributionAdminPage() {
   const [simulated, setSimulated] = useState<Overview | null>(null);
   const [simBusy, setSimBusy] = useState(false);
   const [knobs, setKnobs] = useState<Knobs | null>(null);
+  const [liveKnobs, setLiveKnobs] = useState<Knobs | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [granting, setGranting] = useState<string | null>(null);
+  const [grantAmount, setGrantAmount] = useState("5");
 
   const load = useCallback(async () => {
     try {
@@ -66,13 +74,15 @@ export default function ContributionAdminPage() {
       if (!r.ok) throw new Error(`contribution fetch failed (${r.status})`);
       const data = (await r.json()) as Overview;
       setBaseline(data);
-      setKnobs({
+      const live: Knobs = {
         momentumHalfLifeDays: data.envConfig.momentumHalfLifeDays ?? 90,
         burstDecay: data.envConfig.burstDecay ?? 0.7,
         lifetimeWeight: data.envConfig.lifetimeWeight ?? 0.7,
         momentumWeight: data.envConfig.momentumWeight ?? 0.3,
         recordedMultiplier: 0.25,
-      });
+      };
+      setLiveKnobs(live);
+      setKnobs((k) => k ?? { ...live });
       setStatus("ok");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -104,59 +114,112 @@ export default function ContributionAdminPage() {
     }
   };
 
+  const grant = async (userId: string) => {
+    const amount = Math.floor(Number(grantAmount));
+    if (!Number.isFinite(amount) || amount < 1) return;
+    setGranting(null);
+    await fetch(`/api/admin/credits/${encodeURIComponent(userId)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amount, note: "admin panel grant" }),
+    }).catch(() => null);
+    await load();
+    if (simulated) await simulate();
+  };
+
   const simScore = useMemo(() => {
     if (!simulated) return new Map<string, number>();
     return new Map(simulated.users.map((u) => [u.userId, u.score] as const));
   }, [simulated]);
 
+  const impact = useMemo(() => {
+    if (!simulated || !baseline) return null;
+    let up = 0, down = 0, same = 0;
+    for (const u of baseline.users) {
+      const s = simScore.get(u.userId);
+      if (s === undefined) continue;
+      if (s > u.score) up += 1;
+      else if (s < u.score) down += 1;
+      else same += 1;
+    }
+    return { up, down, same };
+  }, [simulated, baseline, simScore]);
+
+  const knobsDirty = useMemo(
+    () => !!knobs && !!liveKnobs && KNOB_META.some((k) => knobs[k.key] !== liveKnobs[k.key]),
+    [knobs, liveKnobs],
+  );
+
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <div className="mx-auto max-w-6xl px-6 py-8">
       <header className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-ink" style={{ fontFamily: "var(--font-display)" }}>Contribution</h1>
-        <p className="mt-1 text-sm text-dim">
-          Every user&apos;s evidence-derived contribution score — the number that earns Listen capacity.
-          Tune the knobs to <em>simulate</em> a re-weighting; permanent changes are the <code className="text-gold">CONTRIB_*</code> env vars.
-          Scores are recomputed live from evidence, never stored.
+        <p className="mt-1 max-w-3xl text-sm text-dim">
+          Every user&apos;s evidence-derived contribution score, with the Listen capacity and Credits it earns.
+          Scores are recomputed live from evidence — never stored.
         </p>
       </header>
 
       {status === "loading" && <div className="flex items-center gap-2 text-dim"><Loader2 className="animate-spin" size={16} /> Loading…</div>}
       {status === "error" && <div className="rounded-2xl border border-line bg-surface p-6 text-sm text-rose-300">{error}</div>}
 
-      {status === "ok" && baseline && knobs && (
+      {status === "ok" && baseline && knobs && liveKnobs && (
         <div className="flex flex-col gap-6 lg:flex-row">
-          {/* tuning panel */}
-          <aside className="w-full shrink-0 rounded-2xl border border-line bg-surface p-4 backdrop-blur-md lg:w-72">
-            <div className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-ink"><Gauge size={15} /> Algorithm tuning</div>
+          {/* what-if simulator */}
+          <aside className="w-full shrink-0 self-start rounded-2xl border border-line bg-surface p-4 backdrop-blur-md lg:w-80">
+            <div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-ink">
+              <FlaskConical size={15} /> What-if simulator
+            </div>
+            <div className="mb-3 flex items-start gap-1.5 rounded-lg bg-space/50 p-2 text-[11px] leading-snug text-faint">
+              <Info size={12} className="mt-0.5 shrink-0" />
+              <span>
+                Nothing here changes the live algorithm. Adjust a knob, hit <b className="text-dim">Preview</b>, and the table
+                shows what every score <em>would</em> become — so you can see who a re-weighting helps or hurts before
+                committing. To make it permanent, set the matching <code className="text-gold">CONTRIB_*</code> env var and restart.
+              </span>
+            </div>
             <div className="space-y-3">
-              {KNOB_META.map((k) => (
-                <label key={k.key} className="block">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[12px] text-dim">{k.label}</span>
-                    <span className="text-[12px] font-semibold text-ink">{knobs[k.key]}</span>
-                  </div>
-                  <input
-                    type="number" step={k.step} value={knobs[k.key]}
-                    onChange={(e) => setKnobs({ ...knobs, [k.key]: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-lg border border-line bg-space/60 px-2 py-1 text-[12.5px] text-ink outline-none focus:border-gold/60"
-                  />
-                  <div className="mt-0.5 text-[10.5px] leading-snug text-faint">{k.hint}</div>
-                </label>
-              ))}
+              {KNOB_META.map((k) => {
+                const changed = knobs[k.key] !== liveKnobs[k.key];
+                return (
+                  <label key={k.key} className="block">
+                    <div className="flex items-baseline justify-between">
+                      <span className={`text-[12px] ${changed ? "font-semibold text-gold" : "text-dim"}`}>{k.label}</span>
+                      <span className="text-[10.5px] text-faint">live: {liveKnobs[k.key]}</span>
+                    </div>
+                    <input
+                      type="number" step={k.step} value={knobs[k.key]}
+                      onChange={(e) => setKnobs({ ...knobs, [k.key]: Number(e.target.value) })}
+                      className={`mt-1 w-full rounded-lg border bg-space/60 px-2 py-1 text-[12.5px] text-ink outline-none focus:border-gold/60 ${changed ? "border-gold/50" : "border-line"}`}
+                    />
+                    <div className="mt-0.5 text-[10.5px] leading-snug text-faint">{k.hint}</div>
+                  </label>
+                );
+              })}
             </div>
             <div className="mt-4 flex gap-2">
-              <button onClick={() => void simulate()} disabled={simBusy}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gold px-3 py-1.5 text-[12.5px] font-semibold text-space disabled:opacity-50">
-                {simBusy ? <Loader2 className="animate-spin" size={14} /> : <Play size={14} />} Simulate
+              <button onClick={() => void simulate()} disabled={simBusy || !knobsDirty}
+                title={knobsDirty ? "Recompute all scores with your values" : "Change a knob first"}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gold px-3 py-1.5 text-[12.5px] font-semibold text-space disabled:opacity-40">
+                {simBusy ? <Loader2 className="animate-spin" size={14} /> : <Play size={14} />} Preview
               </button>
-              <button onClick={() => { setSimulated(null); void load(); }}
+              <button onClick={() => { setSimulated(null); setKnobs({ ...liveKnobs }); }}
                 className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] text-dim hover:text-ink">
                 <RotateCcw size={13} /> Reset
               </button>
             </div>
-            <div className="mt-3 border-t border-line pt-3 text-[11px] text-faint">
-              Listen capacity: {baseline.listen.baseSlots} base + 1 slot / {baseline.listen.contributionPerSlot} points, max {baseline.listen.maxSlots}.
-              Rejected contributions are always worth 0 (not tunable).
+            {impact && (
+              <div className="mt-3 rounded-lg border border-gold/30 bg-gold/5 p-2 text-[11.5px] text-dim">
+                <b className="text-gold">Preview impact:</b>{" "}
+                <span className="text-emerald-400">{impact.up} up</span> ·{" "}
+                <span className="text-rose-400">{impact.down} down</span> ·{" "}
+                {impact.same} unchanged
+              </div>
+            )}
+            <div className="mt-3 border-t border-line pt-3 text-[11px] leading-relaxed text-faint">
+              <div className="mb-1 flex items-center gap-1.5 font-semibold text-dim"><Gauge size={12} /> How scores become slots &amp; credits</div>
+              1 Listen slot / {baseline.listen.contributionPerSlot} points (+1 per {baseline.listen.weeksPerSlot} weeks of membership) ·
+              1 credit / {baseline.credits.pointsPerCredit} points · a capacity boost costs {baseline.credits.boostCost} credits.
             </div>
           </aside>
 
@@ -171,19 +234,19 @@ export default function ContributionAdminPage() {
                     <tr className="border-b border-line text-[10.5px] uppercase tracking-wider text-faint">
                       <th className="px-3 py-2.5">User</th>
                       <th className="px-3 py-2.5 text-right">Score</th>
-                      {simulated && <th className="px-3 py-2.5 text-right text-gold">Simulated</th>}
+                      {simulated && <th className="px-3 py-2.5 text-right text-gold">Preview</th>}
                       <th className="px-3 py-2.5">Stage</th>
-                      <th className="px-3 py-2.5 text-right">Events</th>
-                      <th className="px-3 py-2.5 text-right">Capacity</th>
-                      <th className="px-3 py-2.5 text-right">Consistency</th>
+                      <th className="px-3 py-2.5 text-right" title="Listen slots (base + contribution + tenure + boosts)">Slots</th>
+                      <th className="px-3 py-2.5 text-right" title="Credit balance (earned from contribution + grants − spends)">Credits</th>
                       <th className="w-8 px-2 py-2.5" />
                     </tr>
                   </thead>
                   <tbody>
                     {baseline.users.map((u) => {
                       const sim = simScore.get(u.userId);
-                      const delta = sim !== undefined ? sim - u.score : undefined;
+                      const delta = sim !== undefined ? Math.round((sim - u.score) * 100) / 100 : undefined;
                       const open = expanded === u.userId;
+                      const cb = u.capacityBreakdown;
                       return (
                         <Fragment key={u.userId}>
                           <tr className="border-b border-line/50 hover:bg-space/40">
@@ -197,7 +260,7 @@ export default function ContributionAdminPage() {
                                 <span className="font-semibold text-gold">{sim ?? "–"}</span>
                                 {delta !== undefined && delta !== 0 && (
                                   <span className={`ml-1 text-[10.5px] ${delta > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                    {delta > 0 ? "+" : ""}{Math.round(delta * 100) / 100}
+                                    {delta > 0 ? "+" : ""}{delta}
                                   </span>
                                 )}
                               </td>
@@ -208,31 +271,61 @@ export default function ContributionAdminPage() {
                                 {u.stage}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-right text-dim">{u.events}</td>
-                            <td className="px-3 py-2 text-right text-dim">{u.capacity}</td>
-                            <td className="px-3 py-2 text-right text-dim">×{u.consistency}</td>
+                            <td className="px-3 py-2 text-right text-dim"
+                              title={`base ${cb.base} + contribution ${cb.fromContribution} + tenure ${cb.fromTenure} + boosts ${cb.fromBoosts}`}>
+                              {u.capacity}
+                              {cb.fromBoosts > 0 && <span className="ml-0.5 text-[10px] text-gold">↑</span>}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <span className="text-dim">{u.credits.balance}</span>
+                              <button onClick={() => { setGranting(granting === u.userId ? null : u.userId); setGrantAmount("5"); }}
+                                title="Grant credits" className="ml-1.5 rounded p-0.5 text-faint hover:text-gold">
+                                <Plus size={12} />
+                              </button>
+                            </td>
                             <td className="px-2 py-2">
-                              {u.factors.length > 0 && (
-                                <button onClick={() => setExpanded(open ? null : u.userId)} className="text-faint hover:text-ink" aria-label="Factors">
-                                  {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                                </button>
-                              )}
+                              <button onClick={() => setExpanded(open ? null : u.userId)} className="text-faint hover:text-ink" aria-label="Details">
+                                {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                              </button>
                             </td>
                           </tr>
+                          {granting === u.userId && (
+                            <tr className="border-b border-line/50 bg-space/30">
+                              <td colSpan={simulated ? 7 : 6} className="px-5 py-2">
+                                <div className="flex items-center gap-2 text-[12px] text-dim">
+                                  <Coins size={13} className="text-gold" /> Grant
+                                  <input type="number" min={1} max={1000} value={grantAmount}
+                                    onChange={(e) => setGrantAmount(e.target.value)}
+                                    className="w-20 rounded-lg border border-line bg-space/60 px-2 py-1 text-[12px] text-ink outline-none focus:border-gold/60" />
+                                  credits to <b className="text-ink">{u.name ?? u.userId}</b> (auditable)
+                                  <button onClick={() => void grant(u.userId)}
+                                    className="rounded-lg bg-gold px-3 py-1 text-[11.5px] font-semibold text-space">Grant</button>
+                                  <button onClick={() => setGranting(null)} className="text-[11.5px] text-faint hover:text-ink">Cancel</button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           {open && (
                             <tr className="border-b border-line/50 bg-space/30">
-                              <td colSpan={simulated ? 8 : 7} className="px-5 py-2.5">
-                                <ul className="space-y-1">
-                                  {u.factors.map((f) => (
-                                    <li key={f.kind} className="flex items-baseline gap-2 text-[12px]">
-                                      <span className="rounded bg-space/60 px-1.5 py-0.5 font-mono text-[10.5px] text-dim">{f.kind}×{f.count}</span>
-                                      <span className="text-dim">{f.phrase}</span>
-                                      <span className="ml-auto shrink-0 text-faint">{f.value}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                                <div className="mt-1.5 text-[10.5px] text-faint">
-                                  lifetime {u.lifetime} · momentum {u.momentum} · consistency ×{u.consistency} · diversity ×{u.diversity}
+                              <td colSpan={simulated ? 7 : 6} className="px-5 py-2.5">
+                                {u.factors.length > 0 ? (
+                                  <ul className="space-y-1">
+                                    {u.factors.map((f) => (
+                                      <li key={f.kind} className="flex items-baseline gap-2 text-[12px]">
+                                        <span className="rounded bg-space/60 px-1.5 py-0.5 font-mono text-[10.5px] text-dim">{f.kind}×{f.count}</span>
+                                        <span className="text-dim">{f.phrase}</span>
+                                        <span className="ml-auto shrink-0 text-faint">{f.value}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div className="text-[12px] text-faint">No contributions yet.</div>
+                                )}
+                                <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-0.5 text-[10.5px] text-faint sm:grid-cols-4">
+                                  <span>lifetime {u.lifetime} · momentum {u.momentum}</span>
+                                  <span>consistency ×{u.consistency} · diversity ×{u.diversity}</span>
+                                  <span>slots: {cb.base} base + {cb.fromContribution} contrib + {cb.fromTenure} tenure + {cb.fromBoosts} boost</span>
+                                  <span>credits: {u.credits.earned} earned {u.credits.ledger >= 0 ? "+" : ""}{u.credits.ledger} ledger</span>
                                 </div>
                               </td>
                             </tr>

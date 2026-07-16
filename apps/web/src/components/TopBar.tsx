@@ -6,6 +6,7 @@ import type { GNode, Wallet } from "@constellation/graph-core";
 import { GOLD } from "@/lib/palette";
 import { useUI, type ViewId } from "@/lib/store";
 import WalletPanel from "./WalletPanel";
+import ContributionPanel from "./ContributionPanel";
 import CommandPalette from "./CommandPalette";
 
 const TABS: { id: ViewId; label: string; icon: React.ElementType }[] = [
@@ -56,6 +57,7 @@ export default function TopBar({
   const user = useUI((s) => s.user);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  const [contribOpen, setContribOpen] = useState(false);
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -126,6 +128,24 @@ export default function TopBar({
             <PenLine size={13} />
             <span className="hidden sm:inline">Post</span>
           </button>
+
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setContribOpen((v) => !v)}
+              title="My contribution — score, Listen slots and credits"
+              className="flex items-center rounded-lg border border-[rgba(146,166,255,0.25)] bg-[rgba(146,166,255,0.06)] px-2.5 py-1.5 transition hover:border-[rgba(146,166,255,0.45)]"
+              aria-expanded={contribOpen}
+            >
+              <Sparkles size={13} className="text-[var(--color-dim)]" />
+            </button>
+            {contribOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setContribOpen(false)} aria-hidden />
+                <ContributionPanel onClose={() => setContribOpen(false)} />
+              </>
+            )}
+          </div>
 
           <div className="relative shrink-0">
             <button
