@@ -32,10 +32,11 @@ import { communityColor } from "@/lib/palette";
 import { useUI } from "@/lib/store";
 import GraphCanvas, { type CanvasApi } from "./GraphCanvas";
 import TopBar from "./TopBar";
+import TrustSearch from "./TrustSearch";
 import LeftRail from "./LeftRail";
 import FeedPanel from "./FeedPanel";
 import Composer from "./Composer";
-import { Radio, SlidersHorizontal } from "lucide-react";
+import { Radio, SlidersHorizontal, Sparkles, Users } from "lucide-react";
 import Inspector from "./Inspector";
 import PlaceModalHost from "./PlaceModalHost";
 import HintBar from "./HintBar";
@@ -384,21 +385,6 @@ export default function GraphExplorer() {
       if (d) setNotice("✦ Tokens added to your wallet.");
     });
   }, [runAction]);
-
-  const handleCreatePost = useCallback(
-    async (text: string) => {
-      const prevIds = new Set(dataset.nodes.map((n) => n.id));
-      const d = await runAction((c) => c.createPost(dataset.meId, text));
-      if (!d) return false;
-      const fresh = d.nodes.find((n) => !prevIds.has(n.id));
-      if (fresh) {
-        select(fresh.id);
-        setTimeout(() => apiRef.current?.centerOn(fresh.id), 500);
-      }
-      return true;
-    },
-    [runAction, dataset, select],
-  );
 
   const finishIngest = useCallback(
     (
@@ -806,13 +792,13 @@ export default function GraphExplorer() {
       />
 
       <TopBar
-        allNodes={dataset.nodes}
         wallet={ensureWallet(dataset)}
-        onJump={handleJump}
-        onCreatePost={handleCreatePost}
         onBuyTokens={handleBuyTokens}
         pending={pending}
       />
+
+      {/* Unified search overlay (⌘K / click) — entity jumps + trust search. */}
+      <TrustSearch allNodes={dataset.nodes} onJump={handleJump} />
 
       {/* Left side (#36 dual view): pill row on top — minimal Lens toggle (+ Feed
           reopen when closed) — with the feed list as the default companion below.
@@ -844,6 +830,33 @@ export default function GraphExplorer() {
               <Radio size={12} /> Feed
             </button>
           )}
+          {/* Circles / Discover moved out of the navbar tabs — view toggles beside the Lens. */}
+          <button
+            onClick={() => setView(view === "circles" ? "universe" : "circles")}
+            aria-pressed={view === "circles"}
+            title="Circles — color and isolate your communities"
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
+            style={
+              view === "circles"
+                ? { borderColor: "rgba(255,217,122,0.5)", background: "rgba(255,217,122,0.1)", color: "#ffd97a" }
+                : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
+            }
+          >
+            <Users size={12} /> Circles
+          </button>
+          <button
+            onClick={() => setView(view === "discover" ? "universe" : "discover")}
+            aria-pressed={view === "discover"}
+            title="Discover — ghost edges to things your network recommends"
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
+            style={
+              view === "discover"
+                ? { borderColor: "rgba(255,217,122,0.5)", background: "rgba(255,217,122,0.1)", color: "#ffd97a" }
+                : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
+            }
+          >
+            <Sparkles size={12} /> Discover
+          </button>
         </div>
       )}
       {view !== "write" && lensOpen && (

@@ -22,8 +22,6 @@ const GraphExplorer = dynamic(() => import("@/components/GraphExplorer"), {
   ),
 });
 
-// Trust Search overlay — self-contained island (its own FAB + session-authed calls).
-const TrustSearch = dynamic(() => import("@/components/TrustSearch"), { ssr: false });
 // Add-entity overlay — schema-driven ontology entity creation.
 const AddEntity = dynamic(() => import("@/components/AddEntity"), { ssr: false });
 // Invite panel — the network growth loop (mint link, share, see conversions).
@@ -60,7 +58,6 @@ export default function Home() {
     <>
       <GraphExplorer />
       <AddEntity />
-      <TrustSearch />
       <InvitePanel />
       <WelcomeToast />
       <OutcomePrompts />

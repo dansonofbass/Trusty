@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Brain, LogOut, Orbit, PenLine, Radio, Route, Search, Sparkles, Users } from "lucide-react";
-import type { GNode, Wallet } from "@constellation/graph-core";
+import { Brain, LogOut, Orbit, Route, Search, Sparkles } from "lucide-react";
+import type { Wallet } from "@constellation/graph-core";
 import { GOLD } from "@/lib/palette";
 import { useUI, type ViewId } from "@/lib/store";
 import WalletPanel from "./WalletPanel";
 import ContributionPanel from "./ContributionPanel";
-import CommandPalette from "./CommandPalette";
 
 const TABS: { id: ViewId; label: string; icon: React.ElementType }[] = [
   { id: "universe", label: "Universe", icon: Orbit },
-  { id: "circles", label: "Circles", icon: Users },
-  { id: "discover", label: "Discover", icon: Sparkles },
   { id: "path", label: "Path", icon: Route },
   { id: "write", label: "Write", icon: Brain },
 ];
@@ -38,39 +35,22 @@ function Wordmark() {
 }
 
 export default function TopBar({
-  allNodes,
   wallet,
-  onJump,
-  onCreatePost,
   onBuyTokens,
   pending,
 }: {
-  allNodes: GNode[];
   wallet: Wallet;
-  onJump: (id: string) => void;
-  onCreatePost: (text: string) => Promise<boolean>;
   onBuyTokens: () => void;
   pending: boolean;
 }) {
   const view = useUI((s) => s.view);
   const setView = useUI((s) => s.setView);
   const user = useUI((s) => s.user);
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  const setSearchOpen = useUI((s) => s.setSearchOpen);
   const [walletOpen, setWalletOpen] = useState(false);
   const [contribOpen, setContribOpen] = useState(false);
-  const [composing, setComposing] = useState(false);
-  const [draft, setDraft] = useState("");
 
-  const submitPost = async () => {
-    if (!draft.trim() || pending) return;
-    const ok = await onCreatePost(draft);
-    if (ok) {
-      setDraft("");
-      setComposing(false);
-    }
-  };
-
-  // "/" or ⌘K opens the command palette from anywhere.
+  // "/" or ⌘K / Ctrl+K opens the unified search from anywhere.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = document.activeElement?.tagName;
@@ -78,12 +58,12 @@ export default function TopBar({
       if (typing) return;
       if (e.key === "/" || (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey))) {
         e.preventDefault();
-        setPaletteOpen(true);
+        setSearchOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setSearchOpen]);
 
   return (
     <header className="rise pointer-events-none fixed inset-x-0 top-0 z-30 flex justify-center px-4 pt-4">
@@ -105,28 +85,18 @@ export default function TopBar({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Search → command palette */}
+          {/* Search → unified entity + trust search overlay */}
           <button
             type="button"
-            onClick={() => setPaletteOpen(true)}
-            title="Search (press /)"
+            onClick={() => setSearchOpen(true)}
+            title="Search your universe or ask your network (⌘K)"
             className="flex items-center gap-2 rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] px-3 py-2 text-[12.5px] text-[var(--color-faint)] transition hover:border-[rgba(146,166,255,0.35)] hover:text-ink"
           >
             <Search size={14} />
             <span className="hidden sm:inline">Search…</span>
             <kbd className="hidden rounded bg-[rgba(146,166,255,0.12)] px-1.5 py-0.5 text-[10px] sm:inline">
-              /
+              ⌘K
             </kbd>
-          </button>
-
-          <button
-            className="btn btn-gold shrink-0"
-            onClick={() => setComposing((c) => !c)}
-            aria-expanded={composing}
-            title="Cast a post into your sky"
-          >
-            <PenLine size={13} />
-            <span className="hidden sm:inline">Post</span>
           </button>
 
           <div className="relative shrink-0">
@@ -194,49 +164,6 @@ export default function TopBar({
           )}
         </div>
       </div>
-
-      {paletteOpen && (
-        <CommandPalette
-          allNodes={allNodes}
-          onJump={onJump}
-          onClose={() => setPaletteOpen(false)}
-        />
-      )}
-
-      {composing && (
-        <div className="panel pointer-events-auto absolute right-4 top-[68px] w-[320px] p-3.5 sm:right-[max(16px,calc((100%-72rem)/2))]">
-          <div className="eyebrow mb-2">New post · becomes a node in your sky</div>
-          <textarea
-            autoFocus
-            value={draft}
-            maxLength={140}
-            rows={3}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitPost();
-              if (e.key === "Escape") setComposing(false);
-            }}
-            placeholder="What's lighting up your sky?"
-            className="w-full resize-none rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] p-2.5 text-[13px] text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[rgba(146,166,255,0.4)]"
-          />
-          <div className="mt-2 flex items-center justify-between">
-            <span
-              className="text-[11px] text-[var(--color-faint)]"
-              style={{ fontFamily: "var(--font-mono)" }}
-            >
-              {draft.length}/140
-            </span>
-            <div className="flex gap-2">
-              <button className="btn" onClick={() => setComposing(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-gold" disabled={!draft.trim() || pending} onClick={submitPost}>
-                Cast ✦
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

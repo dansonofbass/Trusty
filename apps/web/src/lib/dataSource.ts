@@ -4,7 +4,6 @@ import {
   addUserEntityLink,
   buildDataset,
   buyTokens,
-  createPost,
   dismissRecommendation,
   earnTokens,
   ensureWallet,
@@ -24,7 +23,6 @@ import {
   mutateAddEdge,
   mutateAddEntityLink,
   mutateBuyTokens,
-  mutateCreatePost,
   mutateDismissRec,
   mutateEarnTokens,
   mutateRemoveEdge,
@@ -79,7 +77,6 @@ export interface GraphClient {
   load(): Promise<Dataset>;
   addEdge(source: string, target: string): Promise<Dataset>;
   removeEdge(source: string, target: string): Promise<Dataset>;
-  createPost(authorId: string, label: string): Promise<Dataset>;
   acceptRec(userId: string, nodeId: string): Promise<Dataset>;
   dismissRec(userId: string, nodeId: string): Promise<Dataset>;
   /** Link two entities (local until promoted to global). */
@@ -114,7 +111,6 @@ function mockClient(): GraphClient {
     load: () => Promise.resolve(data),
     addEdge: (s, t) => commit(addEdge(data, s, t)),
     removeEdge: (s, t) => commit(removeEdge(data, s, t)),
-    createPost: (a, l) => commit(createPost(data, a, l)),
     acceptRec: (_u, n) => commit(acceptRecommendation(data, n)),
     dismissRec: (_u, n) => commit(dismissRecommendation(data, n)),
     addEntityLink: (userId, source, target, type, label) =>
@@ -151,7 +147,6 @@ function apiClient(): GraphClient {
     load: () => fetchGraph().then(sync),
     addEdge: (source, target) => mutateAddEdge(source, target).then(sync),
     removeEdge: (source, target) => mutateRemoveEdge(source, target).then(sync),
-    createPost: (authorId, label) => mutateCreatePost(authorId, label).then(sync),
     acceptRec: (userId, nodeId) => mutateAcceptRec(userId, nodeId).then(sync),
     dismissRec: (userId, nodeId) => mutateDismissRec(userId, nodeId).then(sync),
     addEntityLink: (userId, source, target, type, label) =>

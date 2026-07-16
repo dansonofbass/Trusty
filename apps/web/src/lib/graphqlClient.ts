@@ -145,16 +145,6 @@ export async function mutateRemoveEdge(source: string, target: string): Promise<
   return asDataset(data.removeEdge);
 }
 
-export async function mutateCreatePost(authorId: string, label: string): Promise<Dataset> {
-  const data = await gql<{ createPost: GraphPayload }>(
-    `mutation($authorId: ID!, $label: String!) {
-      createPost(authorId: $authorId, label: $label) { ${GRAPH_SELECTION} }
-    }`,
-    { authorId, label },
-  );
-  return asDataset(data.createPost);
-}
-
 export async function mutateAcceptRec(userId: string, nodeId: string): Promise<Dataset> {
   const data = await gql<{ acceptRecommendation: GraphPayload }>(
     `mutation($userId: ID!, $nodeId: ID!) {

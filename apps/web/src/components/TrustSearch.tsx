@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Sparkles, Target, Network, X as XIcon } from "lucide-react";
-import { TOPIC_TAXONOMY, reasonsForTopic } from "@constellation/graph-core";
-import { TRUST_ACCENT, withAlpha } from "@/lib/palette";
+import { NODE_TYPE_LABEL, TOPIC_TAXONOMY, reasonsForTopic, type GNode } from "@constellation/graph-core";
+import { NODE_COLOR, NODE_GLYPH, TRUST_ACCENT, withAlpha } from "@/lib/palette";
 import { useUI } from "@/lib/store";
 import {
   addTrust,
@@ -19,10 +19,11 @@ import { streamConciergeAnswer } from "@/lib/conciergeClient";
 import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge/AgentTrace";
 
 /**
- * Trust Search — a docked panel (list) that drives the graph (animation +
- * highlighted trust paths) instead of a blocking modal. Natural-language query →
- * resolved scope → results grouped by hop (direct vs. through your network), each
- * with its full trust path, reasons, outcome 👍/👎, and a quick "trust this".
+ * Unified search — one top-navbar overlay (⌘K / Ctrl+K / click) that covers both
+ * worlds: instant "Jump to" entity matches over the loaded graph, and the trust
+ * search (natural-language query → resolved scope → results grouped by hop, each
+ * with its full trust path, reasons, outcome 👍/👎, and a quick "trust this")
+ * whose results drive the graph overlay instead of a blocking modal.
  */
 const baseSteps = (): ThinkStep[] => [
   { id: "intent", label: "Understanding your request", status: "active", icon: <Target size={13} /> },
@@ -30,8 +31,15 @@ const baseSteps = (): ThinkStep[] => [
   { id: "answer", label: "Reading your graph & answering", status: "pending", icon: <Sparkles size={13} /> },
 ];
 
-export default function TrustSearch() {
-  const [open, setOpen] = useState(false);
+export default function TrustSearch({
+  allNodes,
+  onJump,
+}: {
+  allNodes: GNode[];
+  onJump: (id: string) => void;
+}) {
+  const open = useUI((s) => s.searchOpen);
+  const setOpen = useUI((s) => s.setSearchOpen);
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<ResolvedScope | null>(null);
   const [recs, setRecs] = useState<TrustRec[]>([]);
@@ -40,11 +48,34 @@ export default function TrustSearch() {
   const [steps, setSteps] = useState<ThinkStep[] | null>(null);
   const [answer, setAnswer] = useState("");
   const [answerDone, setAnswerDone] = useState(true);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [ranQ, setRanQ] = useState<string | null>(null); // query the trust search last ran with
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const setTrustSearch = useUI((s) => s.setTrustSearch);
   const setTrustFocus = useUI((s) => s.setTrustFocus);
   const setStep = (id: string, patch: Partial<ThinkStep>) =>
     setSteps((prev) => (prev ? prev.map((s) => (s.id === id ? { ...s, ...patch } : s)) : prev));
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  // Instant "Jump to" matches over the loaded graph — the old command palette.
+  const entityMatches = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return [];
+    return allNodes
+      .filter(
+        (n) =>
+          n.label.toLowerCase().includes(needle) ||
+          (n.sub ?? "").toLowerCase().includes(needle),
+      )
+      .slice(0, 8);
+  }, [q, allNodes]);
+  // Keyboard rows: entity matches first, then the synthetic "ask your network" row.
+  const askable = q.trim().length >= 2;
+  const rowCount = entityMatches.length + (askable ? 1 : 0);
 
   // Publish/clear the graph overlay as results change or the panel closes.
   useEffect(() => {
@@ -57,6 +88,11 @@ export default function TrustSearch() {
     setOpen(false);
     setTrustSearch(null);
     setTrustFocus(null);
+  };
+
+  const jump = (id: string) => {
+    onJump(id);
+    close();
   };
 
   /** Run search + concierge answer for a resolved scope. */
@@ -114,7 +150,7 @@ export default function TrustSearch() {
   const runSearch = useCallback(async () => {
     const query = q.trim();
     if (query.length < 2) return;
-    setOpen(true);
+    setRanQ(query);
     setError(null);
     setSteps(baseSteps());
     setAnswer("");
@@ -163,24 +199,47 @@ export default function TrustSearch() {
   const network = recs.filter((r) => r.hops > 1);
   const hasPanel = open && (steps !== null || recs.length > 0);
 
+  if (!open) return null;
+
   return (
     <>
-      {/* Hero search bar — the primary action, always visible top-centre. */}
-      <div className="pointer-events-none fixed inset-x-0 top-[62px] z-40 flex justify-center px-4">
+      {/* Transparent click-catcher — no blur, the graph must stay visible while
+          trust results animate the orange overlay behind the panel. */}
+      <div className="fixed inset-0 z-40" onClick={close} aria-hidden />
+
+      {/* Unified search — takes the navbar band (⌘K / click), not "a bit lower". */}
+      <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-4">
         <form
           onSubmit={(e) => { e.preventDefault(); runSearch(); }}
-          className="pointer-events-auto w-full max-w-[600px]"
+          className="pointer-events-auto w-full max-w-[640px]"
         >
           <div
-            className="flex items-center gap-2 rounded-2xl border bg-nebula/90 px-3 shadow-xl backdrop-blur-md transition-colors"
-            style={{ borderColor: open ? withAlpha(TRUST_ACCENT, 0.6) : "var(--color-line)" }}
+            className="flex items-center gap-2 rounded-2xl border bg-nebula/95 px-3 shadow-xl backdrop-blur-md transition-colors"
+            style={{ borderColor: withAlpha(TRUST_ACCENT, 0.6) }}
           >
             <Search size={16} style={{ color: TRUST_ACCENT }} />
             <input
+              ref={inputRef}
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onFocus={() => setOpen(true)}
-              placeholder="Who does your network trust? — “best immigration lawyer in Yerevan”"
+              onChange={(e) => { setQ(e.target.value); setActiveIdx(0); }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setActiveIdx((i) => Math.min(i + 1, Math.max(rowCount - 1, 0)));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActiveIdx((i) => Math.max(i - 1, 0));
+                } else if (e.key === "Enter") {
+                  const n = entityMatches[activeIdx];
+                  if (n) {
+                    e.preventDefault();
+                    jump(n.id);
+                  } // else: fall through to the form submit → trust search
+                } else if (e.key === "Escape") {
+                  close();
+                }
+              }}
+              placeholder="Search your universe, or ask — “best immigration lawyer in Yerevan”"
               className="w-full bg-transparent py-2.5 text-sm text-ink outline-none placeholder:text-faint"
             />
             {q && (
@@ -194,7 +253,66 @@ export default function TrustSearch() {
             >
               Search
             </button>
+            <kbd className="hidden shrink-0 rounded bg-[rgba(146,166,255,0.12)] px-1.5 py-0.5 text-[10px] text-faint sm:inline">esc</kbd>
           </div>
+
+          {/* Instant results: jump to a node, or hand the query to the trust search.
+              Yields to the trust panel once a search ran for this exact query. */}
+          {q.trim() && q.trim() !== ranQ && (
+            <div className="pointer-events-auto mt-2 overflow-hidden rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
+              {entityMatches.length > 0 && (
+                <ul className="p-2">
+                  <li className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-faint">Jump to</li>
+                  {entityMatches.map((n, i) => (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        onMouseEnter={() => setActiveIdx(i)}
+                        onClick={() => jump(n.id)}
+                        className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition"
+                        style={{ background: i === activeIdx ? "rgba(146,166,255,0.14)" : undefined }}
+                      >
+                        <span
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[12px] font-semibold"
+                          style={{ background: `${NODE_COLOR[n.type]}22`, color: NODE_COLOR[n.type] }}
+                        >
+                          {n.type === "person" ? (n.label[0] ?? "?").toUpperCase() : NODE_GLYPH[n.type]}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] text-ink">{n.label}</span>
+                          <span className="block truncate text-[11px] text-faint">
+                            {NODE_TYPE_LABEL[n.type]}
+                            {n.sub ? ` · ${n.sub}` : ""}
+                          </span>
+                        </span>
+                        {i === activeIdx && (
+                          <span className="shrink-0 text-[9.5px] uppercase tracking-wide text-faint" style={{ fontFamily: "var(--font-mono)" }}>
+                            ↵ jump
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {askable && (
+                <button
+                  type="submit"
+                  onMouseEnter={() => setActiveIdx(entityMatches.length)}
+                  className="flex w-full items-center gap-3 border-t border-line px-4 py-2.5 text-left transition"
+                  style={{ background: activeIdx === entityMatches.length ? withAlpha(TRUST_ACCENT, 0.12) : undefined }}
+                >
+                  <Sparkles size={15} style={{ color: TRUST_ACCENT }} />
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-ink">
+                    Ask your network for “{q.trim()}”
+                  </span>
+                  <span className="shrink-0 text-[9.5px] uppercase tracking-wide text-faint" style={{ fontFamily: "var(--font-mono)" }}>
+                    ↵ trust search
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
 
           {hasPanel && (
             <div className="pointer-events-auto mt-2 max-h-[72vh] overflow-auto rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md scroll-quiet">

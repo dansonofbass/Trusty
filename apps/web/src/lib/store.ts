@@ -52,6 +52,7 @@ interface UIState {
   graphNonce: number; // bump to force GraphExplorer to reload the dataset
   inviteOpen: boolean; // controls the InvitePanel (onboarding can open it)
   placeModalId: string | null; // restaurant/cafe id shown in the full-screen detail modal
+  searchOpen: boolean; // unified top search (entities + trust) — ⌘K / click
 
   setView: (v: ViewId) => void;
   select: (id: string | null) => void;
@@ -72,6 +73,7 @@ interface UIState {
   setTrustFocus: (id: string | null) => void;
   bumpGraph: () => void;
   setInviteOpen: (v: boolean) => void;
+  setSearchOpen: (v: boolean) => void;
   openPlace: (id: string) => void;
   closePlace: () => void;
   resetAll: () => void;
@@ -93,6 +95,7 @@ export const useUI = create<UIState>((set) => ({
   graphNonce: 0,
   inviteOpen: false,
   placeModalId: null,
+  searchOpen: false,
 
   setView: (view) =>
     set((s) => ({
@@ -134,6 +137,7 @@ export const useUI = create<UIState>((set) => ({
   setTrustFocus: (trustFocusId) => set({ trustFocusId }),
   bumpGraph: () => set((s) => ({ graphNonce: s.graphNonce + 1 })),
   setInviteOpen: (inviteOpen) => set({ inviteOpen }),
+  setSearchOpen: (searchOpen) => set({ searchOpen }),
   openPlace: (id) => set({ placeModalId: id }),
   closePlace: () => set({ placeModalId: null }),
   resetAll: () =>
