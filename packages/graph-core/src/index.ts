@@ -153,6 +153,24 @@ export {
   type RecommendationProps,
 } from "./recommendations";
 export {
+  aggregateContribution,
+  explainContribution,
+  contributionStage,
+  CONTRIBUTION_KINDS,
+  CONTRIBUTION_DEFAULTS,
+  CONTRIBUTION_STAGES,
+  NON_CONTRIBUTION_ACTIVITY,
+  type ContributionEvent,
+  type ContributionCategory,
+  type ContributionStatus,
+  type ContributionKindDef,
+  type ContributionConfig,
+  type ContributionScore,
+  type ContributionFactor,
+  type ContributionStage,
+  type ContributionOptions,
+} from "./contribution";
+export {
   DOMAIN_LABEL,
   ENTITY_TYPES,
   RELATION_TYPES,

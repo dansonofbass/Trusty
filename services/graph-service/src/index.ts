@@ -103,7 +103,6 @@ import {
   initListen,
   listenEnabled,
   LISTEN_CONFIG,
-  contributionScore,
   createRequest,
   getRequest,
   incomingRequests,
@@ -119,6 +118,12 @@ import {
   relationshipStrengthEnabled,
   strengthMap,
 } from "./relationshipStrength";
+import {
+  initContribution,
+  contributionLedgerEnabled,
+  contributionSummaryFor,
+  contributionValueFor,
+} from "./contribution";
 import { initSavedPlaces, isSaved, listSaved, savePlace, savedPlacesEnabled, unsavePlace } from "./savedPlaces";
 import {
   initPlaceSuggestions, placeSuggestionsEnabled, createSuggestion, listSuggestions, getSuggestion, setSuggestionStatus,
@@ -524,6 +529,7 @@ app.get("/health", (_req, res) => {
     reputation: reputationEnabled() ? "postgres" : "disabled",
     relationshipStrength: relationshipStrengthEnabled() ? "postgres" : "priors-only",
     listen: listenEnabled() ? "postgres" : "disabled",
+    contribution: contributionLedgerEnabled() ? "postgres" : "graph-derived-only",
     access: accessEnabled() ? "postgres" : "disabled",
     waitlist: waitlistEnabled() ? "postgres" : "disabled",
     onboarding: onboardingEnabled() ? "postgres" : "disabled",
@@ -2193,22 +2199,33 @@ app.get("/api/recs/:id", (req, res) => {
   res.json({ id: recId, properties: rec.properties, outcomes, consensus: recommendationConsensus(ds, recId) });
 });
 
+/* --------------------- Contribution Engine (#20/#21/#22) --------------------- */
+/* Derived, explainable measure of how much this user improved the network.
+ * Independent from Trust, Reputation and Relationship Strength; consumed by
+ * Listen capacity (and future reward systems), never by ranking or trust. */
+
+/** My contribution: score, stage, per-kind explanations, recent history. */
+app.get("/api/contribution", async (req, res) => {
+  const { userId } = auth(req);
+  const topic = typeof req.query.topic === "string" ? req.query.topic.toLowerCase() : undefined;
+  try {
+    res.json(await contributionSummaryFor(userId, shared.nodes, { topic }));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /* ------------------------- Listen (Doc #6/#7) ------------------------- */
 /* A permission to receive someone's FUTURE recommendations. Directional,
  * acceptance-based, capacity-bounded, EARNED (never bought). It grants
  * eligibility only — never trust, never reputation. The edge is
  * LISTENS_TO_PERSON (the spec's "LISTENS_TO" name is taken by person→music). */
 
-/** How many recommendations this user has authored (a contribution signal). */
-function authoredRecCount(userId: string): number {
-  return shared.nodes.filter(
-    (n) => n.type === "recommendation" && (n.properties as { authorId?: string } | undefined)?.authorId === userId,
-  ).length;
-}
-
-/** This user's EARNED listen capacity (slots). No payment term exists. */
+/** This user's EARNED listen capacity (slots). No payment term exists.
+ * Capacity is the first downstream CONSUMER of the Contribution Engine
+ * (#21 "future reward systems consume Contribution rather than raw activity"). */
 async function capacityFor(userId: string): Promise<{ capacity: number; contribution: number }> {
-  const contribution = await contributionScore(userId, authoredRecCount(userId));
+  const contribution = await contributionValueFor(userId, shared.nodes);
   return { capacity: listenCapacity(contribution, LISTEN_CONFIG), contribution };
 }
 
@@ -3639,6 +3656,9 @@ async function main() {
   );
   await initListen().catch((e) =>
     console.error("graph-service: listen init failed:", e instanceof Error ? e.message : e),
+  );
+  await initContribution().catch((e) =>
+    console.error("graph-service: contribution init failed:", e instanceof Error ? e.message : e),
   );
   await initAccess().catch((e) =>
     console.error("graph-service: access init failed:", e instanceof Error ? e.message : e),

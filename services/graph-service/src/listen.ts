@@ -26,9 +26,6 @@ export const LISTEN_CONFIG = {
   contributionPerSlot: Number(process.env.LISTEN_CONTRIBUTION_PER_SLOT ?? 5) || 5,
   maxSlots: Number(process.env.LISTEN_MAX_SLOTS ?? 50) || 50,
   requestTtlDays: Number(process.env.LISTEN_REQUEST_TTL_DAYS ?? 30) || 30,
-  /** A published recommendation is worth more than a single outcome report. */
-  weightAuthoredRecommendation: Number(process.env.LISTEN_W_RECOMMENDATION ?? 2) || 2,
-  weightOutcomeReported: Number(process.env.LISTEN_W_OUTCOME ?? 1) || 1,
 };
 
 export type ListenPolicy = "manual" | "auto_accept";
@@ -96,31 +93,9 @@ export async function setPolicy(userId: string, policy: ListenPolicy): Promise<v
 }
 
 /* ----------------------------- contribution ---------------------------- */
-
-/**
- * Contribution score — the ONLY thing that earns listen slots. Derived from
- * evidence the user has genuinely produced: verified outcomes they reported +
- * recommendations they authored (count passed in from the graph). There is no
- * payment, follower-count or profile-completeness term, by design.
- */
-export async function contributionScore(userId: string, authoredRecommendations: number): Promise<number> {
-  let outcomes = 0;
-  if (pool) {
-    try {
-      const r = await pool.query(
-        `SELECT count(*)::int AS n FROM trust_outcomes WHERE user_id = $1`,
-        [userId],
-      );
-      outcomes = Number(r.rows[0]?.n ?? 0);
-    } catch {
-      /* best-effort */
-    }
-  }
-  return (
-    outcomes * LISTEN_CONFIG.weightOutcomeReported +
-    Math.max(0, authoredRecommendations) * LISTEN_CONFIG.weightAuthoredRecommendation
-  );
-}
+/* Contribution — the ONLY thing that earns listen slots — is computed by the
+ * Contribution Engine (#20/#21/#22): see `contribution.ts`
+ * (`contributionValueFor`). Still evidence-derived, still no payment term. */
 
 /* ------------------------------ requests ------------------------------- */
 
