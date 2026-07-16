@@ -411,6 +411,9 @@ services:
       # (KEYCLOAK_INTERNAL_URL from .env = http://keycloak:8080).
       APP_BASE_URL: http://${PUBLIC_HOST:-localhost}:3000
       KEYCLOAK_ISSUER: http://${PUBLIC_HOST:-localhost}:8080/realms/constellation
+      # Exposed so next.config.ts can allow this host as a dev origin (Next 15+
+      # blocks cross-origin /_next dev resources from non-localhost hosts).
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
       - "3000:3000"
     volumes:
