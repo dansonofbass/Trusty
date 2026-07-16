@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trusty — Outcomes &amp; Reputation: How the Network Learns What's True</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", -apple-system, Arial, sans-serif;
+    color: #1c2333; line-height: 1.55; font-size: 10.5pt;
+    max-width: 760px; margin: 0 auto; padding: 24px;
+  }
+  h1 { font-size: 21pt; letter-spacing: -0.02em; margin: 0 0 2px; color: #10162a; }
+  .subtitle { color: #5a6480; font-size: 10.5pt; margin-bottom: 18px; }
+  h2 {
+    font-size: 14pt; margin: 26px 0 8px; color: #10162a;
+    border-bottom: 2px solid #e8804a; padding-bottom: 4px;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 11.5pt; margin: 16px 0 4px; color: #2a3350; page-break-after: avoid; }
+  p { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #f2f0ea; text-align: left; padding: 6px 8px; border: 1px solid #d8d4c8; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6480; }
+  td { padding: 6px 8px; border: 1px solid #e2ded4; vertical-align: top; }
+  code, .env { font-family: Consolas, monospace; font-size: 9pt; background: #f2f0ea; padding: 1px 4px; border-radius: 3px; color: #8a4a1f; }
+  .rule {
+    background: #fdf3ec; border-left: 3px solid #e8804a; padding: 8px 12px; margin: 10px 0;
+    font-size: 10pt; page-break-inside: avoid;
+  }
+  .rule b { color: #b35a24; }
+  .never { background: #f7edee; border-left-color: #c25555; }
+  .never b { color: #a33; }
+  .formula {
+    font-family: Consolas, monospace; font-size: 9.5pt; background: #f4f3ef; border: 1px solid #e2ded4;
+    border-radius: 6px; padding: 8px 12px; margin: 8px 0; color: #2a3350; page-break-inside: avoid;
+  }
+  .flow {
+    background: #f4f3ef; border: 1px solid #e2ded4; border-radius: 6px; padding: 10px 14px; margin: 8px 0;
+    font-family: Consolas, monospace; font-size: 9.5pt; color: #2a3350; page-break-inside: avoid;
+    white-space: pre-line;
+  }
+  ul { margin: 4px 0 8px; padding-left: 20px; }
+  li { margin: 2px 0; }
+  .dim { color: #5a6480; font-size: 9.5pt; }
+  .cols { display: flex; gap: 16px; }
+  .cols > div { flex: 1; }
+  .footer { margin-top: 28px; border-top: 1px solid #d8d4c8; padding-top: 8px; color: #8a91a8; font-size: 8.5pt; }
+</style>
+</head>
+<body>
+
+<h1>Outcomes &amp; Reputation</h1>
+<div class="subtitle">How the network learns what's true — recommendation validation &amp; the reputation math · engine v1 · July 2026</div>
+
+<h2>1 · The question this answers</h2>
+<p>Maria recommends an immigration lawyer. Months later, the network "knows" this lawyer is good — good enough to rank them higher and to reward Maria. <b>How does the network find that out?</b> There is no voting, no likes, no admin decision, and no AI verdict. The mechanism is a single primitive: the <b>outcome</b>.</p>
+<div class="rule"><b>An outcome is a real-world result.</b> Someone acted on a recommendation — hired the lawyer, ate at the restaurant, visited the dentist — and then reported how it actually went, on a scale from −1 (bad) to +1 (great). Outcomes are the only currency of truth in Trusty.</div>
+
+<h2>2 · The validation flow, step by step</h2>
+<div class="flow">Maria publishes a recommendation for lawyer L        →  Maria: +2 contribution (creation)
+      ↓
+Alex discovers it (trust search, or he Listens to Maria)
+      ↓
+Alex hires the lawyer — real life happens
+      ↓
+Alex reports the outcome (value +1)                   →  Alex: +1 contribution (validation)
+      ↓
+The single report moves three independent dials:
+  ① an immutable outcome node attaches to the rec     →  the rec's consensus grows
+  ② the append-only outcome log gains a row           →  lawyer L's REPUTATION updates
+  ③ positive + from someone ≠ Maria                   →  Maria: +3 (recommendation_validated)</div>
+<p>Outcomes are <b>immutable and additive</b> — they never rewrite the recommendation, they accumulate beside it. Contradictory evidence is preserved, not discarded: a later −1 outcome sits in history next to the earlier +1, and consensus is computed on read.</p>
+
+<h2>3 · Does Maria get more score? Yes — the most the engine ever gives</h2>
+<p><code>recommendation_validated</code> is worth <b>3</b> — more than creating the recommendation itself (2). Deliberately: an independent human verifying in the real world that your knowledge was good is the hardest signal to fake, so it pays the most.</p>
+<h3>The three guardrails</h3>
+<table>
+  <tr><th>Guardrail</th><th>Rule</th><th>Why</th></tr>
+  <tr><td><b>Independence</b></td><td>One <code>+3</code> per <em>distinct person</em> per recommendation. Alex reporting five glowing outcomes on the same rec = +3 once, not +15. Three <em>different</em> people = +9.</td><td>People count, volume doesn't — no farming a friend's repeat clicks.</td></tr>
+  <tr><td><b>Positive only (for the author)</b></td><td>A negative outcome earns Maria nothing. The <em>reporter</em> still earns +1 either way.</td><td>Honest bad news also reduces uncertainty — the reporter helped the network; the author's bad advice didn't.</td></tr>
+  <tr><td><b>No self-validation</b></td><td>Maria's own outcomes on her own recommendation are excluded.</td><td>Obvious.</td></tr>
+</table>
+<p class="dim">Timing note: the +3 lands with the outcome's own date, then flows through the normal scoring machinery — full value in the never-decaying lifetime component, recency-weighted in momentum, damped if several land the same day.</p>
+
+<h2>4 · Reputation — whose is it, and what is it?</h2>
+<p>Reputation belongs to the <b>provider</b> (lawyer L), not to Maria. It answers: <em>"how reliably has this provider produced good outcomes, in this topic?"</em> Three frozen properties:</p>
+<ul>
+  <li><b>Derived, never stored.</b> There is no reputation column anywhere. It is recomputed from the outcome log on every read — and can therefore always be replayed under a better model.</li>
+  <li><b>Never user-editable.</b> Not by the provider, not by an admin. Only evidence moves it.</li>
+  <li><b>Topic-scoped.</b> A brilliant immigration-lawyer reputation says exactly nothing about the same person as a tax advisor. (Child topics roll up through the topic hierarchy.)</li>
+</ul>
+
+<h2>5 · The reputation math — four steps</h2>
+<h3>① Time decay</h3>
+<p>Each outcome's weight halves every <b>180 days</b> (<span class="env">halfLifeDays</span>, default 180). Fresh evidence counts fully; a three-year-old outcome still counts, just faintly. Reputation reflects the provider as they are <em>now</em>, without amnesia.</p>
+<div class="formula">weight = 0.5 ^ (age_in_days / 180)</div>
+
+<h3>② Weighted mean of outcome values</h3>
+<p>Each outcome value (−1…+1) is multiplied by its decay weight and averaged.</p>
+
+<h3>③ Bayesian shrinkage — one review can't make a star</h3>
+<div class="formula">score = (Σ weight·value + K·prior) / (Σ weight + K)     with K = 3, prior = 0</div>
+<p>The <b>K = 3</b> acts like three invisible, perfectly neutral outcomes sitting in the average. A single +1.0 outcome therefore produces a score of 1/(1+3) = <b>0.25</b>, not 1.0. Scores move slowly and stably — the spec's "favor stability over volatility". One outcome can never dominate.</p>
+
+<h3>④ Confidence from independent people — never a vote count</h3>
+<div class="formula">confidence = 1 − e^(−distinct_contributors / 2)</div>
+<p>Confidence grows with the number of <em>different people</em> who reported, and saturates. Ten outcomes from one enthusiastic person ≈ one contributor ≈ 39% confidence. The same ten spread over ten people ≈ 99%.</p>
+<table>
+  <tr><th>Distinct contributors</th><td>1</td><td>2</td><td>3</td><td>5</td><td>10</td></tr>
+  <tr><th>Confidence</th><td>39%</td><td>63%</td><td>78%</td><td>92%</td><td>99%</td></tr>
+</table>
+
+<h3>The ranking-ready number</h3>
+<div class="formula"><b>effective = score × confidence</b></div>
+<p>Low evidence ⇒ near-neutral, no matter how glowing the few reports were. This is the number the ranking pipeline consumes — as <em>one</em> config-weighted factor among several (recommendation quality, outcome consensus, relationship strength, personalization), never as the whole answer.</p>
+
+<h2>6 · Worked example — Maria's lawyer</h2>
+<p>Two clients so far: Alex reports <b>+1.0</b> today; Sara reported <b>+0.8</b> sixty days ago.</p>
+<table>
+  <tr><th>Step</th><th>Computation</th><th>Result</th></tr>
+  <tr><td>Sara's decay weight</td><td>0.5^(60/180)</td><td>0.79</td></tr>
+  <tr><td>Weighted evidence</td><td>1.0×1.0 + 0.79×0.8</td><td>1.63</td></tr>
+  <tr><td>Score (with shrinkage K=3)</td><td>1.63 / (1.79 + 3)</td><td><b>0.34</b></td></tr>
+  <tr><td>Confidence (2 people)</td><td>1 − e^(−2/2)</td><td><b>0.63</b></td></tr>
+  <tr><td>Effective reputation ("lawyer")</td><td>0.34 × 0.63</td><td><b>≈ 0.22</b></td></tr>
+</table>
+<p>Two happy clients get the lawyer to a modest 0.22 — not to the top. Building a strong reputation takes <b>many independent, sustained</b> positive outcomes; and it decays gracefully if the quality stops.</p>
+<p class="dim">Meanwhile, from the same two reports: Maria earned +3 twice (two independent validators → +6 contribution), Alex and Sara each earned +1, and the recommendation itself shows a 2-person positive consensus. Four different ledgers, one piece of evidence each — none of them purchasable.</p>
+
+<h2>7 · What this deliberately is NOT</h2>
+<div class="rule never"><b>Structural absences.</b> Reputation has no input for: star ratings without an acted-on outcome, likes, views, follower counts, payment or subscription, provider self-reports, admin overrides, or AI judgments. The signature of the function is <code>(outcome samples, time) → score</code> — nothing else can reach it.</div>
+<ul>
+  <li><b>Reputation ≠ Trust.</b> Trust is <em>your</em> directed, topic-scoped relationship graph — who <em>you</em> rely on, transferred along your own paths. Reputation is the network-wide evidence view of a provider. They are computed by different modules from different edges and never write to each other.</li>
+  <li><b>Reputation ≠ Contribution.</b> The lawyer's reputation rising does nothing to Maria's score except via the explicit <code>recommendation_validated</code> event — and Maria's contribution never feeds back into the lawyer's reputation.</li>
+  <li><b>Listening moves neither.</b> Gaining a thousand listeners changes no reputation and no contribution.</li>
+</ul>
+
+<h2>8 · Configuration</h2>
+<table>
+  <tr><th>Knob</th><th>Default</th><th>Controls</th></tr>
+  <tr><td><span class="env">halfLifeDays</span></td><td>180</td><td>Outcome decay — how fast old evidence fades</td></tr>
+  <tr><td><span class="env">priorStrength (K)</span></td><td>3</td><td>Shrinkage — how many "invisible neutral outcomes" temper the mean</td></tr>
+  <tr><td><span class="env">prior</span></td><td>0</td><td>The neutral point scores shrink toward</td></tr>
+  <tr><td><span class="env">consensusK</span></td><td>2</td><td>How quickly confidence saturates with independent contributors</td></tr>
+</table>
+<p class="dim">All defaults live in <code>packages/graph-core/src/reputation.ts</code> (<code>REPUTATION_DEFAULTS</code>); the SQL evidence source is the append-only <code>trust_outcomes</code> log.</p>
+
+<div class="footer">
+  Trusty · Outcomes &amp; Reputation · generated July 2026 · companion to the Contribution/Credits/Capacity glossary · sources: <code>packages/graph-core/src/reputation.ts</code>, <code>recommendations.ts</code>, <code>services/graph-service/src/contribution.ts</code>, <code>trustLog.ts</code>, GitHub issues #9–#11, #20–#23.
+</div>
+
+</body>
+</html>
