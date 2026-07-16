@@ -131,6 +131,28 @@ export {
   type RankingConfig,
 } from "./ranking";
 export {
+  listenCapacity,
+  addListenEdge,
+  removeListenEdge,
+  listeningTo,
+  listenersOf,
+  activeListenCount,
+  isListening,
+  recommendationsFromListened,
+  LISTEN_DEFAULTS,
+  type ListenCapacityConfig,
+} from "./listen";
+export {
+  createRecommendation,
+  attachOutcome,
+  outcomesForRecommendation,
+  recommendationsForTarget,
+  recommendationConsensus,
+  type RecommendationInput,
+  type OutcomeInput,
+  type RecommendationProps,
+} from "./recommendations";
+export {
   DOMAIN_LABEL,
   ENTITY_TYPES,
   RELATION_TYPES,

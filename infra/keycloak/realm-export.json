@@ -50,14 +50,18 @@
       "serviceAccountsEnabled": false,
       "fullScopeAllowed": true,
       "redirectUris": [
-        "http://localhost:3000/api/auth/callback"
+        "http://localhost:3000/api/auth/callback",
+        "http://${PUBLIC_HOST}:3000/api/auth/callback",
+        "https://${PUBLIC_HOST}/api/auth/callback"
       ],
       "webOrigins": [
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://${PUBLIC_HOST}:3000",
+        "https://${PUBLIC_HOST}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://${PUBLIC_HOST}:3000/*##https://${PUBLIC_HOST}/*",
         "backchannel.logout.session.required": "true"
       },
       "defaultClientScopes": [

@@ -19,7 +19,9 @@ export type NodeType =
   | "location"
   | "thought" // a thing the user wrote — an article, a note, a journal entry
   | "concept" // an entity/idea extracted from a thought by the model
-  | "menu_item"; // a dish on a place's menu (PART_OF a restaurant/cafe)
+  | "menu_item" // a dish on a place's menu (PART_OF a restaurant/cafe)
+  | "recommendation" // a first-class, immutable piece of recommendation evidence (Doc #9/#11)
+  | "outcome"; // an independent evidence node attached to a recommendation (SUPPORTED_BY)
 
 export type EdgeType =
   | "FRIENDS_WITH" // person ↔ person
@@ -39,6 +41,16 @@ export type EdgeType =
   | "PART_OF" // menu_item → restaurant | cafe (a dish belongs to a place's menu)
   | "TRUSTS" // person → person | provider, directed + topic-scoped (Trust Graph)
   | "INVITED" // person → person, directed "registration origin" — NOT trust, NOT friendship
+  // NOTE: the spec (Doc #6/#7) calls this "LISTENS_TO", but that name is already
+  // taken by the taste graph (person → music), so the permission edge is
+  // LISTENS_TO_PERSON. Directed: listener → speaker. Acceptance-based. It grants
+  // RECOMMENDATION ELIGIBILITY ONLY — never trust, never reputation. It is
+  // deliberately absent from the trust adjacency (see trust.ts buildAdj).
+  | "LISTENS_TO_PERSON" // person → person, "consider their future recommendations for me"
+  // Recommendation-evidence graph (Doc #11) — single-meaning edges:
+  | "AUTHORED" // person → recommendation (who made it)
+  | "TARGETS" // recommendation → specialist/provider (what it points to)
+  | "SUPPORTED_BY" // recommendation → outcome (evidence accumulation)
   | "MEMBER_OF" // person → org/startup (a founder/member belongs to a team)
   | "SAVED" // person → person, one-directional "saved this contact for follow-up"
   // Event relationship graph (Trusty Sevan) — relationships, not trust:
@@ -319,6 +331,8 @@ export const EDGE_VERB_FOR_TYPE: Record<Exclude<NodeType, "person">, EdgeType> =
   thought: "REFLECTS_ON",
   concept: "MENTIONS",
   menu_item: "LIKES",
+  recommendation: "AUTHORED",
+  outcome: "SUPPORTED_BY",
 };
 
 export const NODE_TYPE_LABEL: Record<NodeType, string> = {
@@ -335,4 +349,6 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
   thought: "Thoughts",
   concept: "Concepts",
   menu_item: "Menu",
+  recommendation: "Recommendations",
+  outcome: "Outcomes",
 };

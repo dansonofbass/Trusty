@@ -150,6 +150,9 @@ export function computeRecommendations(
       if (c === meId || myNbrs.has(c) || dismissed.has(c)) continue;
       const node = idToNode.get(c);
       if (!node || node.type === "person") continue;
+      // Recommendation/outcome nodes are evidence infrastructure, not social
+      // content — never surface them in the friend-overlap frontier.
+      if (node.type === "recommendation" || node.type === "outcome") continue;
       const w = 0.6 + (friendWeight.get(f) ?? 0) * 0.25;
       const entry = candidateScores.get(c) ?? { score: 0, via: new Map() };
       entry.score += w;
