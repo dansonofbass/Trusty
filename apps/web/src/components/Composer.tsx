@@ -29,6 +29,11 @@ import AgentChat, {
   type TrustToolData,
 } from "./composer/AgentChat";
 import MentionPopover from "./composer/MentionPopover";
+import WeaveFlow from "./composer/WeaveFlow";
+import type { SourceMode } from "@/lib/dataSource";
+import type { ExtractStreamEvent } from "@/lib/extractClient";
+import type { TrustAssertion } from "@/lib/trustClient";
+import type { ThoughtExtraction } from "@constellation/graph-core";
 
 /**
  * Unified AI Composer (#29) + Personal Knowledge Workspace (#31).
@@ -64,7 +69,31 @@ const KIND_FOR_INTENT: Record<ComposerIntent, string> = {
   unknown: "note",
 };
 
-export default function Composer({ nodes }: { nodes: GNode[] }) {
+export default function Composer({
+  nodes,
+  mode,
+  pending,
+  onExtract,
+  onWeave,
+  onExplore,
+}: {
+  nodes: GNode[];
+  /** Weave pipeline (#31) — handlers live in GraphExplorer (they mutate the dataset). */
+  mode: SourceMode;
+  pending: boolean;
+  onExtract: (
+    text: string,
+    onEvent: (ev: ExtractStreamEvent) => void,
+  ) => Promise<ThoughtExtraction | null>;
+  onWeave: (
+    text: string,
+    extraction: ThoughtExtraction,
+    originalExtraction?: ThoughtExtraction,
+    writingId?: string,
+    trustAssertions?: TrustAssertion[],
+  ) => Promise<{ entityCount: number; conceptIds: string[]; thoughtId: string } | null>;
+  onExplore: (thoughtId: string) => void;
+}) {
   const setTrustSearch = useUI((s) => s.setTrustSearch);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -93,6 +122,9 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
   const [caret, setCaret] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
   const mentionMapRef = useRef<Map<string, ResolvedMention>>(new Map());
+
+  // Weave flow (#31): extract→review→weave inline (the old Write view, merged).
+  const [weave, setWeave] = useState<{ text: string; precomputed?: ThoughtExtraction } | null>(null);
 
   // Draft preservation (#29): survive refresh/crash/navigation.
   useEffect(() => {
@@ -212,7 +244,11 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
             ev.tool === "trust_search" && ev.ok && ev.data
               ? (ev.data as TrustToolData)
               : e.trustData;
-          return { ...e, trace, trustData };
+          const weaveData =
+            ev.tool === "extract_entities" && ev.ok && ev.data
+              ? (ev.data as { text: string; extraction: ThoughtExtraction })
+              : e.weaveData;
+          return { ...e, trace, trustData, weaveData };
         });
       } else if (ev.type === "token") {
         patchTail((e) => ({ ...e, text: e.text + ev.content }));
@@ -438,7 +474,27 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
           onShowOnGraph={(d: TrustToolData) =>
             setTrustSearch({ topic: d.topic, geo: d.geo, recs: d.recs as TrustRec[] })
           }
+          onWeaveRequest={(t, extraction) => setWeave({ text: t, precomputed: extraction })}
         />
+
+        {/* weave flow (#31) — the merged Write view, inline */}
+        {weave && (
+          <div className="mb-3">
+            <WeaveFlow
+              text={weave.text}
+              mode={mode}
+              pending={pending}
+              precomputed={weave.precomputed}
+              onExtract={onExtract}
+              onWeave={onWeave}
+              onExplore={(id) => {
+                setWeave(null);
+                onExplore(id);
+              }}
+              onClose={() => setWeave(null)}
+            />
+          </div>
+        )}
 
         {/* the ONE input */}
         <textarea
@@ -532,6 +588,13 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
               className="flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] px-3 py-1.5 text-[12px] font-semibold text-ink disabled:opacity-50">
               {busy === "save" ? <Loader2 className="animate-spin" size={13} /> : <Lock size={13} />}
               {editingId ? "Save changes" : "Save privately"}
+            </button>
+          )}
+          {text.trim().length >= 12 && !weave && (
+            <button onClick={() => setWeave({ text })} disabled={pending}
+              title="Extract entities from this text and weave them into your knowledge graph"
+              className="flex items-center gap-1.5 rounded-lg border border-[rgba(154,240,200,0.5)] bg-[rgba(154,240,200,0.08)] px-3 py-1.5 text-[12px] font-semibold text-[#9af0c8] disabled:opacity-50">
+              <Sparkles size={13} /> Weave into my sky
             </button>
           )}
           {showPublish && (

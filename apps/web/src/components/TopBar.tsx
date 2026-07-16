@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Brain, LogOut, Orbit, Route, Search, Sparkles } from "lucide-react";
+import { LogOut, Orbit, Route, Search, Sparkles } from "lucide-react";
 import type { Wallet } from "@constellation/graph-core";
 import { GOLD } from "@/lib/palette";
 import { useUI, type ViewId } from "@/lib/store";
@@ -11,7 +11,6 @@ import ContributionPanel from "./ContributionPanel";
 const TABS: { id: ViewId; label: string; icon: React.ElementType }[] = [
   { id: "universe", label: "Universe", icon: Orbit },
   { id: "path", label: "Path", icon: Route },
-  { id: "write", label: "Write", icon: Brain },
 ];
 
 function Wordmark() {

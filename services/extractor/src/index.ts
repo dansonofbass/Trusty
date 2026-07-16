@@ -74,7 +74,7 @@ import {
 import { createConfigStore } from "./configStore";
 import { gatewayChat, litellmConfigured, type GatewayCallMeta } from "./llmGateway";
 import { agentConfigured } from "./agent/gateway";
-import { runAgentLoop } from "./agent/loop";
+import { runAgentLoop, type AgentTool } from "./agent/loop";
 import { buildComposerRegistry } from "./agent/registry";
 import { AGENT_SYSTEM_PROMPT, buildContextBlock } from "./agent/prompt";
 
@@ -966,7 +966,37 @@ app.post("/resolve-scope", async (req, res) => {
  * transcript returned in `done`. Tools run against graph-service with the
  * BFF-verified viewer identity. */
 const AGENT_MODEL = process.env.AGENT_MODEL ?? "claude-sonnet-4-6";
-const composerRegistry = buildComposerRegistry();
+
+/** extract_entities — in-process extraction (#31): the result feeds the
+ *  Composer's WeaveFlow review UI; weaving itself stays a user act there. */
+const extractEntitiesTool: AgentTool = {
+  name: "extract_entities",
+  description:
+    "Extract entities and relations from a piece of the user's writing so they can review and weave it into their knowledge graph. Use when the user wants to capture, map or 'weave' a thought — the UI then shows a review flow; you do not weave anything yourself.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: { text: { type: "string", description: "The user's text (verbatim)" } },
+    required: ["text"],
+  },
+  async execute(input, ctx) {
+    const text = String((input as { text?: unknown })?.text ?? "").trim();
+    if (text.length < 12) return { ok: false, summary: "need at least a sentence of text" };
+    const variant = resolveVariant(effectiveConfig(), { userId: ctx.userId });
+    const { extraction } = await extractCore(text, variant, {
+      userId: ctx.userId,
+      endpoint: "agent_extract",
+    });
+    const names = extraction.entities.slice(0, 12).map((e) => e.name).join(", ");
+    return {
+      ok: true,
+      summary: `extracted ${extraction.entities.length} entities (${names}) and ${extraction.relations.length} relations — the user can now review & weave them in the composer`,
+      data: { text, extraction },
+    };
+  },
+};
+
+const composerRegistry = buildComposerRegistry([extractEntitiesTool]);
 
 app.post("/agent/stream", async (req, res) => {
   if (!agentConfigured()) {

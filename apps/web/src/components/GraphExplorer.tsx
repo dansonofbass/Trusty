@@ -40,7 +40,6 @@ import { Radio, SlidersHorizontal, Sparkles, Users } from "lucide-react";
 import Inspector from "./Inspector";
 import PlaceModalHost from "./PlaceModalHost";
 import HintBar from "./HintBar";
-import ThoughtComposer from "./ThoughtComposer";
 import EntityLinkPicker from "./EntityLinkPicker";
 import { logImpressions } from "@/lib/interactionClient";
 import LayerToggle from "./LayerToggle";
@@ -803,8 +802,7 @@ export default function GraphExplorer() {
       {/* Left side (#36 dual view): pill row on top — minimal Lens toggle (+ Feed
           reopen when closed) — with the feed list as the default companion below.
           The full Lens panel overlays on demand. */}
-      {view !== "write" && (
-        <div className="rise fixed left-4 top-[64px] z-40 hidden items-center gap-1.5 md:flex">
+      <div className="rise fixed left-4 top-[64px] z-40 hidden items-center gap-1.5 md:flex">
           <button
             onClick={() => setLensOpen((v) => !v)}
             aria-expanded={lensOpen}
@@ -857,9 +855,8 @@ export default function GraphExplorer() {
           >
             <Sparkles size={12} /> Discover
           </button>
-        </div>
-      )}
-      {view !== "write" && lensOpen && (
+      </div>
+      {lensOpen && (
         <LeftRail
           counts={typeCounts}
           communities={communities.infos.filter((i) => i.size >= 3)}
@@ -871,7 +868,7 @@ export default function GraphExplorer() {
           }}
         />
       )}
-      {view !== "write" && feedOpen && !lensOpen && (
+      {feedOpen && !lensOpen && (
         <FeedPanel
           selected={selectedNode ? { id: selectedNode.id, label: selectedNode.label } : null}
           onJump={handleJump}
@@ -884,7 +881,7 @@ export default function GraphExplorer() {
         />
       )}
 
-      {view !== "write" && <LayerToggle layers={layers} onToggle={toggleLayer} />}
+      <LayerToggle layers={layers} onToggle={toggleLayer} />
 
       <Inspector
         node={selectedNode}
@@ -916,12 +913,20 @@ export default function GraphExplorer() {
         onRemoveEntityLink={handleRemoveEntityLink}
       />
 
-      {/* Unified composer (#29) + private workspace (#31) — the right-side creation zone. */}
-      {view !== "write" && <Composer nodes={dataset.nodes} />}
+      {/* Unified composer (#29) + private workspace (#31) — the right-side creation
+          zone; carries the weave pipeline (the old Write view, merged). */}
+      <Composer
+        nodes={dataset.nodes}
+        mode={mode}
+        pending={pending}
+        onExtract={handleExtract}
+        onWeave={handleWeave}
+        onExplore={handleExploreThought}
+      />
 
       <PlaceModalHost />
 
-      {linkFromNode && view !== "write" && (
+      {linkFromNode && (
         <EntityLinkPicker
           from={linkFromNode}
           to={linkToNode}
@@ -946,17 +951,6 @@ export default function GraphExplorer() {
         <div className="pointer-events-none fixed bottom-20 right-4 z-40 max-w-[300px]">
           <div className="panel rise px-3.5 py-2.5 text-[12.5px] text-ink">{notice}</div>
         </div>
-      )}
-
-      {view === "write" && (
-        <ThoughtComposer
-          mode={mode}
-          pending={pending}
-          onExtract={handleExtract}
-          onWeave={handleWeave}
-          onExplore={handleExploreThought}
-          onClose={() => setView("universe")}
-        />
       )}
 
       <HintBar pathNodes={pathNodes} pathMissing={pathMissing} />

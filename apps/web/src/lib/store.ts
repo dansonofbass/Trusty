@@ -11,7 +11,7 @@ export interface TrustSearchState {
   recs: TrustRec[];
 }
 
-export type ViewId = "universe" | "circles" | "discover" | "path" | "write";
+export type ViewId = "universe" | "circles" | "discover" | "path";
 
 /** A paid, ephemeral peek into a region centered on `center`. Session-only. */
 export interface Peek {
@@ -102,7 +102,7 @@ export const useUI = create<UIState>((set) => ({
       view,
       circleFilter: view === "circles" ? s.circleFilter : null,
       pathPick: view === "path" ? s.pathPick : [],
-      linkPickFrom: view === "write" ? s.linkPickFrom : null,
+      linkPickFrom: null,
     })),
   select: (selectedId) => set({ selectedId }),
   setFocus: (focusId) => set({ focusId, selectedId: focusId }),

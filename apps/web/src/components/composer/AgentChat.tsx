@@ -1,6 +1,7 @@
 "use client";
 
 import { Map as MapIcon, Sparkles } from "lucide-react";
+import type { ThoughtExtraction } from "@constellation/graph-core";
 import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge/AgentTrace";
 import type { TrustRec } from "@/lib/trustClient";
 import { GOLD } from "@/lib/palette";
@@ -35,6 +36,8 @@ export interface AgentChatEntry {
   confirm?: PendingConfirm;
   /** Latest trust_search payload in this turn — offered as a graph overlay. */
   trustData?: TrustToolData | null;
+  /** extract_entities payload — offered as a "review & weave" flow (#31). */
+  weaveData?: { text: string; extraction: ThoughtExtraction } | null;
 }
 
 /** Human labels for tool steps in the trace. */
@@ -57,11 +60,13 @@ export default function AgentChat({
   busy,
   onDecide,
   onShowOnGraph,
+  onWeaveRequest,
 }: {
   entries: AgentChatEntry[];
   busy: boolean;
   onDecide: (confirmId: string, approved: boolean, args?: unknown) => void;
   onShowOnGraph: (data: TrustToolData) => void;
+  onWeaveRequest?: (text: string, extraction: ThoughtExtraction) => void;
 }) {
   if (!entries.length) return null;
   return (
@@ -92,6 +97,15 @@ export default function AgentChat({
                 className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-[rgba(255,140,90,0.5)] bg-[rgba(255,140,90,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#ff8c5a]"
               >
                 <MapIcon size={12} /> Show {e.trustData.recs.length} trust path{e.trustData.recs.length === 1 ? "" : "s"} on the graph
+              </button>
+            )}
+            {e.weaveData && onWeaveRequest && (
+              <button
+                type="button"
+                onClick={() => onWeaveRequest(e.weaveData!.text, e.weaveData!.extraction)}
+                className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-[rgba(154,240,200,0.5)] bg-[rgba(154,240,200,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#9af0c8]"
+              >
+                <Sparkles size={12} /> Review {e.weaveData.extraction.entities.length} entities &amp; weave into your sky
               </button>
             )}
             {e.confirm && (
