@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Coins, Loader2, Sparkles, X, Zap } from "lucide-react";
+import Link from "next/link";
+import { Coins, Ear, Loader2, Sparkles, X, Zap } from "lucide-react";
 import { GOLD } from "@/lib/palette";
 
 /**
@@ -107,8 +108,8 @@ export default function ContributionPanel({ onClose }: { onClose: () => void }) 
 
           {/* what it earns: slots + credits */}
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.05)] p-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--color-faint)]">Listen slots</div>
+            <Link href="/listen" className="block rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.05)] p-2.5 transition hover:border-[rgba(146,166,255,0.4)]" title="Manage who you listen to">
+              <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]"><Ear size={10} /> Listen slots →</div>
               <div className="mt-0.5 text-[16px] font-bold text-ink" style={{ fontFamily: "var(--font-mono)" }}>
                 {data.l.slots.used}<span className="text-[var(--color-faint)]">/{data.l.slots.capacity}</span>
               </div>
@@ -120,7 +121,7 @@ export default function ContributionPanel({ onClose }: { onClose: () => void }) 
                   {data.l.slots.breakdown.fromBoosts > 0 && ` +${data.l.slots.breakdown.fromBoosts} boost`}
                 </div>
               )}
-            </div>
+            </Link>
             <div className="rounded-xl border border-[rgba(255,217,122,0.25)] bg-[rgba(255,217,122,0.05)] p-2.5">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
                 <Coins size={10} /> Credits
