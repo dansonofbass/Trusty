@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trusty — Contribution, Credits &amp; Capacity: The Complete Glossary</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", -apple-system, Arial, sans-serif;
+    color: #1c2333; line-height: 1.55; font-size: 10.5pt;
+    max-width: 760px; margin: 0 auto; padding: 24px;
+  }
+  h1 { font-size: 21pt; letter-spacing: -0.02em; margin: 0 0 2px; color: #10162a; }
+  .subtitle { color: #5a6480; font-size: 10.5pt; margin-bottom: 18px; }
+  h2 {
+    font-size: 14pt; margin: 26px 0 8px; color: #10162a;
+    border-bottom: 2px solid #e8804a; padding-bottom: 4px;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 11.5pt; margin: 16px 0 4px; color: #2a3350; page-break-after: avoid; }
+  p { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #f2f0ea; text-align: left; padding: 6px 8px; border: 1px solid #d8d4c8; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6480; }
+  td { padding: 6px 8px; border: 1px solid #e2ded4; vertical-align: top; }
+  code, .env { font-family: Consolas, monospace; font-size: 9pt; background: #f2f0ea; padding: 1px 4px; border-radius: 3px; color: #8a4a1f; }
+  .rule {
+    background: #fdf3ec; border-left: 3px solid #e8804a; padding: 8px 12px; margin: 10px 0;
+    font-size: 10pt; page-break-inside: avoid;
+  }
+  .rule b { color: #b35a24; }
+  .never { background: #f7edee; border-left-color: #c25555; }
+  .never b { color: #a33; }
+  .formula {
+    font-family: Consolas, monospace; font-size: 9.5pt; background: #f4f3ef; border: 1px solid #e2ded4;
+    border-radius: 6px; padding: 8px 12px; margin: 8px 0; color: #2a3350; page-break-inside: avoid;
+  }
+  .cols { display: flex; gap: 16px; }
+  .cols > div { flex: 1; }
+  ul { margin: 4px 0 8px; padding-left: 20px; }
+  li { margin: 2px 0; }
+  .dim { color: #5a6480; font-size: 9.5pt; }
+  .pill { display: inline-block; border-radius: 10px; padding: 0 8px; font-size: 8.5pt; font-weight: 600; }
+  .footer { margin-top: 28px; border-top: 1px solid #d8d4c8; padding-top: 8px; color: #8a91a8; font-size: 8.5pt; }
+  .toc { columns: 2; font-size: 9.5pt; color: #2a3350; margin-bottom: 6px; }
+  .toc div { margin: 2px 0; }
+</style>
+</head>
+<body>
+
+<h1>Contribution, Credits &amp; Capacity</h1>
+<div class="subtitle">The complete glossary of Trusty's contribution economy · engine v1 · July 2026</div>
+
+<div class="toc">
+  <div>1 · Contribution</div>
+  <div>2 · What counts (the kind registry)</div>
+  <div>3 · What never counts</div>
+  <div>4 · The lifecycle</div>
+  <div>5 · The score &amp; its mechanics</div>
+  <div>6 · Lifetime &amp; Momentum</div>
+  <div>7 · Consistency &amp; Diversity</div>
+  <div>8 · Maturity stages</div>
+  <div>9 · Listen &amp; Listen Capacity</div>
+  <div>10 · Credits &amp; Boosts</div>
+  <div>11 · The four independent pillars</div>
+  <div>12 · Explainability &amp; auditability</div>
+  <div>13 · Tuning knobs (env vars)</div>
+  <div>14 · A worked example</div>
+</div>
+
+<h2>1 · Contribution</h2>
+<p><b>Contribution</b> measures how much a person has made the Trust Network <em>smarter</em> — more accurate, more complete, or more useful for future decisions. It is determined by <b>impact, not effort</b>: a single recommendation that repeatedly leads to verified good outcomes creates more contribution than a hundred generic ones.</p>
+<div class="rule"><b>The one question.</b> Every action is judged by: <em>did this leave the knowledge graph objectively better than before?</em> If yes, it is a candidate contribution. If no, it is ordinary app activity and earns nothing.</div>
+<p>Contribution is <b>never stored as a score</b>. It is recomputed live from evidence (recommendations, outcomes, approved corrections) every time it is read — which means the whole history can always be replayed under a future, improved model.</p>
+
+<h2>2 · What counts — the kind registry</h2>
+<p>Only actions in a closed registry earn value. Each has a category and a base value (the worth of one fully-accepted event):</p>
+<table>
+  <tr><th>Kind</th><th>Category</th><th>Base value</th><th>What it means</th></tr>
+  <tr><td><code>recommendation_created</code></td><td>Creation</td><td>2</td><td>You published a recommendation — new knowledge for future decisions.</td></tr>
+  <tr><td><code>entity_added</code></td><td>Creation</td><td>2</td><td>You added a missing place or specialist to the network.</td></tr>
+  <tr><td><code>photo_added</code></td><td>Creation</td><td>1</td><td>Your photo (approved) helps others recognize a real place.</td></tr>
+  <tr><td><code>dish_added</code></td><td>Creation</td><td>1</td><td>You documented a dish (approved) — menus become more complete.</td></tr>
+  <tr><td><code>outcome_recorded</code></td><td>Validation</td><td>1</td><td>You reported how a recommendation actually worked out — real-world evidence.</td></tr>
+  <tr><td><code>recommendation_validated</code></td><td>Validation</td><td><b>3</b></td><td>Someone <em>else</em> reported a positive outcome on <em>your</em> recommendation. The strongest signal — your knowledge genuinely helped a real person. Counted once per independent person, never per repeat.</td></tr>
+  <tr><td><code>entity_correction</code></td><td>Improvement</td><td>2</td><td>Your suggested edit to a place/specialist was approved by moderation.</td></tr>
+  <tr><td><code>entity_maintenance</code></td><td>Maintenance</td><td>1.5</td><td>You kept records accurate (hours, closures, availability). Grows in value as the graph matures.</td></tr>
+</table>
+<p class="dim">Validation deliberately outweighs creation (3 &gt; 2): confirming that knowledge is true reduces uncertainty more than adding unconfirmed knowledge. Adding a future contribution type = one registry entry + an evidence source — no engine redesign.</p>
+
+<h2>3 · What never counts</h2>
+<div class="rule never"><b>Structurally worth zero.</b> These aren't just down-weighted — they are absent from the registry, so even if recorded they aggregate to exactly 0:</div>
+<div class="cols">
+  <div><ul>
+    <li>Logging in / session time</li>
+    <li>Clicks, searches, views</li>
+    <li>Profile visits</li>
+    <li>Follower or listener counts</li>
+    <li>Subscription status</li>
+    <li>Money spent — <b>ever</b></li>
+  </ul></div>
+  <div><ul>
+    <li>Sending invitations (alone)</li>
+    <li>Number of recommendations <em>alone</em> (see burst damping)</li>
+    <li>Comments</li>
+    <li>Being popular</li>
+    <li>Anything an AI "grants" — AI may suggest, only validated graph improvement counts</li>
+  </ul></div>
+</div>
+<p class="dim">Guiding principle: <em>users are rewarded for making the network smarter — not for making it busier.</em></p>
+
+<h2>4 · The lifecycle</h2>
+<p>Every contribution event moves through a lifecycle, and its value depends on where it stands:</p>
+<table>
+  <tr><th>Status</th><th>Multiplier</th><th>Meaning</th></tr>
+  <tr><td><span class="pill" style="background:#eef2fa;color:#4a6bb5">recorded</span></td><td>× 0.25</td><td>Submitted, not yet validated — e.g. a suggested edit awaiting moderation. Earns a small provisional value.</td></tr>
+  <tr><td><span class="pill" style="background:#eaf6ee;color:#2e8b57">validated</span></td><td>× 1.0</td><td>Confirmed by evidence — an outcome recorded, an independent verification.</td></tr>
+  <tr><td><span class="pill" style="background:#eaf6ee;color:#2e8b57">accepted</span></td><td>× 1.0</td><td>Live in the graph — an approved edit, a published recommendation.</td></tr>
+  <tr><td><span class="pill" style="background:#f7edee;color:#a33">rejected</span></td><td>× <b>0</b></td><td>Declined by moderation. <b>Stays in history forever</b> — but counts for nothing. History is preserved; interpretation evolves.</td></tr>
+</table>
+<div class="rule"><b>Nothing is rewarded just for being submitted.</b> The platform first establishes that the graph genuinely improved. That's why a pending suggestion is worth a quarter of an approved one.</div>
+
+<h2>5 · The score &amp; its mechanics</h2>
+<p>The <b>Contribution Score</b> summarizes accumulated impact. It's explainable, config-driven, and computed as:</p>
+<div class="formula">
+event value &nbsp;=&nbsp; base value × lifecycle multiplier × burst damping<br>
+core &nbsp;=&nbsp; Lifetime × 0.7 &nbsp;+&nbsp; Momentum × 0.3<br>
+<b>score &nbsp;=&nbsp; core × Consistency × Diversity</b>
+</div>
+<h3>Burst damping — quality over quantity</h3>
+<p>Repeating the <em>same kind</em> of action within one day: each repeat is worth <b>0.7×</b> the previous one (the n-th same-day event is worth 0.7<sup>n−1</sup>). Fifty recommendations pasted in one afternoon are worth a fraction of the same fifty spread over weeks — flooding doesn't pay, and a weekend spammer can never outrank a steady monthly contributor.</p>
+
+<h2>6 · Lifetime &amp; Momentum</h2>
+<div class="cols">
+  <div>
+    <h3>Lifetime (weight 0.7)</h3>
+    <p>The sum of all your event values, <b>never decayed</b>. Contribution does not evaporate because time passes: a great recommendation from two years ago still counts fully here. If you go inactive, your history waits for you (recovery, not erasure).</p>
+  </div>
+  <div>
+    <h3>Momentum (weight 0.3)</h3>
+    <p>The same events, but each weighted by recency with a <b>90-day half-life</b>: an event from 90 days ago counts half here, from 180 days a quarter, and so on. Momentum is the "actively engaged right now" signal.</p>
+  </div>
+</div>
+<div class="rule"><b>Balance by design.</b> A fresh contribution earns ≈ its full value (0.7 + 0.3×1.0). A very old one still earns 0.7×. Momentum never erases history; history never completely drowns out recent value.</div>
+
+<h2>7 · Consistency &amp; Diversity</h2>
+<h3>Consistency (up to × 1.5)</h3>
+<p>Counts your distinct <b>active months</b> (months with at least one valued contribution). One month is the baseline (×1.0); the multiplier rises smoothly and saturates around +50%. Someone contributing monthly for two years ends up meaningfully ahead of someone with one busy weekend — <em>contribution behaves like professional credibility: earned by repeatedly creating value.</em></p>
+<h3>Diversity (up to × 1.15)</h3>
+<p>A small bonus for improving <em>different parts</em> of the graph — creation, validation, improvement, maintenance. Four categories touched ≈ +15%. A diverse contributor builds more resilient knowledge than someone repeating one action forever. It's a signal, deliberately small — never a farming target.</p>
+
+<h2>8 · Maturity stages</h2>
+<p>Human-readable levels derived from the score (thresholds configurable, presentation-independent):</p>
+<table>
+  <tr><th>Stage</th><th>Min score</th><th></th><th>Stage</th><th>Min score</th></tr>
+  <tr><td>New Contributor</td><td>0</td><td></td><td>Trusted Contributor</td><td>90</td></tr>
+  <tr><td>Occasional Contributor</td><td>5</td><td></td><td>Knowledge Builder</td><td>180</td></tr>
+  <tr><td>Active Contributor</td><td>15</td><td></td><td>Community Expert</td><td>350</td></tr>
+  <tr><td>Reliable Contributor</td><td>40</td><td></td><td></td><td></td></tr>
+</table>
+
+<h2>9 · Listen &amp; Listen Capacity</h2>
+<p><b>Listen</b> is Trusty's deliberate replacement for "Follow". Listening to someone means: <em>"I want this person's future recommendations to become part of my recommendation network."</em> It is directional, requires the other person's acceptance, and — frozen guarantee — <b>never creates trust, never raises reputation, never changes any score</b>. It only makes their knowledge <em>visible</em> to you.</p>
+<p><b>Listen Capacity</b> is how many people you may actively listen to. It is a limited, earned resource — the network grows deliberately, not virally:</p>
+<div class="formula">capacity &nbsp;=&nbsp; base (5) &nbsp;+&nbsp; ⌊score / 5⌋ <span class="dim">(contribution)</span> &nbsp;+&nbsp; ⌊weeks of membership / 4⌋ <span class="dim">(tenure, max 10)</span> &nbsp;+&nbsp; active boosts &nbsp;&nbsp;·&nbsp;&nbsp; hard cap 50</div>
+<ul>
+  <li><b>Base</b> — every account starts with 5 slots after onboarding.</li>
+  <li><b>Contribution</b> — the primary growth path: one slot per 5 score points.</li>
+  <li><b>Tenure</b> — one slot per 4 weeks of membership, capped at 10: capacity also grows slowly just for remaining a member, independent of contribution.</li>
+  <li><b>Boosts</b> — temporary extra slots bought with credits (below); they sit on top of the normal ceiling because they expire.</li>
+  <li>Removing a Listen connection frees its slot instantly. Capacity is never permanently lost.</li>
+  <li><b>Capacity is never purchasable with money.</b> There is deliberately no payment input anywhere in the formula.</li>
+</ul>
+
+<h2>10 · Credits &amp; Boosts</h2>
+<p><b>Credits</b> are controlled access to platform capabilities. They are <b>not</b> currency, <b>not</b> transferable, <b>not</b> trust, and <b>not</b> contribution — and they can never influence trust, reputation, or how recommendations are ranked.</p>
+<div class="formula">balance &nbsp;=&nbsp; earned + ledger &nbsp;&nbsp;where&nbsp;&nbsp; earned = ⌊score / 2⌋ <span class="dim">(derived live, never stored)</span>,&nbsp; ledger = grants − spends <span class="dim">(append-only, auditable)</span></div>
+<ul>
+  <li><b>Earned credits</b> derive automatically from your validated contribution: 1 credit per 2 score points.</li>
+  <li><b>Grants</b> — an admin can grant credits; every grant records who granted, when, and why.</li>
+  <li><b>Spending (v1): the capacity boost</b> — 3 credits buy <b>+1 Listen slot for 30 days</b> (at most 3 boosts active at once). Future spends: advanced AI analysis, deeper graph exploration, premium workflows.</li>
+  <li>Every credit movement lives in an append-only ledger — fully auditable, nothing is ever deleted.</li>
+</ul>
+<div class="rule"><b>Credits vs. Capacity.</b> Capacity controls <em>how much of the network you may connect with</em>. Credits control <em>which advanced capabilities you may consume</em>. Neither affects trust; neither affects ranking.</div>
+
+<h2>11 · The four independent pillars</h2>
+<table>
+  <tr><th>Pillar</th><th>Answers</th><th>Source</th><th>Feeds</th></tr>
+  <tr><td><b>Trust</b></td><td>"Can this recommendation be relied on?"</td><td>Directed, topic-scoped trust edges + verified outcomes; computed per request, never stored</td><td>Trust search &amp; recommendations</td></tr>
+  <tr><td><b>Reputation</b></td><td>"How reliable is this provider in this topic?"</td><td>Outcome history (Bayesian, time-decayed, consensus-by-independence)</td><td>Ranking (one factor of several)</td></tr>
+  <tr><td><b>Relationship Strength</b></td><td>"How close are these two people?"</td><td>Edge priors + decayed real interactions</td><td>Personalization</td></tr>
+  <tr><td><b>Contribution</b></td><td>"How much has this person helped the network learn?"</td><td>The evidence-derived engine in this document</td><td>Listen capacity, credits, future rewards — <b>never ranking, never trust</b></td></tr>
+</table>
+<div class="rule never"><b>Independence is structural.</b> Contribution never creates trust; trust never guarantees contribution. Listening never creates either. Payment influences none of them. These aren't policies enforced by review — the code paths simply don't connect.</div>
+
+<h2>12 · Explainability &amp; auditability</h2>
+<ul>
+  <li><b>Every score decomposes into factors</b> — "Your recommendations produced 2 independently verified outcomes", "Your 3 approved corrections improved place profiles". Users never see unexplained points.</li>
+  <li><b>Every event is auditable</b> — evidence lives in append-only stores (outcome log, moderation queue, credit ledger). Rejected work stays visible in history at zero value.</li>
+  <li><b>Everything is replayable</b> — since scores are derived, a future improved model can rescore the complete history. The admin "what-if simulator" is exactly this: recompute everyone under different knobs, compare, commit only if better.</li>
+</ul>
+
+<h2>13 · Tuning knobs (env vars)</h2>
+<table>
+  <tr><th>Variable</th><th>Default</th><th>Controls</th></tr>
+  <tr><td><span class="env">CONTRIB_HALF_LIFE_DAYS</span></td><td>90</td><td>Momentum half-life</td></tr>
+  <tr><td><span class="env">CONTRIB_BURST_DECAY</span></td><td>0.7</td><td>Same-day repeat damping</td></tr>
+  <tr><td><span class="env">CONTRIB_W_LIFETIME</span> / <span class="env">CONTRIB_W_MOMENTUM</span></td><td>0.7 / 0.3</td><td>Lifetime vs momentum blend</td></tr>
+  <tr><td><span class="env">LISTEN_BASE_SLOTS</span></td><td>5</td><td>Starting capacity</td></tr>
+  <tr><td><span class="env">LISTEN_CONTRIBUTION_PER_SLOT</span></td><td>5</td><td>Score points per earned slot</td></tr>
+  <tr><td><span class="env">LISTEN_WEEKS_PER_SLOT</span> / <span class="env">LISTEN_MAX_TENURE_SLOTS</span></td><td>4 / 10</td><td>Tenure growth rate &amp; cap (0 disables)</td></tr>
+  <tr><td><span class="env">LISTEN_MAX_SLOTS</span></td><td>50</td><td>Hard capacity ceiling</td></tr>
+  <tr><td><span class="env">CREDITS_POINTS_PER_CREDIT</span></td><td>2</td><td>Score points per earned credit</td></tr>
+  <tr><td><span class="env">LISTEN_BOOST_COST</span> / <span class="env">LISTEN_BOOST_DAYS</span> / <span class="env">LISTEN_BOOST_SLOTS</span> / <span class="env">LISTEN_BOOST_MAX_ACTIVE</span></td><td>3 / 30 / 1 / 3</td><td>The capacity boost</td></tr>
+</table>
+<p class="dim">The admin panel's what-if simulator previews any of these without changing the live system; making a tuning permanent means setting the env var and restarting.</p>
+
+<h2>14 · A worked example</h2>
+<p>Maria joins Trusty in March.</p>
+<ul>
+  <li><b>March:</b> she publishes a recommendation for her immigration lawyer (<code>recommendation_created</code>, +2) and reports how a restaurant recommendation worked out (<code>outcome_recorded</code>, +1). Score ≈ 3 → <i>New Contributor</i>, 5 slots, 1 credit.</li>
+  <li><b>April:</b> a colleague hires Maria's lawyer and reports a great outcome → <code>recommendation_validated</code>, +3 — her strongest event, earned by someone <em>else's</em> verified experience. She also suggests a correction to a clinic's hours; while pending it's worth 0.5 (2 × 0.25), after approval the full 2.</li>
+  <li><b>May:</b> her score is ≈ 8, boosted a little by two active months (consistency) and three categories touched (diversity) → <i>Occasional Contributor</i>, 6 slots (5 + ⌊8/5⌋), 4 credits.</li>
+  <li><b>July:</b> four months of membership add a tenure slot (⌊17 weeks / 4⌋ = 4 → capped growth). She spends 3 credits on a boost before a conference: +1 slot for 30 days. Capacity: 5 base + 1 contribution + 4 tenure + 1 boost = 11.</li>
+  <li><b>What never moved her score:</b> the 400 searches she ran, her 12 profile views, the 3 friends she invited who never contributed, and the month she paid for a future premium plan.</li>
+</ul>
+
+<div class="footer">
+  Trusty · Contribution Engine v1 glossary · generated July 2026 · sources: GitHub issues #20–#23 and <code>packages/graph-core/src/contribution.ts</code>, <code>listen.ts</code>, <code>services/graph-service/src/credits.ts</code>. All numbers shown are the current defaults; every one of them is configurable.
+</div>
+
+</body>
+</html>
