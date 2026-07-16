@@ -33,14 +33,9 @@ model_list:
       input_cost_per_token: 0.000005 # $5 / 1M
       output_cost_per_token: 0.000025 # $25 / 1M
 
-  # Local model — free, but still monitored end-to-end alongside the paid ones.
-  - model_name: gemma3:latest
-    litellm_params:
-      model: ollama_chat/gemma3:latest
-      api_base: os.environ/OLLAMA_HOST
-    model_info:
-      input_cost_per_token: 0
-      output_cost_per_token: 0
+  # NOTE: the local Ollama model (gemma3) was removed when Ollama was offloaded.
+  # To restore it, re-add a model_name here with api_base: os.environ/OLLAMA_HOST
+  # and run Ollama via `docker compose --profile llm-local up`.
 
 litellm_settings:
   # Stream every call's trace to Langfuse for monitoring + eval/labelling.

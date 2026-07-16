@@ -88,6 +88,12 @@ services:
 
   ollama:
     image: ollama/ollama:latest
+    # OFFLOADED by default — local LLM/embeddings are heavy (CPU + ~8GB RAM).
+    # Extraction runs on hosted Claude via LiteLLM; embeddings are disabled and
+    # degrade to exact/parent topic matching. To run Ollama locally (e.g. on a
+    # GPU box) start it explicitly: `docker compose --profile llm-local up`, and
+    # set EMBEDDINGS_DISABLED=0 (+ EMBEDDINGS_URL) in .env to re-enable embeddings.
+    profiles: ["llm-local"]
     ports:
       - "11434:11434"
     volumes:
@@ -153,7 +159,6 @@ services:
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-constellation-dev}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OLLAMA_HOST: http://ollama:11434
       # Langfuse callback credentials (match the INIT keys above).
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-constellation}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-constellation}
@@ -163,8 +168,6 @@ services:
     ports:
       - "4006:4000"
     depends_on:
-      ollama:
-        condition: service_healthy
       langfuse:
         condition: service_started
     healthcheck:
@@ -251,10 +254,12 @@ services:
       RECOMMENDER_URL: http://recommender:4002
       # Writings log lives in Postgres (Docker DNS host, not the .env localhost).
       DATABASE_URL: postgresql://constellation:constellation@postgres:5432/constellation
-      # Semantic trust-search topic matching (Feature 9): BGE-M3 embeddings in
-      # pgvector. Pull the model once: docker compose exec ollama ollama pull bge-m3
-      # (falls back to exact/parent matching if the model isn't present).
-      EMBEDDINGS_URL: http://ollama:11434
+      # Semantic trust-search topic matching (BGE-M3 embeddings in pgvector).
+      # DISABLED by default — Ollama is offloaded, so this degrades gracefully to
+      # exact/parent topic matching. To re-enable, run `--profile llm-local` (or
+      # point EMBEDDINGS_URL at an external Ollama) and set EMBEDDINGS_DISABLED=0.
+      EMBEDDINGS_DISABLED: ${EMBEDDINGS_DISABLED:-1}
+      EMBEDDINGS_URL: ${EMBEDDINGS_URL:-http://ollama:11434}
       EMBEDDINGS_MODEL: bge-m3
     ports:
       - "4001:4001"
@@ -304,9 +309,9 @@ services:
     environment:
       PORT: 4003
       GRAPH_SERVICE_URL: http://graph-service:4001
-      OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:latest}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Extraction runs on hosted Claude via LiteLLM (Ollama offloaded). Set
+      # ANTHROPIC_API_KEY in .env for the Write/thoughts extraction to work.
       EXTRACTOR_MODEL: ${EXTRACTOR_MODEL:-claude-haiku-4-5}
       # Per-request model routing: default provider, A/B split, manual override.
       EXTRACTOR_PROVIDER: ${EXTRACTOR_PROVIDER:-}
@@ -326,8 +331,6 @@ services:
       install:
         condition: service_completed_successfully
       graph-service:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
       postgres:
         condition: service_healthy
