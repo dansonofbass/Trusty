@@ -38,26 +38,43 @@ export interface ListenCapacityConfig {
   contributionPerSlot: number;
   /** Hard ceiling on total slots. */
   maxSlots: number;
+  /**
+   * Tenure growth (#23 "weekly capacity growth"): one extra slot per this many
+   * weeks of membership — capacity grows slowly just for remaining a member,
+   * INDEPENDENTLY of contribution. 0 disables tenure growth.
+   */
+  weeksPerSlot: number;
+  /** Cap on tenure-earned slots (so tenure alone never dominates). */
+  maxTenureSlots: number;
 }
 
 export const LISTEN_DEFAULTS: ListenCapacityConfig = {
   baseSlots: 5,
   contributionPerSlot: 5,
   maxSlots: 50,
+  weeksPerSlot: 4,
+  maxTenureSlots: 10,
 };
 
 /**
- * How many people this account may listen to, given its contribution score.
- * Monotonic, saturating, and NEVER influenced by payment or profile vanity —
- * only by meaningful participation (recommendations authored, outcomes reported).
+ * How many people this account may listen to. Two independent growth
+ * mechanisms (#23): meaningful contribution (primary) and long-term
+ * membership tenure (slow, capped). Monotonic, saturating, and NEVER
+ * influenced by payment, follower counts or profile vanity. Future capacity
+ * pools (topic/professional/org) = new config fields, not a redesign.
  */
 export function listenCapacity(
   contributionScore: number,
   cfg: Partial<ListenCapacityConfig> = {},
+  tenureWeeks = 0,
 ): number {
   const c = { ...LISTEN_DEFAULTS, ...cfg };
   const earned = Math.floor(Math.max(0, contributionScore) / Math.max(1, c.contributionPerSlot));
-  return Math.min(c.maxSlots, c.baseSlots + earned);
+  const tenure =
+    c.weeksPerSlot > 0
+      ? Math.min(c.maxTenureSlots, Math.floor(Math.max(0, tenureWeeks) / c.weeksPerSlot))
+      : 0;
+  return Math.min(c.maxSlots, c.baseSlots + earned + tenure);
 }
 
 /* ------------------------------- queries ------------------------------ */
@@ -132,6 +149,110 @@ export function removeListenEdge(d: Dataset, listenerId: string, targetId: strin
   );
   if (links.length === d.links.length) return refreshDerived(d);
   return refreshDerived({ ...d, links });
+}
+
+/* ----------------------------- suggestions ----------------------------- */
+
+export interface ListenSuggestion {
+  personId: string;
+  /** Blended relevance in [0,1] — never popularity. */
+  score: number;
+  /** Every suggestion is explainable (#23) — one phrase per contributing signal. */
+  reasons: string[];
+}
+
+export interface ListenSuggestOptions {
+  /** Contribution Engine score per person (0 when unknown) — quality signal. */
+  contributionOf?: (id: string) => number;
+  /** Relationship strength per person in [0,1] (0 when unknown). */
+  strengthOf?: (id: string) => number;
+  limit?: number;
+}
+
+/** Topics a person is *about*: recs they authored + topics others trust them on. */
+function topicsOf(d: Dataset, personId: string): Set<string> {
+  const topics = new Set<string>();
+  for (const n of d.nodes) {
+    if (n.type !== "recommendation") continue;
+    const p = n.properties as { authorId?: string; topic?: string } | undefined;
+    if (p?.authorId === personId && p.topic) topics.add(p.topic);
+  }
+  for (const l of d.links) {
+    if (l.type === "TRUSTS" && endId(l.target) === personId && l.trust?.scope.topic)
+      topics.add(l.trust.scope.topic);
+  }
+  return topics;
+}
+
+/**
+ * Who should this viewer listen to, when free capacity exists (#23)?
+ * Signals: topic overlap, trust-of-trust proximity, contribution quality and
+ * relationship strength — each contributing an EXPLAINABLE reason. Deliberately
+ * absent: follower/listener counts, popularity, payment (#23 "artificial
+ * network expansion provides no meaningful advantage"). Pure + deterministic;
+ * AI/services may hydrate the signal callbacks but never inject candidates.
+ */
+export function listenSuggestions(
+  d: Dataset,
+  viewerId: string,
+  opts: ListenSuggestOptions = {},
+): ListenSuggestion[] {
+  const limit = opts.limit ?? 10;
+  const already = new Set(listeningTo(d, viewerId));
+
+  // Viewer interest topics: their profile interests + topics they trust on.
+  const interests = new Set<string>();
+  const me = d.nodes.find((n) => n.id === viewerId);
+  const meProps = (me?.properties ?? {}) as { known_topics?: string[]; looking_for?: string };
+  for (const t of meProps.known_topics ?? []) interests.add(String(t).toLowerCase());
+  if (meProps.looking_for) interests.add(String(meProps.looking_for).toLowerCase());
+  for (const l of d.links) {
+    if (l.type === "TRUSTS" && endId(l.source) === viewerId && l.trust?.scope.topic)
+      interests.add(l.trust.scope.topic);
+  }
+
+  // Trust-of-trust: people trusted by the people I trust (2nd hop, direct only).
+  const iTrust = new Set(
+    d.links.filter((l) => l.type === "TRUSTS" && endId(l.source) === viewerId).map((l) => endId(l.target)),
+  );
+  const trustedByMyNetwork = new Set(
+    d.links
+      .filter((l) => l.type === "TRUSTS" && iTrust.has(endId(l.source)))
+      .map((l) => endId(l.target)),
+  );
+
+  const out: ListenSuggestion[] = [];
+  for (const n of d.nodes) {
+    if (n.type !== "person" || n.id === viewerId || already.has(n.id)) continue;
+    let score = 0;
+    const reasons: string[] = [];
+
+    const shared = [...topicsOf(d, n.id)].filter((t) => interests.has(t));
+    if (shared.length > 0) {
+      score += 0.3 * Math.min(1, shared.length / 2);
+      reasons.push(`Knows the topics you care about: ${shared.slice(0, 3).join(", ")}`);
+    }
+    if (trustedByMyNetwork.has(n.id) && !iTrust.has(n.id)) {
+      score += 0.35;
+      reasons.push("Trusted by people you already trust");
+    }
+    const contribution = opts.contributionOf?.(n.id) ?? 0;
+    if (contribution > 0) {
+      score += 0.25 * Math.min(1, contribution / 20);
+      reasons.push("Consistently improves the network's knowledge");
+    }
+    const strength = opts.strengthOf?.(n.id) ?? 0;
+    if (strength > 0.3) {
+      score += 0.15 * Math.min(1, strength);
+      reasons.push("You already interact regularly");
+    }
+
+    if (score > 0) out.push({ personId: n.id, score: Math.round(score * 1000) / 1000, reasons });
+  }
+
+  return out
+    .sort((a, b) => b.score - a.score || a.personId.localeCompare(b.personId))
+    .slice(0, limit);
 }
 
 /* ---------------------------- what it unlocks -------------------------- */

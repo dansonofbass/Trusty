@@ -138,9 +138,12 @@ export {
   listenersOf,
   activeListenCount,
   isListening,
+  listenSuggestions,
   recommendationsFromListened,
   LISTEN_DEFAULTS,
   type ListenCapacityConfig,
+  type ListenSuggestion,
+  type ListenSuggestOptions,
 } from "./listen";
 export {
   createRecommendation,

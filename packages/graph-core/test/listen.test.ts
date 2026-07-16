@@ -13,6 +13,7 @@ import {
   activeListenCount,
   isListening,
   listenCapacity,
+  listenSuggestions,
   recommendationsFromListened,
   addTrustEdge,
   createRecommendation,
@@ -145,4 +146,52 @@ test("eligible recommendations can be narrowed by topic", () => {
   });
   d = addListenEdge(d, "me", "speaker", BIG);
   assert.deepEqual(recommendationsFromListened(d, "me", "dentist").map((n) => n.id), ["rec2"]);
+});
+
+/* --------------------- #23: tenure growth + suggestions ------------------ */
+
+test("tenure grows capacity independently of contribution — slow, capped, optional", () => {
+  const cfg = { baseSlots: 5, contributionPerSlot: 5, maxSlots: 50, weeksPerSlot: 4, maxTenureSlots: 10 };
+  assert.equal(listenCapacity(0, cfg, 0), 5, "new member: base only");
+  assert.equal(listenCapacity(0, cfg, 3), 5, "under a growth period earns nothing");
+  assert.equal(listenCapacity(0, cfg, 4), 6, "membership alone earns a slot");
+  assert.equal(listenCapacity(0, cfg, 8), 7);
+  assert.equal(listenCapacity(0, cfg, 4000), 15, "tenure slots are capped (5 + 10)");
+  assert.equal(listenCapacity(10, cfg, 4), 8, "contribution and tenure stack independently");
+  assert.equal(listenCapacity(0, { ...cfg, weeksPerSlot: 0 }, 4000), 5, "weeksPerSlot 0 disables tenure growth");
+  assert.equal(listenCapacity(1e9, cfg, 4000), 50, "hard ceiling still wins");
+});
+
+test("suggestions are explainable and never popularity-driven", () => {
+  // speaker: authored a lawyer rec + trusted by someone I trust. other: no signals.
+  let d = createRecommendation(world(), {
+    id: "recA", authorId: "speaker", targetId: "prov", topic: "lawyer", createdAt: 1,
+  });
+  d = addTrustEdge(d, "me", "other", { topic: "dentist" }, { now: 1, confidence: 0.8 });
+  d = addTrustEdge(d, "other", "speaker", { topic: "lawyer" }, { now: 2, confidence: 0.8 });
+  // viewer cares about lawyers
+  d = { ...d, nodes: d.nodes.map((n) => (n.id === "me" ? { ...n, properties: { known_topics: ["lawyer"] } } : n)) };
+
+  const s = listenSuggestions(d, "me", { contributionOf: (id) => (id === "speaker" ? 12 : 0) });
+  const top = s[0];
+  assert.equal(top.personId, "speaker");
+  assert.ok(top.reasons.some((r) => r.includes("lawyer")), "topic overlap is explained");
+  assert.ok(top.reasons.some((r) => r.includes("Trusted by people you already trust")), "trust proximity is explained");
+  assert.ok(top.reasons.some((r) => r.includes("improves the network")), "contribution quality is explained");
+  assert.ok(top.reasons.length >= 3, "every scoring signal carries a reason");
+  // `other` is directly trusted but has no topics/recs/contribution → weak or absent.
+  const other = s.find((x) => x.personId === "other");
+  assert.ok(!other || other.score < top.score);
+});
+
+test("suggestions exclude self and people already listened to; empty world → empty list", () => {
+  let d = createRecommendation(world(), {
+    id: "recA", authorId: "speaker", targetId: "prov", topic: "lawyer", createdAt: 1,
+  });
+  d = { ...d, nodes: d.nodes.map((n) => (n.id === "me" ? { ...n, properties: { known_topics: ["lawyer"] } } : n)) };
+  assert.ok(listenSuggestions(d, "me").some((x) => x.personId === "speaker"), "suggested before listening");
+  d = addListenEdge(d, "me", "speaker", BIG);
+  assert.ok(!listenSuggestions(d, "me").some((x) => x.personId === "speaker"), "gone once listening");
+  assert.ok(!listenSuggestions(d, "me").some((x) => x.personId === "me"), "never suggests yourself");
+  assert.deepEqual(listenSuggestions(world(), "me"), [], "no signals → no suggestions");
 });

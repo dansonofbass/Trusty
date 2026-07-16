@@ -33,6 +33,7 @@ import {
   recommendationsForTarget,
   recommendationConsensus,
   listenCapacity,
+  listenSuggestions,
   addListenEdge,
   removeListenEdge,
   listeningTo,
@@ -127,6 +128,17 @@ import {
   sanitizeContributionOverride,
   CONTRIBUTION_ENV,
 } from "./contribution";
+import {
+  initCredits,
+  creditsEnabled,
+  earnedCredits,
+  ledgerSum,
+  creditHistory,
+  grantCredits,
+  activeBoostSlots,
+  spendForBoost,
+  CREDITS_CONFIG,
+} from "./credits";
 import { initSavedPlaces, isSaved, listSaved, savePlace, savedPlacesEnabled, unsavePlace } from "./savedPlaces";
 import {
   initPlaceSuggestions, placeSuggestionsEnabled, createSuggestion, listSuggestions, getSuggestion, setSuggestionStatus,
@@ -536,6 +548,7 @@ app.get("/health", (_req, res) => {
     relationshipStrength: relationshipStrengthEnabled() ? "postgres" : "priors-only",
     listen: listenEnabled() ? "postgres" : "disabled",
     contribution: contributionLedgerEnabled() ? "postgres" : "graph-derived-only",
+    credits: creditsEnabled() ? "postgres" : "disabled",
     access: accessEnabled() ? "postgres" : "disabled",
     waitlist: waitlistEnabled() ? "postgres" : "disabled",
     onboarding: onboardingEnabled() ? "postgres" : "disabled",
@@ -2279,11 +2292,32 @@ app.post("/api/admin/contribution", contributionAdminView);
  * LISTENS_TO_PERSON (the spec's "LISTENS_TO" name is taken by person→music). */
 
 /** This user's EARNED listen capacity (slots). No payment term exists.
- * Capacity is the first downstream CONSUMER of the Contribution Engine
- * (#21 "future reward systems consume Contribution rather than raw activity"). */
-async function capacityFor(userId: string): Promise<{ capacity: number; contribution: number }> {
+ * Three additive sources (#21/#23): contribution (primary, via the engine),
+ * membership tenure (slow weekly growth, capped), and temporary credit-bought
+ * boosts (which sit ON TOP of the normal ceiling — they're time-boxed). */
+async function capacityFor(userId: string): Promise<{
+  capacity: number;
+  contribution: number;
+  breakdown: { base: number; fromContribution: number; fromTenure: number; fromBoosts: number };
+}> {
   const contribution = await contributionValueFor(userId, shared.nodes);
-  return { capacity: listenCapacity(contribution, LISTEN_CONFIG), contribution };
+  const access = await getAccess(userId);
+  const tenureWeeks = access ? Math.max(0, (Date.now() - Date.parse(access.createdAt)) / (7 * 86_400_000)) : 0;
+  const boosts = await activeBoostSlots(userId);
+  const core = listenCapacity(contribution, LISTEN_CONFIG, tenureWeeks);
+  return {
+    capacity: core + boosts,
+    contribution,
+    breakdown: {
+      base: LISTEN_CONFIG.baseSlots,
+      fromContribution: Math.floor(contribution / Math.max(1, LISTEN_CONFIG.contributionPerSlot)),
+      fromTenure:
+        LISTEN_CONFIG.weeksPerSlot > 0
+          ? Math.min(LISTEN_CONFIG.maxTenureSlots, Math.floor(tenureWeeks / LISTEN_CONFIG.weeksPerSlot))
+          : 0,
+      fromBoosts: boosts,
+    },
+  };
 }
 
 const listenDataset = (userId: string): Dataset => ({
@@ -2299,19 +2333,54 @@ app.get("/api/listen", async (req, res) => {
   try {
     const ds = listenDataset(userId);
     const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
-    const { capacity, contribution } = await capacityFor(userId);
+    const { capacity, contribution, breakdown } = await capacityFor(userId);
     const used = activeListenCount(ds, userId);
     res.json({
       listening: listeningTo(ds, userId).map((id) => ({ id, name: labelOf.get(id) })),
       listeners: listenersOf(ds, userId).map((id) => ({ id, name: labelOf.get(id) })),
-      slots: { used, capacity, remaining: Math.max(0, capacity - used) },
+      slots: { used, capacity, remaining: Math.max(0, capacity - used), breakdown },
       contribution,
       policy: await getPolicy(userId),
       config: {
         baseSlots: LISTEN_CONFIG.baseSlots,
         contributionPerSlot: LISTEN_CONFIG.contributionPerSlot,
         maxSlots: LISTEN_CONFIG.maxSlots,
+        weeksPerSlot: LISTEN_CONFIG.weeksPerSlot,
+        maxTenureSlots: LISTEN_CONFIG.maxTenureSlots,
       },
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Who to listen to — explainable suggestions for free capacity (#23).
+ *  Signals: topic overlap, trust-of-trust, contribution quality, relationship
+ *  strength. Never popularity, never follower counts. */
+app.get("/api/listen/suggestions", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ds = listenDataset(userId);
+    // Cheap pass (graph signals only) to shortlist, then hydrate the two
+    // service-side signals (contribution, relationship strength) and re-rank.
+    const shortlist = listenSuggestions(ds, userId, { limit: 25 });
+    const contributionOf = new Map<string, number>();
+    for (const s of shortlist)
+      contributionOf.set(s.personId, await contributionValueFor(s.personId, shared.nodes));
+    const strength = await strengthMap(userId, shared.links);
+    const ranked = listenSuggestions(ds, userId, {
+      contributionOf: (id) => contributionOf.get(id) ?? 0,
+      strengthOf: (id) => strength.get(id) ?? 0,
+      limit: Math.min(20, Math.max(1, Number(req.query.limit ?? 8) || 8)),
+    });
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    res.json({
+      suggestions: ranked.map((s) => ({
+        id: s.personId,
+        name: labelOf.get(s.personId),
+        score: s.score,
+        reasons: s.reasons,
+      })),
     });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -2499,6 +2568,76 @@ app.get("/api/listen/feed", async (req, res) => {
         })
         .filter(Boolean),
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ------------------------------ credits (#23) ---------------------------- */
+/* Controlled access to platform capabilities. NOT currency, NOT trust, NOT
+ * contribution — structurally isolated from trust/ranking. Earned credits are
+ * DERIVED from validated Contribution; grants/spends live in an append-only
+ * ledger. V1 consumer: a temporary Listen-capacity boost. */
+
+/** My credit balance, sources, and spend options. */
+app.get("/api/credits", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const contribution = await contributionValueFor(userId, shared.nodes);
+    const earned = earnedCredits(contribution);
+    const ledger = await ledgerSum(userId);
+    res.json({
+      balance: Math.max(0, earned + ledger),
+      earned,
+      ledger,
+      history: await creditHistory(userId),
+      config: {
+        pointsPerCredit: CREDITS_CONFIG.pointsPerCredit,
+        boost: {
+          cost: CREDITS_CONFIG.boostCost,
+          days: CREDITS_CONFIG.boostDays,
+          slots: CREDITS_CONFIG.boostSlots,
+          maxActive: CREDITS_CONFIG.maxActiveBoosts,
+        },
+      },
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Spend credits on a temporary Listen-capacity boost (atomic guard). */
+app.post("/api/credits/boost", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const contribution = await contributionValueFor(userId, shared.nodes);
+    const result = await spendForBoost(userId, earnedCredits(contribution));
+    if (!result.ok) {
+      const msg =
+        result.reason === "insufficient_credits"
+          ? "Not enough credits — earn more by improving the network."
+          : result.reason === "boost_limit"
+            ? "Boost limit reached — wait for an active boost to expire."
+            : "Credits are unavailable.";
+      return res.status(400).json({ error: msg, reason: result.reason });
+    }
+    const { capacity, breakdown } = await capacityFor(userId);
+    res.json({ ok: true, expiresAt: result.expiresAt, capacity, breakdown });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: grant credits (auditable — records who and why). BFF-gated. */
+app.post("/api/admin/credits/:userId", async (req, res) => {
+  const { userId: adminId } = auth(req);
+  const target = String(req.params.userId);
+  const amount = Number(req.body?.amount);
+  if (!Number.isFinite(amount) || amount < 1)
+    return res.status(400).json({ error: "amount >= 1 required" });
+  try {
+    await grantCredits(target, amount, adminId, str(req.body?.note, 200));
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -3771,6 +3910,9 @@ async function main() {
   );
   await initContribution().catch((e) =>
     console.error("graph-service: contribution init failed:", e instanceof Error ? e.message : e),
+  );
+  await initCredits().catch((e) =>
+    console.error("graph-service: credits init failed:", e instanceof Error ? e.message : e),
   );
   await initAccess().catch((e) =>
     console.error("graph-service: access init failed:", e instanceof Error ? e.message : e),

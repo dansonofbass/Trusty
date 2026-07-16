@@ -26,6 +26,9 @@ export const LISTEN_CONFIG = {
   contributionPerSlot: Number(process.env.LISTEN_CONTRIBUTION_PER_SLOT ?? 5) || 5,
   maxSlots: Number(process.env.LISTEN_MAX_SLOTS ?? 50) || 50,
   requestTtlDays: Number(process.env.LISTEN_REQUEST_TTL_DAYS ?? 30) || 30,
+  /** #23 weekly growth: a slot per N weeks of membership (0 disables), capped. */
+  weeksPerSlot: Math.max(0, Number(process.env.LISTEN_WEEKS_PER_SLOT ?? 4) || 4),
+  maxTenureSlots: Math.max(0, Number(process.env.LISTEN_MAX_TENURE_SLOTS ?? 10) || 10),
 };
 
 export type ListenPolicy = "manual" | "auto_accept";
