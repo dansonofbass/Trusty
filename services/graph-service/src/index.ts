@@ -121,8 +121,11 @@ import {
 import {
   initContribution,
   contributionLedgerEnabled,
+  contributionOverview,
   contributionSummaryFor,
   contributionValueFor,
+  sanitizeContributionOverride,
+  CONTRIBUTION_ENV,
 } from "./contribution";
 import { initSavedPlaces, isSaved, listSaved, savePlace, savedPlacesEnabled, unsavePlace } from "./savedPlaces";
 import {
@@ -2217,6 +2220,57 @@ app.get("/api/contribution", async (req, res) => {
     res.status(500).json(asError(e));
   }
 });
+
+/** Admin: every user's contribution score — the algorithm monitoring/tuning
+ *  view. POST accepts a sanitized config override to SIMULATE a re-tuning
+ *  (permanent changes go through the CONTRIB_* env vars). Admin-gated at the
+ *  BFF (proxyGraphAdmin). Read-only over the same evidence the engine uses. */
+const contributionAdminView = async (req: express.Request, res: express.Response) => {
+  auth(req);
+  try {
+    const override =
+      req.method === "POST" ? sanitizeContributionOverride(req.body?.config) : {};
+    const accounts = await listAccess();
+    const byId = new Map(shared.nodes.map((n) => [n.id, n] as const));
+    const rows = await contributionOverview(
+      accounts.map((a) => a.userId),
+      shared.nodes,
+      override,
+    );
+    const statusOf = new Map(accounts.map((a) => [a.userId, a.status] as const));
+    res.json({
+      envConfig: CONTRIBUTION_ENV,
+      appliedOverride: override,
+      listen: {
+        baseSlots: LISTEN_CONFIG.baseSlots,
+        contributionPerSlot: LISTEN_CONFIG.contributionPerSlot,
+        maxSlots: LISTEN_CONFIG.maxSlots,
+      },
+      users: rows.map((r) => {
+        const node = byId.get(r.userId);
+        return {
+          userId: r.userId,
+          name: node?.label,
+          email: (node as { sub?: string } | undefined)?.sub,
+          accountStatus: statusOf.get(r.userId),
+          score: r.score.score,
+          stage: r.score.stage,
+          events: r.score.events,
+          lifetime: r.score.lifetime,
+          momentum: r.score.momentum,
+          consistency: r.score.consistency,
+          diversity: r.score.diversity,
+          capacity: listenCapacity(r.score.score, LISTEN_CONFIG),
+          factors: r.score.factors,
+        };
+      }),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+};
+app.get("/api/admin/contribution", contributionAdminView);
+app.post("/api/admin/contribution", contributionAdminView);
 
 /* ------------------------- Listen (Doc #6/#7) ------------------------- */
 /* A permission to receive someone's FUTURE recommendations. Directional,

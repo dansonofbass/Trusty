@@ -293,3 +293,78 @@ export async function contributionValueFor(userId: string, nodes: GNode[]): Prom
   const events = await contributionEventsFor(userId, nodes);
   return aggregateContribution(events, { now: Date.now(), config: CONTRIBUTION_ENV }).score;
 }
+
+/* --------------------------- admin monitoring --------------------------- */
+
+/** Clamp helper for the tuning simulator. */
+const num = (v: unknown, min: number, max: number): number | undefined => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
+};
+
+/**
+ * Sanitize an admin-supplied config override for the tuning simulator. Only
+ * whitelisted knobs pass, each clamped to a sane range — a bad payload can
+ * never crash scoring or inject weights outside the model's assumptions.
+ * Simulation only: making a tuning permanent = setting the CONTRIB_* env vars.
+ */
+export function sanitizeContributionOverride(raw: unknown): Partial<ContributionConfig> {
+  if (!raw || typeof raw !== "object") return {};
+  const o = raw as Record<string, unknown>;
+  const out: Partial<ContributionConfig> = {};
+  const halfLife = num(o.momentumHalfLifeDays, 1, 3650);
+  if (halfLife !== undefined) out.momentumHalfLifeDays = halfLife;
+  const burst = num(o.burstDecay, 0.05, 1);
+  if (burst !== undefined) out.burstDecay = burst;
+  const wl = num(o.lifetimeWeight, 0, 2);
+  if (wl !== undefined) out.lifetimeWeight = wl;
+  const wm = num(o.momentumWeight, 0, 2);
+  if (wm !== undefined) out.momentumWeight = wm;
+  const cMax = num(o.consistencyMax, 0, 2);
+  if (cMax !== undefined) out.consistencyMax = cMax;
+  const cK = num(o.consistencyMonthsK, 1, 60);
+  if (cK !== undefined) out.consistencyMonthsK = cK;
+  const dMax = num(o.diversityMax, 0, 1);
+  if (dMax !== undefined) out.diversityMax = dMax;
+  const sm = o.statusMultiplier as Record<string, unknown> | undefined;
+  if (sm && typeof sm === "object") {
+    const recorded = num(sm.recorded, 0, 2);
+    const validated = num(sm.validated, 0, 2);
+    const accepted = num(sm.accepted, 0, 2);
+    if (recorded !== undefined || validated !== undefined || accepted !== undefined) {
+      out.statusMultiplier = {
+        recorded: recorded ?? 0.25,
+        validated: validated ?? 1,
+        accepted: accepted ?? 1,
+        rejected: 0, // never tunable — rejected work must stay worthless
+      };
+    }
+  }
+  return out;
+}
+
+export interface ContributionOverviewRow {
+  userId: string;
+  score: ContributionScore;
+}
+
+/**
+ * Score every listed user with the effective config (env + optional simulator
+ * override). Powers the admin monitoring/tuning tab — read-only over the same
+ * evidence the real engine uses, so what the admin sees IS the algorithm.
+ */
+export async function contributionOverview(
+  userIds: string[],
+  nodes: GNode[],
+  override?: Partial<ContributionConfig>,
+): Promise<ContributionOverviewRow[]> {
+  const config = { ...CONTRIBUTION_ENV, ...override };
+  const now = Date.now();
+  const rows: ContributionOverviewRow[] = [];
+  for (const userId of userIds) {
+    const events = await contributionEventsFor(userId, nodes);
+    rows.push({ userId, score: aggregateContribution(events, { now, config }) });
+  }
+  rows.sort((a, b) => b.score.score - a.score.score);
+  return rows;
+}

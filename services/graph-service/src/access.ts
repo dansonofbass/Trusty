@@ -75,13 +75,15 @@ export async function getAccess(userId: string): Promise<AccessRow | null> {
   return r.rows[0] ? rowToAccess(r.rows[0]) : null;
 }
 
-/** All access rows in one status — powers the admin waitlist review queue. */
-export async function listAccess(status: AccountStatus): Promise<AccessRow[]> {
+/** Access rows (optionally one status) — powers the admin review/monitoring views. */
+export async function listAccess(status?: AccountStatus): Promise<AccessRow[]> {
   if (!pool) return [];
-  const r = await pool.query(
-    `SELECT * FROM user_access WHERE status = $1 ORDER BY created_at DESC LIMIT 500`,
-    [status],
-  );
+  const r = status
+    ? await pool.query(
+        `SELECT * FROM user_access WHERE status = $1 ORDER BY created_at DESC LIMIT 500`,
+        [status],
+      )
+    : await pool.query(`SELECT * FROM user_access ORDER BY created_at DESC LIMIT 500`);
   return r.rows.map(rowToAccess);
 }
 
