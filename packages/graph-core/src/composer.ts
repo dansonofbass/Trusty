@@ -83,6 +83,60 @@ function classifySentence(sentence: string, index: number): IntentGuess {
   return { intent: "note", confidence: 0.35, sentence: s, index };
 }
 
+/* ------------------------- mention parsing (#29) ------------------------- */
+
+export type MentionTrigger = "@" | "#" | "[[";
+
+/** The token being typed at the caret, if it is a mention in progress. */
+export interface ActiveMention {
+  trigger: MentionTrigger;
+  /** What's typed after the trigger so far (may be empty). */
+  query: string;
+  /** Index of the trigger character(s) in the text — replacement starts here. */
+  tokenStart: number;
+}
+
+/* A mention token: @people, #topics, [[entities]] — the trigger must sit at
+ * the start of the text or after whitespace, and the query runs to the caret.
+ * `[[` queries may contain spaces; @ and # stop at whitespace. */
+const AT_HASH_RE = /(^|[\s(])([@#])([^\s@#[\]]*)$/;
+const WIKI_RE = /(^|[\s(])(\[\[)([^\][\n]*)$/;
+
+/** Parse the mention being typed at `caret` (textarea selectionStart). Pure —
+ *  the editor calls it per keystroke to drive the autocomplete popover. */
+export function parseActiveMention(text: string, caret: number): ActiveMention | null {
+  const upto = text.slice(0, Math.max(0, Math.min(caret, text.length)));
+  const wiki = WIKI_RE.exec(upto);
+  if (wiki) {
+    return { trigger: "[[", query: wiki[3], tokenStart: wiki.index + wiki[1].length };
+  }
+  const m = AT_HASH_RE.exec(upto);
+  if (!m) return null;
+  return {
+    trigger: m[2] as MentionTrigger,
+    query: m[3],
+    tokenStart: m.index + m[1].length,
+  };
+}
+
+/** Replace the active mention with a resolved token; returns the new text and
+ *  caret position (after the inserted token + one space). */
+export function applyMention(
+  text: string,
+  caret: number,
+  mention: ActiveMention,
+  replacement: string,
+): { text: string; caret: number } {
+  const token =
+    mention.trigger === "[["
+      ? `[[${replacement}]]`
+      : `${mention.trigger}${replacement}`;
+  const before = text.slice(0, mention.tokenStart);
+  const after = text.slice(Math.max(0, Math.min(caret, text.length)));
+  const inserted = `${token} `;
+  return { text: `${before}${inserted}${after}`, caret: before.length + inserted.length };
+}
+
 /** Analyze composer text — pure, incremental-friendly, sentence-aware. */
 export function analyzeComposerText(text: string): ComposerAnalysis {
   const trimmed = text.trim();

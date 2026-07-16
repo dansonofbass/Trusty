@@ -166,10 +166,14 @@ export {
 } from "./recommendations";
 export {
   analyzeComposerText,
+  applyMention,
+  parseActiveMention,
   topicsInText,
+  type ActiveMention,
   type ComposerAnalysis,
   type ComposerIntent,
   type IntentGuess,
+  type MentionTrigger,
 } from "./composer";
 export {
   aggregateContribution,

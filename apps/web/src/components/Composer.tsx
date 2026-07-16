@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import {
   analyzeComposerText,
+  applyMention,
+  parseActiveMention,
   type AgentMessage,
   type AgentStreamEvent,
   type ComposerIntent,
@@ -26,6 +28,7 @@ import AgentChat, {
   type AgentChatEntry,
   type TrustToolData,
 } from "./composer/AgentChat";
+import MentionPopover from "./composer/MentionPopover";
 
 /**
  * Unified AI Composer (#29) + Personal Knowledge Workspace (#31).
@@ -85,6 +88,12 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
   }
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Mentions (#29): @people / #topics / [[entities]] — caret-tracked token +
+  // resolved-id map, so the agent receives node ids, not guesses.
+  const [caret, setCaret] = useState(0);
+  const [mentionDismissed, setMentionDismissed] = useState(false);
+  const mentionMapRef = useRef<Map<string, ResolvedMention>>(new Map());
+
   // Draft preservation (#29): survive refresh/crash/navigation.
   useEffect(() => {
     const saved = localStorage.getItem(DRAFT_KEY);
@@ -96,6 +105,38 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
   }, [text]);
 
   const analysis = useMemo(() => analyzeComposerText(text), [text]);
+
+  const activeMention = useMemo(
+    () => (mentionDismissed ? null : parseActiveMention(text, caret)),
+    [text, caret, mentionDismissed],
+  );
+
+  const pickMention = (replacement: string, resolved: ResolvedMention) => {
+    if (!activeMention) return;
+    const r = applyMention(text, caret, activeMention, replacement);
+    mentionMapRef.current.set(resolved.token, resolved);
+    setText(r.text);
+    setCaret(r.caret);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(r.caret, r.caret);
+    });
+  };
+
+  /** Structured mentions to ship with an agent turn: resolved tokens still in
+   *  the text, plus loose label matches as a fallback. */
+  const collectMentions = (t: string): ResolvedMention[] => {
+    const out = new Map<string, ResolvedMention>();
+    for (const [token, m] of mentionMapRef.current) {
+      if (t.includes(token)) out.set(token, m);
+    }
+    for (const n of mentioned) {
+      if (![...out.values()].some((m) => m.id === n.id)) {
+        out.set(n.label, { token: n.label, id: n.id, type: n.type, label: n.label });
+      }
+    }
+    return [...out.values()].slice(0, 24);
+  };
 
   // Entities the text mentions — matched against the live graph (suggestions).
   const mentioned = useMemo(() => {
@@ -185,8 +226,11 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
     [patchTail],
   );
 
-  const runTurn = useCallback(
-    async (input: { text?: string; resume?: { toolCallId: string; approved: boolean; args?: unknown; reason?: string } }) => {
+  // Plain function (not useCallback): it closes over the freshest mention map
+  // + graph nodes, and only event handlers call it.
+  const runTurn = async (
+    input: { text?: string; resume?: { toolCallId: string; approved: boolean; args?: unknown; reason?: string } },
+  ) => {
       setSending(true);
       setChat((prev) => [
         ...prev,
@@ -194,16 +238,10 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
         { role: "assistant" as const, text: "", trace: [], streaming: true },
       ]);
       try {
-        const mentions: ResolvedMention[] = mentioned.map((n) => ({
-          token: n.label,
-          id: n.id,
-          type: n.type,
-          label: n.label,
-        }));
         const result = await streamAgentTurn(
           {
             transcript: transcriptRef.current,
-            ...(input.text ? { text: input.text, mentions } : {}),
+            ...(input.text ? { text: input.text, mentions: collectMentions(input.text) } : {}),
             ...(input.resume ? { resume: input.resume } : {}),
             sessionId: sessionIdRef.current,
           },
@@ -233,9 +271,7 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
       } finally {
         setSending(false);
       }
-    },
-    [handleEvent, loadDocs, mentioned, patchTail],
-  );
+  };
 
   const sendToAgent = async () => {
     const t = text.trim();
@@ -409,9 +445,17 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
           autoFocus
           ref={inputRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setCaret(e.target.selectionStart ?? e.target.value.length);
+            setMentionDismissed(false);
+          }}
+          onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+          onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
           onKeyDown={(e) => {
-            if (agentMode && e.key === "Enter" && !e.shiftKey) {
+            // While the mention popover is open its capture-phase handler owns
+            // Enter/arrows — this only fires for plain typing.
+            if (agentMode && e.key === "Enter" && !e.shiftKey && !activeMention) {
               e.preventDefault();
               void sendToAgent();
             }
@@ -424,6 +468,16 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
           }
           className="w-full resize-none rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] p-3 text-[13px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[rgba(255,217,122,0.4)]"
         />
+
+        {/* mention autocomplete: @people · #topics · [[entities]] */}
+        {activeMention && (
+          <MentionPopover
+            active={activeMention}
+            nodes={nodes}
+            onPick={pickMention}
+            onClose={() => setMentionDismissed(true)}
+          />
+        )}
 
         {/* AI transparency: what was understood */}
         {text.trim() && (

@@ -6,7 +6,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeComposerText } from "../src/index.ts";
+import { analyzeComposerText, applyMention, parseActiveMention } from "../src/index.ts";
 
 test("search intent: 'I need / looking for' phrasing", () => {
   const a = analyzeComposerText("I need an immigration lawyer for a family visa case");
@@ -70,4 +70,61 @@ test("empty input is unknown, deterministic", () => {
   const a = analyzeComposerText("I need a plumber");
   const b = analyzeComposerText("I need a plumber");
   assert.deepEqual(a, b);
+});
+
+/* ---------------------- mention parsing (#29) ---------------------- */
+
+test("parseActiveMention: @ at start of text", () => {
+  const m = parseActiveMention("@Mar", 4);
+  assert.deepEqual(m, { trigger: "@", query: "Mar", tokenStart: 0 });
+});
+
+test("parseActiveMention: # mid-text after whitespace, caret-aware", () => {
+  const text = "I trust her on #den totally";
+  const m = parseActiveMention(text, 19); // caret right after "#den"
+  assert.deepEqual(m, { trigger: "#", query: "den", tokenStart: 15 });
+});
+
+test("parseActiveMention: [[ allows multi-word queries", () => {
+  const text = "we went to [[Cafe Aroma";
+  const m = parseActiveMention(text, text.length);
+  assert.deepEqual(m, { trigger: "[[", query: "Cafe Aroma", tokenStart: 11 });
+});
+
+test("parseActiveMention: bare trigger yields an empty query", () => {
+  assert.deepEqual(parseActiveMention("hello @", 7), { trigger: "@", query: "", tokenStart: 6 });
+});
+
+test("parseActiveMention: no token — emails and plain text do not trigger", () => {
+  assert.equal(parseActiveMention("mail me at a@b.com", 18), null);
+  assert.equal(parseActiveMention("no mention here", 15), null);
+  // whitespace after the trigger ends the token
+  assert.equal(parseActiveMention("@Maria said hi", 14), null);
+});
+
+test("parseActiveMention: only text before the caret counts", () => {
+  const text = "@Maria"; // caret at 0 → nothing typed yet
+  assert.equal(parseActiveMention(text, 0), null);
+});
+
+test("applyMention: splices the resolved token and moves the caret", () => {
+  const text = "ping @mar tomorrow";
+  const m = parseActiveMention(text, 9)!; // "@mar"
+  const r = applyMention(text, 9, m, "Maria K.");
+  assert.equal(r.text, "ping @Maria K.  tomorrow");
+  assert.equal(r.caret, "ping @Maria K. ".length);
+});
+
+test("applyMention: [[ ]] wraps the replacement", () => {
+  const text = "loved [[cafe ar";
+  const m = parseActiveMention(text, text.length)!;
+  const r = applyMention(text, text.length, m, "Cafe Aroma");
+  assert.equal(r.text, "loved [[Cafe Aroma]] ");
+});
+
+test("applyMention: emoji/multibyte text before the token survives", () => {
+  const text = "🎉🎉 @an";
+  const m = parseActiveMention(text, text.length)!;
+  const r = applyMention(text, text.length, m, "Ana");
+  assert.equal(r.text, "🎉🎉 @Ana ");
 });
