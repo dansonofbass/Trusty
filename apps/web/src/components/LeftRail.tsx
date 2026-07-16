@@ -49,7 +49,7 @@ export default function LeftRail({
 
   return (
     <aside
-      className="rise fixed left-4 top-24 z-30 hidden w-[218px] flex-col gap-3 md:flex"
+      className="rise fixed left-4 top-[100px] z-30 hidden w-[218px] flex-col gap-3 md:flex"
       style={{ animationDelay: "0.12s" }}
     >
       <div className="panel p-3.5">

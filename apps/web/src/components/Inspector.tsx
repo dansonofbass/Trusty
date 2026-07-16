@@ -16,6 +16,7 @@ import AnnotatedText from "./AnnotatedText";
 import SourceLinks from "./SourceLinks";
 import TrustButton from "./TrustButton";
 import ListenButton from "./ListenButton";
+import RecommendButton from "./RecommendButton";
 import PlaceDetail from "./PlaceDetail";
 
 /** Restaurant/cafe nodes get the full trust-native detail panel, not the generic entity grid. */
@@ -510,6 +511,10 @@ export default function Inspector({
             {/* Listen (#7) — recommendation permission, distinct from trust by design. */}
             {!node.isMe && node.type === "person" && (
               <ListenButton targetId={node.id} targetLabel={node.label} />
+            )}
+            {/* Recommend (#9/#36) — publish knowledge; reaches YOUR listeners' feeds. */}
+            {!node.isMe && !isPlaceNode(node) && (node.type === "person" || node.type === "location") && (
+              <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
             )}
           </div>
         </div>

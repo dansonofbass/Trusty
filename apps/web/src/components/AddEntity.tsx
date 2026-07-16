@@ -71,17 +71,19 @@ export default function AddEntity() {
 
   return (
     <>
+      {/* Right side is the CREATION zone — this affordance grows into the
+          Unified AI Composer (#29) + Personal Knowledge Workspace (#31). */}
       <button
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
-        className="fixed bottom-[76px] left-6 z-40 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink backdrop-blur-md shadow-lg hover:border-gold/60"
+        className="fixed bottom-[76px] right-6 z-40 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink backdrop-blur-md shadow-lg hover:border-gold/60"
         style={{ fontFamily: "var(--font-display)", borderColor: open ? "rgba(154,240,200,0.6)" : undefined }}
       >
         ＋ Add entity
       </button>
 
       {open && (
-        <aside className="pointer-events-auto fixed bottom-4 left-4 top-20 z-40 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
+        <aside className="pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h2 className="text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
               {def ? `New ${def.label}` : "Add a provider or place"}

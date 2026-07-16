@@ -126,7 +126,7 @@ export default function FeedPanel({
   };
 
   return (
-    <aside className="rise fixed bottom-4 left-4 top-[64px] z-30 hidden w-[336px] flex-col md:flex">
+    <aside className="rise fixed bottom-4 left-4 top-[100px] z-30 hidden w-[336px] flex-col md:flex">
       <div className="panel flex min-h-0 flex-1 flex-col p-0">
         {/* header */}
         <div className="flex items-center gap-2 border-b border-[var(--color-line)] px-3.5 py-2.5">

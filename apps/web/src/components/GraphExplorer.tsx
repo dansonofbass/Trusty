@@ -34,7 +34,7 @@ import GraphCanvas, { type CanvasApi } from "./GraphCanvas";
 import TopBar from "./TopBar";
 import LeftRail from "./LeftRail";
 import FeedPanel from "./FeedPanel";
-import { Radio } from "lucide-react";
+import { Radio, SlidersHorizontal } from "lucide-react";
 import Inspector from "./Inspector";
 import PlaceModalHost from "./PlaceModalHost";
 import HintBar from "./HintBar";
@@ -102,8 +102,10 @@ export default function GraphExplorer() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  // Feed dual-view (#36): list docked beside the graph, two-way synced.
-  const [feedOpen, setFeedOpen] = useState(false);
+  // Feed dual-view (#36): the list is the DEFAULT left companion of the graph;
+  // the Lens (type filters) collapses to a pill and opens on demand.
+  const [feedOpen, setFeedOpen] = useState(true);
+  const [lensOpen, setLensOpen] = useState(false);
   const [feedMatch, setFeedMatch] = useState<Set<string> | null>(null);
 
   const graphNonce = useUI((s) => s.graphNonce);
@@ -811,8 +813,39 @@ export default function GraphExplorer() {
         pending={pending}
       />
 
-      {/* Feed dual-view (#36): the list docks where the rail sits; both sides stay in sync. */}
-      {!feedOpen && (
+      {/* Left side (#36 dual view): pill row on top — minimal Lens toggle (+ Feed
+          reopen when closed) — with the feed list as the default companion below.
+          The full Lens panel overlays on demand. */}
+      {view !== "write" && (
+        <div className="rise fixed left-4 top-[64px] z-40 hidden items-center gap-1.5 md:flex">
+          <button
+            onClick={() => setLensOpen((v) => !v)}
+            aria-expanded={lensOpen}
+            title="Lens — filter which node types the graph shows"
+            className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
+            style={
+              lensOpen
+                ? { borderColor: "rgba(255,217,122,0.5)", background: "rgba(255,217,122,0.1)", color: "#ffd97a" }
+                : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
+            }
+          >
+            <SlidersHorizontal size={12} /> Lens
+            {hiddenTypes.length > 0 && (
+              <span className="rounded-full bg-[rgba(255,140,90,0.2)] px-1.5 text-[10px] font-bold text-[#ff8c5a]">{hiddenTypes.length}</span>
+            )}
+          </button>
+          {!feedOpen && (
+            <button
+              onClick={() => setFeedOpen(true)}
+              title="Recommendations from people you listen to — synced with the graph"
+              className="flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1 text-[11.5px] font-medium text-[var(--color-dim)] backdrop-blur-md transition hover:text-ink"
+            >
+              <Radio size={12} /> Feed
+            </button>
+          )}
+        </div>
+      )}
+      {view !== "write" && lensOpen && (
         <LeftRail
           counts={typeCounts}
           communities={communities.infos.filter((i) => i.size >= 3)}
@@ -824,16 +857,7 @@ export default function GraphExplorer() {
           }}
         />
       )}
-      {view !== "write" && !feedOpen && (
-        <button
-          onClick={() => setFeedOpen(true)}
-          title="Recommendations from people you listen to — synced with the graph"
-          className="rise fixed left-4 top-[64px] z-30 hidden items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1 text-[11.5px] font-medium text-[var(--color-dim)] backdrop-blur-md transition hover:text-ink md:flex"
-        >
-          <Radio size={12} /> Feed
-        </button>
-      )}
-      {view !== "write" && feedOpen && (
+      {view !== "write" && feedOpen && !lensOpen && (
         <FeedPanel
           selected={selectedNode ? { id: selectedNode.id, label: selectedNode.label } : null}
           onJump={handleJump}
