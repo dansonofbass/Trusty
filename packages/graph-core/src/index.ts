@@ -156,6 +156,13 @@ export {
   type RecommendationProps,
 } from "./recommendations";
 export {
+  analyzeComposerText,
+  topicsInText,
+  type ComposerAnalysis,
+  type ComposerIntent,
+  type IntentGuess,
+} from "./composer";
+export {
   aggregateContribution,
   explainContribution,
   contributionStage,

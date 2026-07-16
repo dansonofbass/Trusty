@@ -34,6 +34,7 @@ import GraphCanvas, { type CanvasApi } from "./GraphCanvas";
 import TopBar from "./TopBar";
 import LeftRail from "./LeftRail";
 import FeedPanel from "./FeedPanel";
+import Composer from "./Composer";
 import { Radio, SlidersHorizontal } from "lucide-react";
 import Inspector from "./Inspector";
 import PlaceModalHost from "./PlaceModalHost";
@@ -901,6 +902,9 @@ export default function GraphExplorer() {
         }}
         onRemoveEntityLink={handleRemoveEntityLink}
       />
+
+      {/* Unified composer (#29) + private workspace (#31) — the right-side creation zone. */}
+      {view !== "write" && <Composer nodes={dataset.nodes} />}
 
       <PlaceModalHost />
 

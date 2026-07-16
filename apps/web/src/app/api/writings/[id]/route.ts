@@ -1,24 +1,20 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { readValidSession } from "@/lib/auth/session";
+import { type NextRequest } from "next/server";
+import { proxyGraph } from "@/lib/auth/graphProxy";
 
-const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
-
-/** BFF proxy: one writing + its full content and event log. */
+/** One workspace doc + full content and event log (owner only). */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { session } = await readValidSession(req);
-  if (!session) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { id } = await ctx.params;
-  try {
-    const r = await fetch(`${GRAPH}/api/writings/${encodeURIComponent(id)}`, {
-      headers: { "x-user-id": session.sub },
-      cache: "no-store",
-    });
-    const text = await r.text();
-    return new NextResponse(text, {
-      status: r.status,
-      headers: { "content-type": r.headers.get("content-type") ?? "application/json" },
-    });
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "unreachable" }, { status: 502 });
-  }
+  return proxyGraph(req, `/api/writings/${encodeURIComponent(id)}`, "GET");
+}
+
+/** Edit a doc — the previous body is preserved as a version server-side. */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  return proxyGraph(req, `/api/writings/${encodeURIComponent(id)}`, "PATCH");
+}
+
+/** Delete a doc (owner only). */
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  return proxyGraph(req, `/api/writings/${encodeURIComponent(id)}`, "DELETE");
 }

@@ -39,6 +39,10 @@ export async function initWritings(): Promise<void> {
   // The graph node id once woven (null while a draft). Added separately so
   // existing databases pick it up without a re-init.
   await p.query(`ALTER TABLE writings ADD COLUMN IF NOT EXISTS thought_id TEXT`);
+  // Personal Knowledge Workspace (#31): every writing is a private workspace
+  // doc with a knowledge kind + organizational collections. Additive columns.
+  await p.query(`ALTER TABLE writings ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'note'`);
+  await p.query(`ALTER TABLE writings ADD COLUMN IF NOT EXISTS collections TEXT[] NOT NULL DEFAULT '{}'`);
   await p.query(`CREATE INDEX IF NOT EXISTS writings_user_idx ON writings(user_id, updated_at DESC)`);
   await p.query(`
     CREATE TABLE IF NOT EXISTS writing_events (
@@ -54,6 +58,16 @@ export async function initWritings(): Promise<void> {
   console.log("graph-service: writings log ready (postgres)");
 }
 
+/** Workspace knowledge kinds (#31) — one editor, many kinds; extensible. */
+export const WORKSPACE_KINDS = [
+  "note",
+  "experience",
+  "recommendation_draft",
+  "decision",
+  "research",
+] as const;
+export type WorkspaceKind = (typeof WORKSPACE_KINDS)[number];
+
 /** Save (or update) a draft writing — no events, just keeps the row fresh. */
 export async function saveDraft(i: {
   id: string;
@@ -61,18 +75,29 @@ export async function saveDraft(i: {
   title?: string;
   body: string;
   extraction: ThoughtExtraction;
+  kind?: WorkspaceKind;
+  collections?: string[];
 }): Promise<void> {
   if (!pool) return;
   // Never demote an already-woven writing back to draft.
   await pool
     .query(
-      `INSERT INTO writings (id, user_id, title, body, extraction, status, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'draft', now())
+      `INSERT INTO writings (id, user_id, title, body, extraction, status, kind, collections, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, now())
        ON CONFLICT (id) DO UPDATE
          SET title = EXCLUDED.title, body = EXCLUDED.body, extraction = EXCLUDED.extraction,
+             kind = EXCLUDED.kind, collections = EXCLUDED.collections,
              status = CASE WHEN writings.status = 'woven' THEN 'woven' ELSE 'draft' END,
              updated_at = now()`,
-      [i.id, i.userId, i.title ?? null, i.body, JSON.stringify(i.extraction)],
+      [
+        i.id,
+        i.userId,
+        i.title ?? null,
+        i.body,
+        JSON.stringify(i.extraction),
+        i.kind ?? "note",
+        i.collections ?? [],
+      ],
     )
     .catch((e) => console.error("graph-service: saveDraft failed:", e instanceof Error ? e.message : e));
 }
@@ -156,12 +181,111 @@ function diff(original: ThoughtExtraction, accepted: ThoughtExtraction) {
   };
 }
 
-export async function listWritings(userId: string) {
+/** Workspace listing (#31): owner-scoped, searchable, filterable. Private by
+ *  construction — the query is always bound to the owner. */
+export async function listWritings(
+  userId: string,
+  opts: { q?: string; kind?: string; collection?: string } = {},
+) {
+  if (!pool) return [];
+  const where: string[] = ["user_id = $1"];
+  const params: unknown[] = [userId];
+  if (opts.q) {
+    params.push(`%${opts.q}%`);
+    where.push(`(title ILIKE $${params.length} OR body ILIKE $${params.length})`);
+  }
+  if (opts.kind) {
+    params.push(opts.kind);
+    where.push(`kind = $${params.length}`);
+  }
+  if (opts.collection) {
+    params.push(opts.collection);
+    where.push(`$${params.length} = ANY(collections)`);
+  }
+  const r = await pool.query(
+    `SELECT id, thought_id, title, left(body, 200) AS snippet, status, kind, collections,
+            extraction->>'summary' AS summary, created_at, updated_at
+       FROM writings WHERE ${where.join(" AND ")} ORDER BY updated_at DESC LIMIT 100`,
+    params,
+  );
+  return r.rows;
+}
+
+/** All collection names this user has used (for filter chips). */
+export async function listCollections(userId: string): Promise<string[]> {
   if (!pool) return [];
   const r = await pool.query(
-    `SELECT id, thought_id, title, status, extraction->>'summary' AS summary, created_at, updated_at
-     FROM writings WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 100`,
+    `SELECT DISTINCT unnest(collections) AS c FROM writings WHERE user_id = $1 ORDER BY c LIMIT 50`,
     [userId],
+  );
+  return r.rows.map((row) => String(row.c));
+}
+
+/**
+ * Edit a workspace doc (#31): the PREVIOUS body/title is captured as an
+ * append-only `version` event BEFORE the update — every meaningful edit keeps
+ * history, restorable later. Owner-scoped; never demotes a woven writing.
+ */
+export async function updateWriting(
+  userId: string,
+  id: string,
+  patch: { title?: string; body?: string; kind?: WorkspaceKind; collections?: string[]; status?: "draft" | "published" },
+): Promise<boolean> {
+  if (!pool) return false;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const prev = await client.query(
+      `SELECT title, body FROM writings WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+      [id, userId],
+    );
+    if (!prev.rows[0]) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    if (patch.body !== undefined && patch.body !== prev.rows[0].body) {
+      await client.query(
+        `INSERT INTO writing_events (writing_id, user_id, kind, detail) VALUES ($1, $2, 'version', $3)`,
+        [id, userId, JSON.stringify({ title: prev.rows[0].title, body: prev.rows[0].body })],
+      );
+    }
+    await client.query(
+      `UPDATE writings SET
+         title = COALESCE($3, title),
+         body = COALESCE($4, body),
+         kind = COALESCE($5, kind),
+         collections = COALESCE($6, collections),
+         status = CASE WHEN writings.status = 'woven' THEN 'woven' ELSE COALESCE($7, status) END,
+         updated_at = now()
+       WHERE id = $1 AND user_id = $2`,
+      [id, userId, patch.title ?? null, patch.body ?? null, patch.kind ?? null, patch.collections ?? null, patch.status ?? null],
+    );
+    await client.query("COMMIT");
+    return true;
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    console.error("graph-service: updateWriting failed:", e instanceof Error ? e.message : e);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+/** Delete a workspace doc (owner only). History goes with it (CASCADE). */
+export async function deleteWriting(userId: string, id: string): Promise<boolean> {
+  if (!pool) return false;
+  const r = await pool.query(`DELETE FROM writings WHERE id = $1 AND user_id = $2`, [id, userId]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+/** Version history of one doc (owner only), oldest first. */
+export async function writingVersions(userId: string, id: string) {
+  if (!pool) return [];
+  const r = await pool.query(
+    `SELECT e.detail, e.at FROM writing_events e
+      JOIN writings w ON w.id = e.writing_id AND w.user_id = $1
+     WHERE e.writing_id = $2 AND e.kind = 'version' ORDER BY e.at ASC LIMIT 100`,
+    [userId, id],
   );
   return r.rows;
 }

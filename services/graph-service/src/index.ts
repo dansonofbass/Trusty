@@ -94,8 +94,14 @@ import {
   getWriting,
   initWritings,
   listWritings,
+  deleteWriting,
+  listCollections,
   recordWoven,
   saveDraft,
+  updateWriting,
+  WORKSPACE_KINDS,
+  type WorkspaceKind,
+  writingVersions,
   writingsEnabled,
 } from "./writings";
 import { initTrustLog, outcomeStats, recordOutcome, trustLogEnabled } from "./trustLog";
@@ -1030,7 +1036,7 @@ app.post("/api/thoughts", async (req, res) => {
 /** Save/update a draft writing (before it's accepted into the graph). */
 app.post("/api/writings/draft", async (req, res) => {
   const { userId } = auth(req);
-  const { id, title, body, extraction } = req.body ?? {};
+  const { id, title, body, extraction, kind, collections } = req.body ?? {};
   if (!id || typeof body !== "string") return res.status(400).json({ error: "id and body required" });
   try {
     await saveDraft({
@@ -1039,6 +1045,10 @@ app.post("/api/writings/draft", async (req, res) => {
       title: typeof title === "string" ? title : undefined,
       body,
       extraction: extraction ?? { entities: [], relations: [] },
+      kind: WORKSPACE_KINDS.includes(kind) ? (kind as WorkspaceKind) : undefined,
+      collections: Array.isArray(collections)
+        ? (collections as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 12)
+        : undefined,
     });
     res.json({ ok: true });
   } catch (e) {
@@ -1046,11 +1056,18 @@ app.post("/api/writings/draft", async (req, res) => {
   }
 });
 
-/** The viewer's writings (Postgres log) — newest first. */
+/** The viewer's private workspace docs (#31) — searchable, filterable, owner-only. */
 app.get("/api/writings", async (req, res) => {
   const { userId } = auth(req);
   try {
-    res.json(await listWritings(userId));
+    res.json({
+      writings: await listWritings(userId, {
+        q: str(req.query.q as unknown, 100),
+        kind: str(req.query.kind as unknown, 40),
+        collection: str(req.query.collection as unknown, 60),
+      }),
+      collections: await listCollections(userId),
+    });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -1063,6 +1080,49 @@ app.get("/api/writings/:id", async (req, res) => {
     const w = await getWriting(userId, String(req.params.id));
     if (!w) return res.status(404).json({ error: "not found" });
     res.json(w);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Edit a workspace doc — previous body is kept as an append-only version. */
+app.patch("/api/writings/:id", async (req, res) => {
+  const { userId } = auth(req);
+  const b = req.body ?? {};
+  try {
+    const ok = await updateWriting(userId, String(req.params.id), {
+      title: str(b.title, 140),
+      body: typeof b.body === "string" ? b.body.slice(0, 20_000) : undefined,
+      kind: WORKSPACE_KINDS.includes(b.kind) ? (b.kind as WorkspaceKind) : undefined,
+      collections: Array.isArray(b.collections)
+        ? (b.collections as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 12)
+        : undefined,
+      status: b.status === "draft" || b.status === "published" ? b.status : undefined,
+    });
+    if (!ok) return res.status(404).json({ error: "not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Delete a workspace doc (owner only). */
+app.delete("/api/writings/:id", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await deleteWriting(userId, String(req.params.id));
+    if (!ok) return res.status(404).json({ error: "not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Version history of one doc (owner only). */
+app.get("/api/writings/:id/versions", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    res.json({ versions: await writingVersions(userId, String(req.params.id)) });
   } catch (e) {
     res.status(500).json(asError(e));
   }
