@@ -189,8 +189,15 @@ services:
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      KC_HOSTNAME: http://localhost:8080
+      # Pins the browser-facing issuer + token `iss` to the public host (from
+      # .env PUBLIC_HOST). The web container still reaches the back-channel via
+      # the Docker DNS name because BACKCHANNEL_DYNAMIC lets it differ.
+      KC_HOSTNAME: http://${PUBLIC_HOST:-localhost}:8080
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Exposed to the container so the realm import can substitute ${PUBLIC_HOST}
+      # into the client's redirect-URI allowlist (Keycloak only allows trailing
+      # wildcards, so a host-position wildcard won't work — substitution does).
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     ports:
@@ -398,7 +405,12 @@ services:
       GRAPH_SERVICE_INTERNAL_URL: http://graph-service:4001
       # Community photo uploads land here (a named volume, outside the bind mount).
       UPLOAD_DIR: /data/uploads
-      # Auth (KEYCLOAK_*, SESSION_SECRET, APP_BASE_URL come from .env via env_file).
+      # --- Public host: the ONE knob. Set PUBLIC_HOST in .env to the server's IP
+      # (or a domain later); everything browser-facing is derived from it here,
+      # overriding the .env defaults. Back-channel stays on the Docker DNS name
+      # (KEYCLOAK_INTERNAL_URL from .env = http://keycloak:8080).
+      APP_BASE_URL: http://${PUBLIC_HOST:-localhost}:3000
+      KEYCLOAK_ISSUER: http://${PUBLIC_HOST:-localhost}:8080/realms/constellation
     ports:
       - "3000:3000"
     volumes:
