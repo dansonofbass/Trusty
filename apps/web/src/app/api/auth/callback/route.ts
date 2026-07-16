@@ -7,6 +7,7 @@ import {
   setSessionCookie,
   type Session,
 } from "@/lib/auth/session";
+import { isAdmin } from "@/lib/auth/roles";
 
 const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
 
@@ -42,12 +43,14 @@ async function consumeInvite(code: string, session: Session): Promise<boolean> {
   }
 }
 
-/** Read the user's front-door status to decide where to land them. */
+/** Read the user's front-door status to decide where to land them. Admins carry
+ * a verified flag so graph-service exempts them from the waitlist gate. */
 async function fetchStatus(session: Session): Promise<string | null> {
   try {
+    const admin = await isAdmin(session).catch(() => false);
     const r = await fetch(`${GRAPH}/api/access`, {
       method: "GET",
-      headers: identityHeaders(session),
+      headers: { ...identityHeaders(session), ...(admin ? { "x-user-admin": "1" } : {}) },
       cache: "no-store",
     });
     if (!r.ok) return null;

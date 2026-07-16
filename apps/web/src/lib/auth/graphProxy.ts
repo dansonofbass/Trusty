@@ -12,12 +12,14 @@ async function forward(
   refreshed: boolean,
   path: string,
   method: Method,
+  extraHeaders?: Record<string, string>,
 ): Promise<NextResponse> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
     "x-user-id": session.sub,
     ...(session.name ? { "x-user-name": encodeURIComponent(session.name) } : {}),
     ...(session.email ? { "x-user-email": encodeURIComponent(session.email) } : {}),
+    ...extraHeaders,
   };
   const body = method === "GET" ? undefined : await req.text();
 
@@ -42,10 +44,22 @@ async function forward(
  * forwards the user identity headers graph-service expects, and re-seals the
  * cookie on token refresh.
  */
-export async function proxyGraph(req: NextRequest, path: string, method: Method): Promise<NextResponse> {
+export async function proxyGraph(
+  req: NextRequest,
+  path: string,
+  method: Method,
+  opts?: {
+    /** Forward a verified `x-user-admin: 1` header when the session holds the
+     * admin role — lets graph-service apply admin-only behaviour (e.g. the
+     * front-door gate exempts admins). Role verification happens HERE (JWT
+     * signature via isAdmin); graph-service trusts BFF headers by design. */
+    sendAdminFlag?: boolean;
+  },
+): Promise<NextResponse> {
   const { session, refreshed } = await readValidSession(req);
   if (!session) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  return forward(req, session, refreshed, path, method);
+  const extra = opts?.sendAdminFlag && (await isAdmin(session)) ? { "x-user-admin": "1" } : undefined;
+  return forward(req, session, refreshed, path, method, extra);
 }
 
 /**

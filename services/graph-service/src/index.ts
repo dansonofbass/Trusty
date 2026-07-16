@@ -146,13 +146,16 @@ import {
   ensureAccess,
   getAccess,
   initAccess,
+  listAccess,
   setStatus,
 } from "./access";
 import {
+  adminUnlock,
   getWaitlistByUser,
   incrementReferral,
   initWaitlist,
   joinWaitlist,
+  listWaitlist,
   waitlistEnabled,
   WAITLIST_UNLOCK_THRESHOLD,
 } from "./waitlist";
@@ -2516,11 +2519,18 @@ app.post("/api/invites/accept", async (req, res) => {
 
 /* --------------------- access / waitlist / onboarding -------------------- */
 
-/** The viewer's front-door state: account status + config + referral progress. */
+/** The viewer's front-door state: account status + config + referral progress.
+ * Admins are exempt from the front door: the BFF verifies the admin role (JWT
+ * signature) and forwards `x-user-admin: 1`; we auto-activate so an admin never
+ * sits on the waitlist or gets bounced into onboarding. */
 app.get("/api/access", async (req, res) => {
   const { userId } = auth(req);
   try {
-    const access = await getAccess(userId);
+    let access = await getAccess(userId);
+    if (req.header("x-user-admin") === "1" && access && access.status !== "active") {
+      await setStatus(userId, "active");
+      access = await getAccess(userId);
+    }
     const status = access?.status ?? (accessEnabled() ? "waitlisted" : "active");
     const waitlist = status === "waitlisted" ? await getWaitlistByUser(userId) : null;
     const onboarding = await getOnboarding(userId);
@@ -2593,6 +2603,54 @@ app.get("/api/waitlist/status", async (req, res) => {
       threshold: entry.threshold,
       unlocked: entry.unlocked,
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: everyone currently held at the front door, with referral progress.
+ *  Admin-gated at the BFF (proxyGraphAdmin). */
+app.get("/api/admin/waitlist", async (req, res) => {
+  auth(req);
+  try {
+    const held = await listAccess("waitlisted");
+    const entries = new Map((await listWaitlist()).map((w) => [w.userId, w] as const));
+    const byId = new Map(shared.nodes.map((n) => [n.id, n] as const));
+    res.json({
+      threshold: WAITLIST_UNLOCK_THRESHOLD,
+      users: held.map((a) => {
+        const w = entries.get(a.userId);
+        const node = byId.get(a.userId);
+        return {
+          userId: a.userId,
+          name: node?.label,
+          email: w?.email ?? (node as { sub?: string } | undefined)?.sub,
+          waitingSince: a.createdAt,
+          joinedWaitlist: !!w,
+          referredCount: w?.referredCount ?? 0,
+          threshold: WAITLIST_UNLOCK_THRESHOLD,
+        };
+      }),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: wave a user through the front door (spec #3/#27 "administrative
+ *  approval"). Grants onboarding access — no trust, no graph edge, exactly like
+ *  a referral unlock. Admin-gated at the BFF. */
+app.post("/api/admin/waitlist/:userId/approve", async (req, res) => {
+  auth(req);
+  const target = String(req.params.userId);
+  try {
+    const access = await getAccess(target);
+    if (!access) return res.status(404).json({ error: "unknown user" });
+    if (access.status !== "waitlisted")
+      return res.json({ ok: true, status: access.status }); // already through — idempotent
+    await adminUnlock(target); // waitlist entry (if any) reads as unlocked
+    await setStatus(target, "pending_onboarding");
+    res.json({ ok: true, status: "pending_onboarding" });
   } catch (e) {
     res.status(500).json(asError(e));
   }

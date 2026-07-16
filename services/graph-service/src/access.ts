@@ -75,6 +75,16 @@ export async function getAccess(userId: string): Promise<AccessRow | null> {
   return r.rows[0] ? rowToAccess(r.rows[0]) : null;
 }
 
+/** All access rows in one status — powers the admin waitlist review queue. */
+export async function listAccess(status: AccountStatus): Promise<AccessRow[]> {
+  if (!pool) return [];
+  const r = await pool.query(
+    `SELECT * FROM user_access WHERE status = $1 ORDER BY created_at DESC LIMIT 500`,
+    [status],
+  );
+  return r.rows.map(rowToAccess);
+}
+
 /**
  * Create the access row on first sight if absent. `defaultStatus` grandfathers
  * pre-gate users in as `active` (callers pass "active" for already-existing

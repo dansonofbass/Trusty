@@ -75,6 +75,24 @@ export async function getWaitlistByUser(userId: string): Promise<WaitlistEntry |
   return r.rows[0] ? rowToEntry(r.rows[0]) : null;
 }
 
+/** All waitlist entries, newest first — for the admin review queue. */
+export async function listWaitlist(): Promise<WaitlistEntry[]> {
+  if (!pool) return [];
+  const r = await pool.query(`SELECT * FROM waitlist ORDER BY created_at DESC LIMIT 500`);
+  return r.rows.map(rowToEntry);
+}
+
+/**
+ * Administrative unlock (spec #3/#27: "administrative approval" is a first-class
+ * unlock criterion alongside referrals). Marks the entry unlocked so the
+ * progress UI reads correctly; the caller flips `user_access` separately.
+ * No-op if the user never filed a waitlist entry.
+ */
+export async function adminUnlock(userId: string): Promise<void> {
+  if (!pool) return;
+  await pool.query(`UPDATE waitlist SET unlocked = true WHERE user_id = $1`, [userId]);
+}
+
 /**
  * Register (or return the existing) waitlist entry for a user. `referralCode` is
  * an invite code minted by the caller (inviter = this user) — reusing the invite
