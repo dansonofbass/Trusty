@@ -72,7 +72,7 @@ export default function ContributionAdminPage() {
     try {
       const r = await fetch("/api/admin/contribution", { cache: "no-store" });
       if (!r.ok) throw new Error(`contribution fetch failed (${r.status})`);
-      const raw = (await r.json()) as Partial<Overview> & { users?: Partial<Row>[] };
+      const raw = (await r.json()) as Omit<Partial<Overview>, "users"> & { users?: Partial<Row>[] };
       // Normalize defensively — an older graph-service may not send the newer
       // fields (credits, capacityBreakdown); render with defaults, never crash.
       const data: Overview = {
@@ -82,9 +82,9 @@ export default function ContributionAdminPage() {
         users: (raw.users ?? []).map((u) => ({
           events: 0, lifetime: 0, momentum: 0, consistency: 1, diversity: 1,
           capacity: 0, score: 0, stage: "New Contributor", userId: "", factors: [],
-          capacityBreakdown: { base: 5, fromContribution: 0, fromTenure: 0, fromBoosts: 0 },
-          credits: { earned: 0, ledger: 0, balance: 0 },
           ...u,
+          capacityBreakdown: u.capacityBreakdown ?? { base: 5, fromContribution: 0, fromTenure: 0, fromBoosts: 0 },
+          credits: u.credits ?? { earned: 0, ledger: 0, balance: 0 },
         }) as Row),
       };
       setBaseline(data);
