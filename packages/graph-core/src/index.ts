@@ -1,5 +1,14 @@
 export * from "./types";
 export * from "./random";
+export {
+  pendingConfirm,
+  trimTranscript,
+  type AgentMessage,
+  type AgentResume,
+  type AgentStreamEvent,
+  type AgentToolCall,
+  type ResolvedMention,
+} from "./agent";
 export { cosineSimilarity, topicsWithinThreshold } from "./similarity";
 export { haversineKm, type LatLng } from "./geo";
 export { isOpenNow, weeklyHours, type DayHours } from "./hours";

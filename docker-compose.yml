@@ -313,6 +313,9 @@ services:
       # Extraction runs on hosted Claude via LiteLLM (Ollama offloaded). Set
       # ANTHROPIC_API_KEY in .env for the Write/thoughts extraction to work.
       EXTRACTOR_MODEL: ${EXTRACTOR_MODEL:-claude-haiku-4-5}
+      # Composer agent (#29): the tool-calling loop's model (independent of the
+      # extraction default so a cheap extraction arm never dumbs the agent down).
+      AGENT_MODEL: ${AGENT_MODEL:-claude-sonnet-4-6}
       # Per-request model routing: default provider, A/B split, manual override.
       EXTRACTOR_PROVIDER: ${EXTRACTOR_PROVIDER:-}
       EXTRACTOR_AB_TEST: ${EXTRACTOR_AB_TEST:-}

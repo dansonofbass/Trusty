@@ -52,7 +52,11 @@ import {
   normalizeTopic,
   reasonsForTopic,
   validateScope,
+  type AgentMessage,
+  type AgentResume,
+  type AgentStreamEvent,
   type LxResult,
+  type ResolvedMention,
   type ThoughtExtraction,
   type TrustScope,
 } from "@constellation/graph-core";
@@ -69,6 +73,10 @@ import {
 } from "./router";
 import { createConfigStore } from "./configStore";
 import { gatewayChat, litellmConfigured, type GatewayCallMeta } from "./llmGateway";
+import { agentConfigured } from "./agent/gateway";
+import { runAgentLoop } from "./agent/loop";
+import { buildComposerRegistry } from "./agent/registry";
+import { AGENT_SYSTEM_PROMPT, buildContextBlock } from "./agent/prompt";
 
 const PORT = Number(process.env.PORT ?? 4003);
 const GRAPH = process.env.GRAPH_SERVICE_URL ?? "http://localhost:4001";
@@ -121,6 +129,8 @@ app.get("/health", (_req, res) =>
     routing: describeRouter(effectiveConfig()),
     ollamaHost: baseConfig.ollamaConfigured ? ollamaHost : undefined,
     entitySources: parseEnabledSourceProviders(process.env.ENTITY_SOURCES),
+    // Composer agent (#29): tool-calling loop, needs LiteLLM or an Anthropic key.
+    agent: agentConfigured() ? "enabled" : "disabled",
   }),
 );
 
@@ -947,6 +957,90 @@ app.post("/resolve-scope", async (req, res) => {
     res.json({ ...scope, variant: variant.key });
   } catch (e) {
     res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/* ── Composer agent (#29): model → tools → model, streamed as SSE ─────
+ * Stateless: the client sends the full transcript each turn (plus `text` for a
+ * new user turn, or `resume` after a confirm card) and stores the canonical
+ * transcript returned in `done`. Tools run against graph-service with the
+ * BFF-verified viewer identity. */
+const AGENT_MODEL = process.env.AGENT_MODEL ?? "claude-sonnet-4-6";
+const composerRegistry = buildComposerRegistry();
+
+app.post("/agent/stream", async (req, res) => {
+  if (!agentConfigured()) {
+    return res.status(503).json({ error: "agent-unavailable" });
+  }
+  const userId = req.header("x-user-id");
+  if (!userId) return res.status(401).json({ error: "missing user identity" });
+
+  const b = req.body ?? {};
+  const prior = Array.isArray(b.messages) ? (b.messages as AgentMessage[]) : [];
+  const text = typeof b.text === "string" ? b.text.trim() : "";
+  const mentions = Array.isArray(b.mentions)
+    ? (b.mentions as ResolvedMention[]).slice(0, 24)
+    : undefined;
+  const resume =
+    b.resume && typeof b.resume?.toolCallId === "string"
+      ? (b.resume as AgentResume)
+      : undefined;
+  if (!text && !resume) return res.status(400).json({ error: "text or resume required" });
+
+  // Manual model override (admin/debug) still works; A/B stays extraction-only —
+  // the agent has its own default so a haiku extraction arm never dumbs it down.
+  const variant = variantForRequest(req, b);
+  const model =
+    variant.source === "override" && variant.provider === "claude" ? variant.model : AGENT_MODEL;
+
+  const transcript: AgentMessage[] = [...prior];
+  if (text) {
+    const context = buildContextBlock({
+      viewerId: userId,
+      viewerName: req.header("x-user-name") || undefined,
+      mentions,
+      text,
+    });
+    transcript.push({ role: "user", content: `${text}\n\n${context}` });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+  const emit = (payload: Record<string, unknown>) => {
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  try {
+    const result = await runAgentLoop({
+      transcript,
+      system: AGENT_SYSTEM_PROMPT,
+      registry: composerRegistry,
+      ctx: { userId, graphUrl: GRAPH, emit: emit as (ev: AgentStreamEvent) => void },
+      model,
+      meta: {
+        userId,
+        variant: model,
+        source: variant.source === "override" ? "override" : "default",
+        provider: "claude",
+        endpoint: "agent",
+        sessionId: typeof b.sessionId === "string" ? b.sessionId : undefined,
+      },
+      emit: emit as (ev: AgentStreamEvent) => void,
+      resume,
+    });
+    emit({
+      type: "done",
+      transcript: result.transcript,
+      variant: model,
+      turns: result.turns,
+      suspended: result.suspended,
+    });
+    res.end();
+  } catch (e) {
+    emit({ type: "error", message: e instanceof Error ? e.message : String(e) });
+    res.end();
   }
 });
 

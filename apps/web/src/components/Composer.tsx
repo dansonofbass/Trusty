@@ -1,27 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookMarked, Check, FileText, Loader2, Lock, Megaphone, PenLine, Search as SearchIcon,
-  Sparkles, Trash2, X,
+  BookMarked, Check, FileText, Loader2, Lock, Megaphone, PenLine, RotateCcw,
+  Search as SearchIcon, Send, Sparkles, Trash2, X,
 } from "lucide-react";
-import { analyzeComposerText, type ComposerIntent, type GNode } from "@constellation/graph-core";
+import {
+  analyzeComposerText,
+  type AgentMessage,
+  type AgentStreamEvent,
+  type ComposerIntent,
+  type GNode,
+  type ResolvedMention,
+} from "@constellation/graph-core";
 import { useUI } from "@/lib/store";
-import { resolveScope, trustSearch } from "@/lib/trustClient";
+import { resolveScope, trustSearch, type TrustRec } from "@/lib/trustClient";
+import { AgentUnavailableError, streamAgentTurn } from "@/lib/agentClient";
 import {
   deleteWorkspaceDoc, fetchWorkspace, fetchWriting, saveDraft, updateWorkspaceDoc,
   type WritingSummary,
 } from "@/lib/writings";
 import { GOLD } from "@/lib/palette";
+import AgentChat, {
+  TOOL_LABEL,
+  type AgentChatEntry,
+  type TrustToolData,
+} from "./composer/AgentChat";
 
 /**
  * Unified AI Composer (#29) + Personal Knowledge Workspace (#31).
  *
- * ONE input, no modes: intent is detected continuously while typing (pure
- * graph-core heuristics, LLM refinement can slot in later) and the action row
- * adapts — search routes to the trust-search graph overlay, everything else
- * lands PRIVATELY in the workspace below. Drafts survive refresh (localStorage
- * + server drafts). Publication is always a separate, explicit act.
+ * ONE input, agent-first: your message goes to a real tool-calling agent
+ * (extractor /agent/stream — trust search, entity lookup, private notes, asks,
+ * recommendations, trust edges, listen requests) with a live Cursor-style tool
+ * trace. Outward-facing actions pause on a confirm card — nothing reaches your
+ * network without your click. When no LLM is configured the composer degrades
+ * to the original heuristic quick mode (intent chips + direct actions), so the
+ * private workspace below always works.
  */
 
 const DRAFT_KEY = "trusty_composer_draft_v1";
@@ -57,6 +72,18 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
   const [collections, setCollections] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
+
+  // Agent conversation (#29): the transcript is server-canonical — we store what
+  // `done` returned and resend it each turn (the loop is stateless over HTTP).
+  const [agentMode, setAgentMode] = useState(true);
+  const [chat, setChat] = useState<AgentChatEntry[]>([]);
+  const [sending, setSending] = useState(false);
+  const transcriptRef = useRef<AgentMessage[]>([]);
+  const sessionIdRef = useRef<string>("");
+  if (!sessionIdRef.current && typeof crypto !== "undefined") {
+    sessionIdRef.current = crypto.randomUUID?.() ?? `s_${Date.now().toString(36)}`;
+  }
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Draft preservation (#29): survive refresh/crash/navigation.
   useEffect(() => {
@@ -100,7 +127,145 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
     localStorage.removeItem(DRAFT_KEY);
   };
 
-  /** Save privately to the workspace — the default destination (#31). */
+  /* --------------------------- agent turns --------------------------- */
+
+  /** Patch the last (streaming) assistant entry. */
+  const patchTail = useCallback((fn: (e: AgentChatEntry) => AgentChatEntry) => {
+    setChat((prev) => {
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].role === "assistant") {
+          const next = [...prev];
+          next[i] = fn(next[i]);
+          return next;
+        }
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleEvent = useCallback(
+    (ev: AgentStreamEvent) => {
+      if (ev.type === "step") {
+        patchTail((e) => {
+          const trace = [...e.trace];
+          const i = trace.findIndex((t) => t.id === ev.id);
+          const item = { id: ev.id, label: ev.label, status: ev.status, summary: ev.summary };
+          if (i >= 0) trace[i] = { ...trace[i], ...item };
+          else trace.push(item);
+          return { ...e, trace };
+        });
+      } else if (ev.type === "tool_call") {
+        patchTail((e) => ({
+          ...e,
+          trace: [
+            ...e.trace,
+            { id: ev.id, label: TOOL_LABEL[ev.tool] ?? ev.tool.replace(/_/g, " "), status: "active" as const, tool: ev.tool },
+          ],
+        }));
+      } else if (ev.type === "tool_result") {
+        patchTail((e) => {
+          const trace = e.trace.map((t) =>
+            t.id === ev.id ? { ...t, status: ev.ok ? ("done" as const) : ("error" as const), summary: ev.summary } : t,
+          );
+          const trustData =
+            ev.tool === "trust_search" && ev.ok && ev.data
+              ? (ev.data as TrustToolData)
+              : e.trustData;
+          return { ...e, trace, trustData };
+        });
+      } else if (ev.type === "token") {
+        patchTail((e) => ({ ...e, text: e.text + ev.content }));
+      } else if (ev.type === "confirm") {
+        patchTail((e) => ({
+          ...e,
+          confirm: { id: ev.id, tool: ev.tool, args: ev.args, title: ev.title, description: ev.description },
+        }));
+      }
+    },
+    [patchTail],
+  );
+
+  const runTurn = useCallback(
+    async (input: { text?: string; resume?: { toolCallId: string; approved: boolean; args?: unknown; reason?: string } }) => {
+      setSending(true);
+      setChat((prev) => [
+        ...prev,
+        ...(input.text ? [{ role: "user" as const, text: input.text, trace: [] }] : []),
+        { role: "assistant" as const, text: "", trace: [], streaming: true },
+      ]);
+      try {
+        const mentions: ResolvedMention[] = mentioned.map((n) => ({
+          token: n.label,
+          id: n.id,
+          type: n.type,
+          label: n.label,
+        }));
+        const result = await streamAgentTurn(
+          {
+            transcript: transcriptRef.current,
+            ...(input.text ? { text: input.text, mentions } : {}),
+            ...(input.resume ? { resume: input.resume } : {}),
+            sessionId: sessionIdRef.current,
+          },
+          handleEvent,
+        );
+        transcriptRef.current = result.transcript;
+        patchTail((e) => ({ ...e, streaming: false }));
+        void loadDocs(); // the agent may have saved a note / created an ask
+        return true;
+      } catch (err) {
+        if (err instanceof AgentUnavailableError) {
+          // Drop the optimistic entries and fall back to quick mode for the session.
+          setChat((prev) => prev.slice(0, input.text ? -2 : -1));
+          setAgentMode(false);
+          flash("AI agent offline — quick mode (heuristics) active.");
+        } else {
+          patchTail((e) => ({
+            ...e,
+            streaming: false,
+            trace: [
+              ...e.trace,
+              { id: `err_${Date.now()}`, label: "Agent error", status: "error" as const, summary: err instanceof Error ? err.message : String(err) },
+            ],
+          }));
+        }
+        return false;
+      } finally {
+        setSending(false);
+      }
+    },
+    [handleEvent, loadDocs, mentioned, patchTail],
+  );
+
+  const sendToAgent = async () => {
+    const t = text.trim();
+    if (!t || sending) return;
+    setText("");
+    localStorage.removeItem(DRAFT_KEY);
+    await runTurn({ text: t });
+  };
+
+  const decide = async (confirmId: string, approved: boolean, args?: unknown) => {
+    if (sending) return;
+    setChat((prev) =>
+      prev.map((e) =>
+        e.confirm?.id === confirmId
+          ? { ...e, confirm: { ...e.confirm, decided: approved ? "approved" : "denied" } }
+          : e,
+      ),
+    );
+    await runTurn({ resume: { toolCallId: confirmId, approved, args } });
+  };
+
+  const newChat = () => {
+    transcriptRef.current = [];
+    sessionIdRef.current = crypto.randomUUID?.() ?? `s_${Date.now().toString(36)}`;
+    setChat([]);
+  };
+
+  /* ---------------------- quick mode (no LLM) ------------------------ */
+
+  /** Save privately to the workspace — always available, never needs the LLM (#31). */
   const save = async () => {
     if (!text.trim()) return;
     setBusy("save");
@@ -127,7 +292,7 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
     }
   };
 
-  /** Search intent → the trust-search graph overlay (#29 routing). */
+  /** Search intent → the trust-search graph overlay (quick mode routing). */
   const runSearch = async () => {
     setBusy("search");
     try {
@@ -149,7 +314,7 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
     }
   };
 
-  /** Explicit publication (#31: publishing is always a separate act). */
+  /** Explicit publication (quick mode; the agent path uses publish_recommendation). */
   const publish = async () => {
     if (!target || !analysis.topics[0]) return;
     setBusy("publish");
@@ -190,14 +355,14 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
   };
 
   const primary = INTENT_META[analysis.primary];
-  const showSearch = analysis.intents.some((g) => (g.intent === "search" || g.intent === "question") && g.confidence >= 0.5);
-  const showPublish = analysis.primary === "recommendation" && !!target && !!analysis.topics[0];
+  const showSearch = !agentMode && analysis.intents.some((g) => (g.intent === "search" || g.intent === "question") && g.confidence >= 0.5);
+  const showPublish = !agentMode && analysis.primary === "recommendation" && !!target && !!analysis.topics[0];
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        title="Compose — write naturally; the AI figures out what you mean"
+        title="Compose — write naturally; the AI agent detects intent and acts (with your confirmation)"
         className="fixed bottom-[124px] right-6 z-40 flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold backdrop-blur-md shadow-lg"
         style={{ fontFamily: "var(--font-display)", borderColor: "rgba(255,217,122,0.45)", background: "rgba(255,217,122,0.08)", color: GOLD }}
       >
@@ -214,19 +379,49 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
           <PenLine size={15} style={{ color: GOLD }} /> {editingId ? "Edit note" : "Compose"}
         </h2>
         <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--color-faint)]">
-          <Lock size={11} /> private by default
+          {agentMode ? (
+            <><Sparkles size={11} style={{ color: GOLD }} /> AI agent</>
+          ) : (
+            <>Quick mode — agent offline</>
+          )}
+          {chat.length > 0 && (
+            <button type="button" onClick={newChat} title="New conversation" className="ml-1 flex items-center gap-1 text-dim hover:text-ink">
+              <RotateCcw size={11} /> new
+            </button>
+          )}
           <button type="button" onClick={() => setOpen(false)} className="ml-2 text-dim hover:text-ink" aria-label="Close">✕</button>
         </div>
       </div>
 
       <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto p-4">
+        {/* agent conversation */}
+        <AgentChat
+          entries={chat}
+          busy={sending}
+          onDecide={(id, approved, args) => void decide(id, approved, args)}
+          onShowOnGraph={(d: TrustToolData) =>
+            setTrustSearch({ topic: d.topic, geo: d.geo, recs: d.recs as TrustRec[] })
+          }
+        />
+
         {/* the ONE input */}
         <textarea
           autoFocus
+          ref={inputRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          rows={5}
-          placeholder="Write naturally — search, recommend, capture an experience, note a decision… the AI sorts it out."
+          onKeyDown={(e) => {
+            if (agentMode && e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void sendToAgent();
+            }
+          }}
+          rows={chat.length ? 3 : 5}
+          placeholder={
+            agentMode
+              ? "Ask, need, recommend, note… the agent detects intent, searches your network and acts — outward actions wait for your OK. Enter to send, Shift+Enter for a new line."
+              : "Write naturally — search, recommend, capture an experience, note a decision… the heuristics sort it out."
+          }
           className="w-full resize-none rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] p-3 text-[13px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[rgba(255,217,122,0.4)]"
         />
 
@@ -263,8 +458,15 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
           </div>
         )}
 
-        {/* adaptive actions */}
+        {/* actions */}
         <div className="mt-3 flex flex-wrap gap-2">
+          {agentMode && text.trim() && (
+            <button onClick={() => void sendToAgent()} disabled={sending}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold text-space disabled:opacity-50"
+              style={{ background: GOLD }}>
+              {sending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} Send
+            </button>
+          )}
           {showSearch && (
             <button onClick={() => void runSearch()} disabled={busy !== null}
               className="flex items-center gap-1.5 rounded-lg border border-[rgba(63,198,244,0.5)] bg-[rgba(63,198,244,0.08)] px-3 py-1.5 text-[12px] font-semibold text-[#3fc6f4] disabled:opacity-50">
@@ -292,7 +494,7 @@ export default function Composer({ nodes }: { nodes: GNode[] }) {
             </button>
           )}
         </div>
-        {analysis.primary === "recommendation" && !showPublish && text.trim() && (
+        {!agentMode && analysis.primary === "recommendation" && !showPublish && text.trim() && (
           <p className="mt-1.5 text-[10.5px] text-[var(--color-faint)]">
             To publish: mention who/what you recommend by name{analysis.topics.length ? "" : " and the topic (e.g. lawyer)"} — or just save it privately for now.
           </p>
