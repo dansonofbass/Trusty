@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LogOut, MapPin, Orbit, Route, Search, Sparkles } from "lucide-react";
-import { GEO_OPTIONS, geoLabel } from "@constellation/graph-core";
+import GeoSelect from "./GeoSelect";
 import type { Wallet } from "@constellation/graph-core";
 import { GOLD } from "@/lib/palette";
 import { useUI, type ViewId } from "@/lib/store";
@@ -71,29 +71,12 @@ export default function TopBar({
         <div className="ml-auto flex items-center gap-2">
           {/* Location scope — Trusty explores one country at a time (Armenia).
               This default flows into every location field + the agent. */}
-          <label
-            className="relative flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2.5 py-2 transition hover:border-[var(--color-accent-line)]"
-            title="Your location scope — cities of Armenia, districts of Yerevan"
-          >
-            <MapPin size={13} style={{ color: "var(--color-accent)" }} />
-            <span className="hidden text-[12px] font-medium text-ink sm:inline">{geoLabel(geoScope)}</span>
-            <select
-              value={geoScope}
-              onChange={(e) => setGeoScope(e.target.value)}
-              aria-label="Location scope"
-              className="absolute inset-0 cursor-pointer opacity-0"
-            >
-              {GEO_OPTIONS.map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.options.map((o) => (
-                    <option key={o} value={o}>
-                      {geoLabel(o)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
+          <GeoSelect
+            value={geoScope}
+            onChange={setGeoScope}
+            icon={<MapPin size={13} className="shrink-0" style={{ color: "var(--color-accent)" }} />}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2.5 py-2 text-[12px] font-medium text-ink transition hover:border-[var(--color-accent-line)]"
+          />
 
           {/* Search → unified entity + trust search overlay */}
           <button
