@@ -2642,14 +2642,26 @@ app.get("/api/listen/feed", async (req, res) => {
           const n = byId.get(r.nodeId);
           if (!n) return null;
           const p = (n.properties ?? {}) as Record<string, unknown>;
+          const targetNode = shared.nodes.find((x) => x.id === String(p.targetId));
           return {
             id: n.id,
             author: { id: p.authorId, name: labelOf.get(String(p.authorId)) },
-            target: { id: p.targetId, name: labelOf.get(String(p.targetId)) },
+            target: {
+              id: p.targetId,
+              name: labelOf.get(String(p.targetId)),
+              // Type/subtitle let the feed render the target as a first-class
+              // entity (glyph, color, "Restaurant · armenian") without lookups.
+              type: targetNode?.type,
+              entityType: targetNode?.entityType,
+              sub: targetNode?.sub,
+            },
             topic: p.topic,
             context: p.context,
             audience: p.audience,
             reasons: p.reasons,
+            // The author's own words + when — the feed's human core.
+            note: p.note,
+            createdAt: p.createdAt,
             consensus: recommendationConsensus(ds, n.id),
             score: r.score,
             factors: r.factors,
