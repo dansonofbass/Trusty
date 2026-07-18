@@ -6,11 +6,13 @@ export {
   COUNTRY,
   DEFAULT_CONTEXTS,
   DEFAULT_GEO,
+  GEO_FREE_TOPICS,
   GEO_OPTIONS,
   YEREVAN_DISTRICTS,
   contextsForTopic,
   geoLabel,
   isKnownGeo,
+  topicNeedsGeo,
   type ContextOption,
   type GeoOptionGroup,
 } from "./geoArmenia";

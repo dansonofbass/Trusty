@@ -82,6 +82,14 @@ export function isKnownGeo(value: string): boolean {
   return ARMENIA_CITIES.includes(v) || YEREVAN_DISTRICTS.includes(v);
 }
 
+/** Fields where WHERE doesn't apply — taste/skill travels, not a storefront. */
+export const GEO_FREE_TOPICS: string[] = ["music", "entertainment", "technology"];
+
+/** Does a recommendation in this field need a location? */
+export function topicNeedsGeo(topic: string): boolean {
+  return !GEO_FREE_TOPICS.includes(topic);
+}
+
 /* ------------------- recommendation context taxonomy ------------------- */
 
 /** A context = the situation a recommendation is FOR ("for what?"). */
@@ -152,6 +160,11 @@ export const CONTEXTS_BY_TOPIC: Record<string, ContextOption[]> = {
   fitness: [ctx("beginner", "🌱"), ctx("personal_training", "🏋️"), ctx("rehab", "🩹")],
   technology: [ctx("startup", "🚀"), ctx("freelance_project", "💻"), ctx("enterprise", "🏢")],
   accountant: [ctx("small_business", "🏪"), ctx("personal_taxes", "🧾"), ctx("startup", "🚀")],
+  electrician: [ctx("renovation", "🏗️"), ctx("new_install", "🔌"), ctx("emergency", "🚑")],
+  plumber: [ctx("emergency", "🚑"), ctx("leak_repair", "💧"), ctx("renovation", "🏗️")],
+  shopping: [ctx("gifts", "🎁"), ctx("electronics", "📱"), ctx("home_goods", "🛋️")],
+  music: [ctx("wedding", "💍"), ctx("party", "🎉"), ctx("lessons", "🎼"), ctx("live_events", "🎤")],
+  entertainment: [ctx("family_night", "👨‍👩‍👧"), ctx("date_night", "🕯️"), ctx("kids_party", "🎈")],
 };
 
 /** Contexts to offer for a topic — topic-specific first, then generic (deduped). */

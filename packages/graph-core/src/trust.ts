@@ -75,15 +75,29 @@ const TOPIC_SYNONYMS: Record<string, string> = {
   tech: "technology",
 };
 
-/** Predefined reason codes per topic (Doc §11 — no free-text reasons in V1). */
+/** Predefined reason codes per topic (Doc §11 — no free-text reasons in V1).
+ *  Every taxonomy topic has specific codes so "Why do you trust them?" adapts
+ *  to the field; universal codes are appended for all. */
 export const REASON_TAXONOMY: Record<string, string[]> = {
   broker: ["honest", "fair_price", "responsive", "professional", "good_negotiation", "market_knowledge"],
-  real_estate: ["honest", "fair_price", "responsive", "professional", "market_knowledge"],
+  real_estate: ["honest", "fair_price", "responsive", "professional", "market_knowledge", "knows_the_area"],
   doctor: ["accurate", "professional", "explains_well", "caring", "clean"],
   dentist: ["accurate", "professional", "explains_well", "caring", "clean"],
   restaurant: ["food_quality", "service", "price", "atmosphere", "cleanliness"],
   cafe: ["food_quality", "service", "price", "atmosphere", "cleanliness"],
   food: ["food_quality", "service", "price", "atmosphere", "cleanliness"],
+  lawyer: ["knowledgeable", "won_my_case", "clear_fees", "well_connected", "explains_well"],
+  immigration: ["knowledgeable", "successful_cases", "clear_fees", "up_to_date", "patient"],
+  mechanic: ["quality_work", "fair_price", "fast", "honest_diagnosis", "warranty"],
+  electrician: ["quality_work", "fair_price", "fast", "safe_work", "tidy"],
+  plumber: ["quality_work", "fair_price", "fast", "emergency_available", "tidy"],
+  accountant: ["accurate", "knows_tax_law", "fair_price", "proactive", "discreet"],
+  shopping: ["good_selection", "fair_price", "quality_goods", "helpful_staff", "easy_returns"],
+  travel: ["well_organized", "fair_price", "great_itineraries", "handles_problems"],
+  fitness: ["motivating", "knowledgeable", "real_results", "safe_technique", "punctual"],
+  technology: ["skilled", "delivers_on_time", "communicates_well", "fair_price", "maintains_after"],
+  music: ["great_taste", "talented", "reads_the_crowd", "punctual"],
+  entertainment: ["great_taste", "fun", "well_organized", "family_friendly"],
 };
 
 /** Universal reasons available for any topic. */

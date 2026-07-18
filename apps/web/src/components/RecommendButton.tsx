@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Megaphone, X } from "lucide-react";
-import { TOPIC_TAXONOMY, geoLabel, reasonsForTopic, type GLink } from "@constellation/graph-core";
+import { ArrowLeft, Megaphone, Star, X } from "lucide-react";
+import { TOPIC_TAXONOMY, geoLabel, reasonsForTopic, topicNeedsGeo, type GLink } from "@constellation/graph-core";
 import { TRUST_ACCENT } from "@/lib/palette";
 import { addTrust, listTrust, removeTrust } from "@/lib/trustClient";
 import { useUI } from "@/lib/store";
@@ -55,7 +55,8 @@ export default function RecommendButton({
   const [geo, setGeo] = useState(geoScope);
   const [context, setContext] = useState<string | undefined>(undefined);
   const [ctxPickerOpen, setCtxPickerOpen] = useState(false);
-  const [confidence, setConfidence] = useState(0.8);
+  // Confidence as a 1–5 star rating (stored as rating/5 on the trust edge).
+  const [rating, setRating] = useState(4);
   const [reasons, setReasons] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [share, setShare] = useState(true);
@@ -108,9 +109,9 @@ export default function RecommendButton({
       // The trust edge is always written — recommending someone IS relying on them.
       await addTrust({
         to: targetId,
-        scope: { topic, geo: geo || undefined, context },
+        scope: { topic, geo: topicNeedsGeo(topic) ? geo || undefined : undefined, context },
         reasons,
-        confidence,
+        confidence: rating / 5,
         note: note.trim() || undefined,
       });
       // Sharing additionally publishes the immutable recommendation to listeners.
@@ -274,12 +275,15 @@ export default function RecommendButton({
               ) : (
                 topic && (
                   <div className="space-y-3">
-                    {/* location — Armenia scope */}
-                    <div className="flex items-center gap-2 text-[11.5px] text-[var(--color-faint)]">
-                      <span className="w-16 shrink-0">Where</span>
-                      <GeoSelect value={geo} onChange={setGeo}
-                        className="min-w-0 flex-1 rounded-lg border border-line bg-[var(--color-tint-soft)] px-2 py-1.5 text-[12px] text-ink outline-none" />
-                    </div>
+                    {/* location — Armenia scope; hidden for fields where a
+                        place doesn't apply (music, technology, entertainment) */}
+                    {topicNeedsGeo(topic) && (
+                      <div className="flex items-center gap-2 text-[11.5px] text-[var(--color-faint)]">
+                        <span className="w-16 shrink-0">Where</span>
+                        <GeoSelect value={geo} onChange={setGeo}
+                          className="min-w-0 flex-1 rounded-lg border border-line bg-[var(--color-tint-soft)] px-2 py-1.5 text-[12px] text-ink outline-none" />
+                      </div>
+                    )}
 
                     {/* context — its own picker modal, applies to the whole wizard */}
                     <button
@@ -317,11 +321,11 @@ export default function RecommendButton({
                       )}
                     </button>
 
-                    {/* reasons */}
+                    {/* reasons — the codes adapt to the chosen field */}
                     <div>
                       <div className="mb-1.5 text-[11px] text-[var(--color-faint)]">Why do you trust them?</div>
                       <div className="flex flex-wrap gap-1">
-                        {reasonsForTopic(topic).slice(0, 8).map((rc) => (
+                        {reasonsForTopic(topic).map((rc) => (
                           <button
                             key={rc}
                             type="button"
@@ -349,14 +353,31 @@ export default function RecommendButton({
                       className="w-full resize-none rounded-lg border border-line bg-[var(--color-tint-soft)] px-2.5 py-2 text-[12px] text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[var(--color-accent-line)]"
                     />
 
-                    {/* confidence */}
+                    {/* confidence — 1..5 stars (stored as rating/5) */}
                     <div className="flex items-center gap-2">
                       <span className="w-16 shrink-0 text-[11px] text-[var(--color-faint)]">Confidence</span>
-                      <input type="range" min={0.1} max={1} step={0.05} value={confidence}
-                        onChange={(e) => setConfidence(Number(e.target.value))} className="flex-1"
-                        style={{ accentColor: "var(--color-accent)" }} />
-                      <span className="w-9 text-right text-[11.5px] text-ink" style={{ fontFamily: "var(--font-mono)" }}>
-                        {confidence.toFixed(2)}
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            aria-label={`${i} of 5`}
+                            title={["barely", "somewhat", "solidly", "strongly", "completely"][i - 1]}
+                            onClick={() => setRating(i)}
+                            className="rounded p-0.5 transition hover:scale-110"
+                          >
+                            <Star
+                              size={18}
+                              style={{
+                                color: i <= rating ? "var(--color-accent)" : "var(--color-faint)",
+                                fill: i <= rating ? "var(--color-accent)" : "transparent",
+                              }}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <span className="ml-auto text-[10.5px] capitalize text-[var(--color-dim)]">
+                        {["barely", "somewhat", "solidly", "strongly", "completely"][rating - 1]}
                       </span>
                     </div>
 

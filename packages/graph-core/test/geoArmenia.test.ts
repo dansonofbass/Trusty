@@ -6,12 +6,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ARMENIA_CITIES,
+  CONTEXTS_BY_TOPIC,
   DEFAULT_GEO,
   GEO_OPTIONS,
+  TOPIC_TAXONOMY,
+  UNIVERSAL_REASONS,
   YEREVAN_DISTRICTS,
   contextsForTopic,
   geoLabel,
   isKnownGeo,
+  reasonsForTopic,
+  topicNeedsGeo,
 } from "../src/index.ts";
 
 test("default scope is yerevan and every value is canonical lowercase", () => {
@@ -39,6 +44,22 @@ test("geoLabel humanizes canonical values", () => {
   assert.equal(geoLabel("yerevan"), "Yerevan");
   assert.equal(geoLabel("nor nork"), "Nor Nork");
   assert.equal(geoLabel("kanaker-zeytun"), "Kanaker-Zeytun");
+});
+
+test("topicNeedsGeo: skill/taste fields skip Where; local services need it", () => {
+  assert.ok(!topicNeedsGeo("music"));
+  assert.ok(!topicNeedsGeo("technology"));
+  assert.ok(!topicNeedsGeo("entertainment"));
+  assert.ok(topicNeedsGeo("dentist"));
+  assert.ok(topicNeedsGeo("restaurant"));
+});
+
+test("every taxonomy topic has field-specific reasons and contexts", () => {
+  for (const t of TOPIC_TAXONOMY) {
+    const specific = reasonsForTopic(t).filter((r) => !UNIVERSAL_REASONS.includes(r));
+    assert.ok(specific.length >= 3, `${t} needs specific reasons (got ${specific.length})`);
+    assert.ok(CONTEXTS_BY_TOPIC[t]?.length >= 3, `${t} needs specific contexts`);
+  }
 });
 
 test("contextsForTopic: topic-specific first, generic appended, deduped", () => {
