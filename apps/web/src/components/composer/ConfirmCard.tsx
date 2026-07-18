@@ -79,7 +79,7 @@ export default function ConfirmCard({
               </select>
             </label>
           ) : k === "geo" ? (
-            <label key={k} className="flex items-center gap-2 text-[11px] text-[var(--color-faint)]">
+            <div key={k} className="flex items-center gap-2 text-[11px] text-[var(--color-faint)]">
               <span className="w-12 shrink-0 capitalize">{k}</span>
               <GeoSelect
                 value={value(k)}
@@ -87,7 +87,7 @@ export default function ConfirmCard({
                 allowAnywhere
                 className="min-w-0 flex-1 rounded-lg border border-line bg-space/60 px-2 py-1 text-ink outline-none"
               />
-            </label>
+            </div>
           ) : (
             <label key={k} className="flex items-center gap-2 text-[11px] text-[var(--color-faint)]">
               <span className="w-12 shrink-0 capitalize">{k}</span>

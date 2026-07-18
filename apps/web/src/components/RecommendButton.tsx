@@ -275,11 +275,11 @@ export default function RecommendButton({
                 topic && (
                   <div className="space-y-3">
                     {/* location — Armenia scope */}
-                    <label className="flex items-center gap-2 text-[11.5px] text-[var(--color-faint)]">
+                    <div className="flex items-center gap-2 text-[11.5px] text-[var(--color-faint)]">
                       <span className="w-16 shrink-0">Where</span>
                       <GeoSelect value={geo} onChange={setGeo}
                         className="min-w-0 flex-1 rounded-lg border border-line bg-[var(--color-tint-soft)] px-2 py-1.5 text-[12px] text-ink outline-none" />
-                    </label>
+                    </div>
 
                     {/* context — its own picker modal, applies to the whole wizard */}
                     <button

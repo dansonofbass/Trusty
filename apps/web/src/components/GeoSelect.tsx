@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { GEO_OPTIONS, geoLabel } from "@constellation/graph-core";
 
@@ -68,7 +69,14 @@ export default function GeoSelect({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => (open ? setOpen(false) : openMenu())}
+        onClick={(e) => {
+          // preventDefault: when wrapped in a <label>, the label's activation
+          // behavior re-dispatches a click at this button — open+close in one tap.
+          e.preventDefault();
+          e.stopPropagation();
+          if (open) setOpen(false);
+          else openMenu();
+        }}
         aria-haspopup="listbox"
         aria-expanded={open}
         className={`flex items-center gap-1.5 text-left ${
@@ -82,9 +90,10 @@ export default function GeoSelect({
         <ChevronDown size={13} className="shrink-0 text-[var(--color-faint)] transition" style={{ transform: open ? "rotate(180deg)" : undefined }} />
       </button>
 
-      {open && rect && (
+      {open && rect && createPortal(
         <>
-          {/* click-catcher above everything the trigger might live in */}
+          {/* Portaled to <body>: ancestors with backdrop-filter/transform (the
+              PanelShell, modals) would otherwise hijack position:fixed. */}
           <div className="fixed inset-0 z-[89]" onClick={() => setOpen(false)} aria-hidden />
           <div
             role="listbox"
@@ -111,7 +120,8 @@ export default function GeoSelect({
               </div>
             ))}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );
