@@ -1064,6 +1064,7 @@ app.post("/agent/stream", async (req, res) => {
       mentions,
       text,
       journeys,
+      geoScope: typeof b.geo === "string" ? b.geo.trim().toLowerCase().slice(0, 60) : undefined,
     });
     transcript.push({ role: "user", content: `${text}\n\n${context}` });
   }

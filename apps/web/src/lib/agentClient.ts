@@ -30,6 +30,8 @@ export interface AgentTurnInput {
   resume?: AgentResume;
   /** Stable conversation id for Langfuse session grouping. */
   sessionId?: string;
+  /** The viewer's app-wide location scope (Armenia; default yerevan). */
+  geo?: string;
 }
 
 export interface AgentTurnResult {
@@ -52,6 +54,7 @@ export async function streamAgentTurn(
       ...(input.mentions?.length ? { mentions: input.mentions } : {}),
       ...(input.resume ? { resume: input.resume } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      ...(input.geo ? { geo: input.geo } : {}),
     }),
   });
   if (r.status === 503) throw new AgentUnavailableError();

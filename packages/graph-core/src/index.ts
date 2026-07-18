@@ -1,6 +1,20 @@
 export * from "./types";
 export * from "./random";
 export {
+  ARMENIA_CITIES,
+  CONTEXTS_BY_TOPIC,
+  COUNTRY,
+  DEFAULT_CONTEXTS,
+  DEFAULT_GEO,
+  GEO_OPTIONS,
+  YEREVAN_DISTRICTS,
+  contextsForTopic,
+  geoLabel,
+  isKnownGeo,
+  type ContextOption,
+  type GeoOptionGroup,
+} from "./geoArmenia";
+export {
   contextFromEvents,
   deriveJourneyStatus,
   deriveRecStates,

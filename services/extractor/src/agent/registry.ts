@@ -17,6 +17,13 @@ const TOPIC_LIST = TOPIC_TAXONOMY.join(", ");
 const str = (v: unknown, max = 500): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
 
+/** Canonical geo: lowercase, bare city/district — "Gyumri, Armenia" → "gyumri". */
+const cleanGeo = (v: unknown): string | undefined => {
+  const raw = str(v, 80)?.toLowerCase();
+  if (!raw) return undefined;
+  return raw.replace(/[,\s]+armenia$/i, "").trim() || undefined;
+};
+
 const strArr = (v: unknown, max = 10): string[] | undefined =>
   Array.isArray(v)
     ? (v.filter((x): x is string => typeof x === "string").slice(0, max) as string[])
@@ -90,7 +97,7 @@ const trustSearch: AgentTool = {
     const args = (input ?? {}) as Record<string, unknown>;
     const topic = canonicalTopic(args.topic);
     if (!topic) return topicError(args.topic);
-    const geo = str(args.geo, 80);
+    const geo = cleanGeo(args.geo);
     const r = await graphFetch(ctx, "/api/trust-search", {
       method: "POST",
       body: { topic, geo, context: str(args.context, 80) },
@@ -168,7 +175,7 @@ const updateJourney: AgentTool = {
     if (!journeyId) return { ok: false, summary: "journeyId required" };
     const patch: Record<string, unknown> = {};
     for (const k of ["goal", "geo", "budget", "language", "timeline"] as const) {
-      const v = str(args[k], 200);
+      const v = k === "geo" ? cleanGeo(args[k]) : str(args[k], 200);
       if (v) patch[k] = v;
     }
     for (const k of ["preferences", "constraints"] as const) {
@@ -320,7 +327,7 @@ const createAsk: AgentTool = {
     if (!topic) return topicError(args.topic);
     const r = await graphFetch(ctx, "/api/asks", {
       method: "POST",
-      body: { topic, geo: str(args.geo, 80), note: str(args.note, 200) },
+      body: { topic, geo: cleanGeo(args.geo), note: str(args.note, 200) },
     });
     if (!r.ok) return fail(r.body, r.status);
     return {
@@ -373,7 +380,7 @@ const recommend: AgentTool = {
       method: "POST",
       body: {
         to: targetId,
-        scope: { topic, geo: str(args.geo, 80), context: str(args.context, 120) },
+        scope: { topic, geo: cleanGeo(args.geo), context: str(args.context, 120) },
         reasons,
         note,
         confidence,

@@ -287,6 +287,7 @@ export default function Composer({
             ...(input.text ? { text: input.text, mentions: collectMentions(input.text) } : {}),
             ...(input.resume ? { resume: input.resume } : {}),
             sessionId: sessionIdRef.current,
+            geo: useUI.getState().geoScope,
           },
           handleEvent,
         );

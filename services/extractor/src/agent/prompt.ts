@@ -36,6 +36,8 @@ export interface AgentContextInputs {
   text: string;
   /** Pre-summarized active decision journeys (#35) — the working memory. */
   journeys?: string[];
+  /** The viewer's app-wide location scope (Armenia; default yerevan). */
+  geoScope?: string;
 }
 
 /** The dynamic <context> block appended inside the user turn. */
@@ -44,6 +46,9 @@ export function buildContextBlock(inp: AgentContextInputs): string {
     `viewer: ${inp.viewerName ? `${inp.viewerName} ` : ""}(id ${inp.viewerId})`,
     `date: ${new Date().toISOString().slice(0, 10)}`,
     `topics taxonomy: ${TOPIC_TAXONOMY.join(", ")}`,
+    // Trusty explores one country at a time — v1 is Armenia. Assume the scope
+    // when the user names no place; they can always name another Armenian city.
+    `location scope: country=armenia, default city="${inp.geoScope || "yerevan"}" — when the user names no place, pass geo="${inp.geoScope || "yerevan"}" (the bare city/district name, never append the country) to searches/asks/journeys`,
   ];
   if (inp.journeys?.length) {
     lines.push(`active decision journeys (don't re-ask for context listed here):`);

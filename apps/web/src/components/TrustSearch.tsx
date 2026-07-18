@@ -17,6 +17,7 @@ import { markIntent } from "@/lib/outcomeClient";
 import { createAsk } from "@/lib/asksClient";
 import { streamConciergeAnswer } from "@/lib/conciergeClient";
 import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge/AgentTrace";
+import GeoSelect from "./GeoSelect";
 
 /**
  * Unified search — one top-navbar overlay (⌘K / Ctrl+K / click) that covers both
@@ -329,11 +330,11 @@ export default function TrustSearch({
                       <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                     ))}
                   </select>
-                  <input
-                    defaultValue={scope.geo ?? ""}
-                    onBlur={(e) => { const geo = e.target.value || undefined; if (geo !== scope.geo) rerun({ ...scope, geo }); }}
-                    placeholder="anywhere"
-                    className="w-28 rounded-full border border-line bg-space/60 px-2 py-1 text-ink"
+                  <GeoSelect
+                    value={scope.geo ?? ""}
+                    onChange={(geo) => rerun({ ...scope, geo: geo || undefined })}
+                    allowAnywhere
+                    className="rounded-full border border-line bg-space/60 px-2 py-1 text-ink outline-none"
                   />
                   <button type="button" onClick={close} className="ml-auto text-faint hover:text-ink"><XIcon size={14} /></button>
                 </div>

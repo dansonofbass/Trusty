@@ -54,6 +54,7 @@ interface UIState {
   trustFocusId: string | null; // result the user is hovering/inspecting → camera target
   graphNonce: number; // bump to force GraphExplorer to reload the dataset
   rightPanel: RightPanelId | null; // ONE right workspace at a time (ActionDock)
+  geoScope: string; // the viewer's default location (Armenia scope; "yerevan")
   placeModalId: string | null; // restaurant/cafe id shown in the full-screen detail modal
   searchOpen: boolean; // unified top search (entities + trust) — ⌘K / click
 
@@ -77,6 +78,7 @@ interface UIState {
   bumpGraph: () => void;
   setRightPanel: (p: RightPanelId | null) => void;
   toggleRightPanel: (p: RightPanelId) => void;
+  setGeoScope: (geo: string) => void;
   setSearchOpen: (v: boolean) => void;
   openPlace: (id: string) => void;
   closePlace: () => void;
@@ -98,6 +100,8 @@ export const useUI = create<UIState>((set) => ({
   trustFocusId: null,
   graphNonce: 0,
   rightPanel: null,
+  geoScope:
+    (typeof window !== "undefined" && window.localStorage.getItem("trusty:geo")) || "yerevan",
   placeModalId: null,
   searchOpen: false,
 
@@ -142,6 +146,14 @@ export const useUI = create<UIState>((set) => ({
   bumpGraph: () => set((s) => ({ graphNonce: s.graphNonce + 1 })),
   setRightPanel: (rightPanel) => set({ rightPanel }),
   toggleRightPanel: (p) => set((s) => ({ rightPanel: s.rightPanel === p ? null : p })),
+  setGeoScope: (geoScope) => {
+    try {
+      window.localStorage.setItem("trusty:geo", geoScope);
+    } catch {
+      /* private mode */
+    }
+    set({ geoScope });
+  },
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   openPlace: (id) => set({ placeModalId: id }),
   closePlace: () => set({ placeModalId: null }),

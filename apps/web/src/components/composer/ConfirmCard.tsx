@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Loader2, ShieldQuestion, X } from "lucide-react";
 import { TOPIC_TAXONOMY } from "@constellation/graph-core";
 import { GOLD } from "@/lib/palette";
+import GeoSelect from "../GeoSelect";
 
 /**
  * Confirm card for gated agent actions (#29) — outward-facing tools (publish,
@@ -77,13 +78,23 @@ export default function ConfirmCard({
                 ))}
               </select>
             </label>
+          ) : k === "geo" ? (
+            <label key={k} className="flex items-center gap-2 text-[11px] text-[var(--color-faint)]">
+              <span className="w-12 shrink-0 capitalize">{k}</span>
+              <GeoSelect
+                value={value(k)}
+                onChange={(geo) => setEdits((p) => ({ ...p, [k]: geo }))}
+                allowAnywhere
+                className="min-w-0 flex-1 rounded-lg border border-line bg-space/60 px-2 py-1 text-ink outline-none"
+              />
+            </label>
           ) : (
             <label key={k} className="flex items-center gap-2 text-[11px] text-[var(--color-faint)]">
               <span className="w-12 shrink-0 capitalize">{k}</span>
               <input
                 value={value(k)}
                 onChange={(e) => setEdits((p) => ({ ...p, [k]: e.target.value }))}
-                placeholder={k === "geo" ? "anywhere" : "optional"}
+                placeholder="optional"
                 className="min-w-0 flex-1 rounded-lg border border-line bg-space/60 px-2 py-1 text-ink outline-none placeholder:text-[var(--color-faint)]"
               />
             </label>

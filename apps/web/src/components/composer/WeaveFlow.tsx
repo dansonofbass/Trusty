@@ -24,6 +24,7 @@ import {
 import { NODE_COLOR, TRUST_ACCENT } from "@/lib/palette";
 import { saveDraft } from "@/lib/writings";
 import AnnotatedText from "../AnnotatedText";
+import GeoSelect from "../GeoSelect";
 
 /**
  * WeaveFlow (#29/#31) — the Write view's extract → review → trust-confirm →
@@ -534,11 +535,11 @@ export default function WeaveFlow({
                           <option key={x} value={x}>{x.replace(/_/g, " ")}</option>
                         ))}
                       </select>
-                      <input
+                      <GeoSelect
                         value={t.scope.geo ?? ""}
-                        onChange={(e) => patchTrustScope(i, { geo: e.target.value || undefined })}
-                        placeholder="anywhere"
-                        className="w-20 rounded bg-[rgba(146,166,255,0.08)] px-1 py-0.5 text-[10px] text-ink outline-none"
+                        onChange={(geo) => patchTrustScope(i, { geo: geo || undefined })}
+                        allowAnywhere
+                        className="rounded bg-[rgba(146,166,255,0.08)] px-1 py-0.5 text-[10px] text-ink outline-none"
                       />
                       <span className="text-[9.5px] text-[var(--color-faint)]">conf {t.confidence.toFixed(2)}</span>
                     </div>

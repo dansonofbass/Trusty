@@ -5,6 +5,9 @@ import { Megaphone, X } from "lucide-react";
 import { TOPIC_TAXONOMY, reasonsForTopic, type GLink } from "@constellation/graph-core";
 import { GOLD, TRUST_ACCENT } from "@/lib/palette";
 import { addTrust, listTrust, removeTrust } from "@/lib/trustClient";
+import { useUI } from "@/lib/store";
+import GeoSelect from "./GeoSelect";
+import ContextPickerModal from "./ContextPickerModal";
 
 const endId = (v: string | { id: string }) => (typeof v === "string" ? v : v.id);
 
@@ -35,11 +38,15 @@ export default function RecommendButton({
   primary?: boolean;
 }) {
   const isPlace = nodeType === "location";
+  const geoScope = useUI((s) => s.geoScope);
   const [edges, setEdges] = useState<GLink[]>([]);
   const [open, setOpen] = useState(false);
   const [topic, setTopic] = useState(isPlace ? "restaurant" : "broker");
-  const [geo, setGeo] = useState("");
-  const [context, setContext] = useState("");
+  // Armenia scope: locations come from the canonical list, preseeded with the
+  // viewer's app-wide scope (top-bar selector; default yerevan).
+  const [geo, setGeo] = useState(geoScope);
+  const [context, setContext] = useState<string | undefined>(undefined);
+  const [ctxPickerOpen, setCtxPickerOpen] = useState(false);
   const [confidence, setConfidence] = useState(0.8);
   const [reasons, setReasons] = useState<string[]>([]);
   const [note, setNote] = useState("");
@@ -64,6 +71,11 @@ export default function RecommendButton({
     void reload();
   }, [reload]);
 
+  // Follow the app-wide location scope while the form is closed.
+  useEffect(() => {
+    if (!open) setGeo(geoScope);
+  }, [geoScope, open]);
+
   const toggleReason = (code: string) =>
     setReasons((p) => (p.includes(code) ? p.filter((r) => r !== code) : [...p, code]));
 
@@ -74,7 +86,7 @@ export default function RecommendButton({
       // The trust edge is always written — recommending someone IS relying on them.
       await addTrust({
         to: targetId,
-        scope: { topic, geo: geo.trim() || undefined },
+        scope: { topic, geo: geo || undefined, context },
         reasons,
         confidence,
         note: note.trim() || undefined,
@@ -87,7 +99,7 @@ export default function RecommendButton({
           body: JSON.stringify({
             targetId,
             topic,
-            context: context.trim() || undefined,
+            context,
             reasons,
             note: note.trim() || undefined,
           }),
@@ -98,7 +110,7 @@ export default function RecommendButton({
       setOpen(false);
       setReasons([]);
       setNote("");
-      setContext("");
+      setContext(undefined);
       await reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -195,20 +207,51 @@ export default function RecommendButton({
                 <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
               ))}
             </select>
-            <input
-              value={geo}
-              onChange={(e) => setGeo(e.target.value)}
-              placeholder="place (optional)"
-              className="w-24 rounded bg-[rgba(146,166,255,0.08)] px-1.5 py-1 text-[11.5px] text-ink outline-none"
-            />
-            <input
-              value={context}
-              onChange={(e) => setContext(e.target.value)}
-              maxLength={120}
-              placeholder="context (e.g. family visa case)"
-              className="w-36 rounded bg-[rgba(146,166,255,0.08)] px-1.5 py-1 text-[11.5px] text-ink outline-none"
-            />
+            <GeoSelect value={geo} onChange={setGeo} />
           </div>
+          {/* context — picked in a modal, applies to the whole wizard */}
+          <button
+            type="button"
+            onClick={() => setCtxPickerOpen(true)}
+            className="mt-2 flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[11.5px] transition"
+            style={
+              context
+                ? { borderColor: "var(--color-accent-line)", background: "var(--color-accent-soft)" }
+                : { borderColor: "var(--color-line)", background: "var(--color-tint-soft)" }
+            }
+          >
+            <span className="text-[13px]">🎯</span>
+            {context ? (
+              <>
+                <span className="min-w-0 flex-1 truncate font-medium capitalize" style={{ color: "var(--color-accent)" }}>
+                  {context.replace(/_/g, " ")}
+                </span>
+                <span
+                  role="button"
+                  aria-label="Clear context"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setContext(undefined);
+                  }}
+                  className="shrink-0 text-[var(--color-faint)] hover:text-ink"
+                >
+                  <X size={12} />
+                </span>
+              </>
+            ) : (
+              <span className="min-w-0 flex-1 text-[var(--color-faint)]">
+                What&apos;s this for? — pick a context
+              </span>
+            )}
+          </button>
+          {ctxPickerOpen && (
+            <ContextPickerModal
+              topic={topic}
+              value={context}
+              onPick={setContext}
+              onClose={() => setCtxPickerOpen(false)}
+            />
+          )}
           <div className="mt-2 flex flex-wrap gap-1">
             {reasonsForTopic(topic).slice(0, 8).map((rc) => (
               <button
