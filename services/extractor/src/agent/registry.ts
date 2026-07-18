@@ -90,12 +90,42 @@ const trustSearch: AgentTool = {
     const args = (input ?? {}) as Record<string, unknown>;
     const topic = canonicalTopic(args.topic);
     if (!topic) return topicError(args.topic);
+    const geo = str(args.geo, 80);
     const r = await graphFetch(ctx, "/api/trust-search", {
       method: "POST",
-      body: { topic, geo: str(args.geo, 80), context: str(args.context, 80) },
+      body: { topic, geo, context: str(args.context, 80) },
     });
     if (!r.ok) return fail(r.body, r.status);
     const recs = ((r.body as { recommendations?: TrustRecLite[] })?.recommendations ?? []).slice(0, 8);
+
+    // #35: every meaningful search continues-or-creates a Decision Journey; the
+    // search + its suggestions land on the journey timeline. Best-effort.
+    let journeyId: string | undefined;
+    let journeyCreated = false;
+    try {
+      const j = await graphFetch(ctx, "/api/journeys/auto", { method: "POST", body: { topic, geo } });
+      if (j.ok) {
+        const body = j.body as { journey: { id: string }; created: boolean };
+        journeyId = body.journey.id;
+        journeyCreated = body.created;
+        await graphFetch(ctx, `/api/journeys/${journeyId}/events`, {
+          method: "POST",
+          body: { kind: "search", detail: { topic, geo, count: recs.length } },
+        });
+        for (const x of recs.slice(0, 5)) {
+          await graphFetch(ctx, `/api/journeys/${journeyId}/events`, {
+            method: "POST",
+            body: { kind: "rec_suggested", detail: { nodeId: x.nodeId, label: x.label } },
+          });
+        }
+      }
+    } catch {
+      /* journeys are additive — search results stand on their own */
+    }
+
+    const journeyNote = journeyId
+      ? ` [decision journey ${journeyId}${journeyCreated ? " started" : " continued"} — refine it with update_journey, record choices with record_decision]`
+      : "";
     const summary = recs.length
       ? recs
           .map(
@@ -104,9 +134,104 @@ const trustSearch: AgentTool = {
                 x.hops === 1 ? "direct" : `${x.hops} hops via ${x.pathLabels.slice(1, -1).join("→") || "…"}`
               }${x.reasons.length ? `, reasons: ${x.reasons.slice(0, 3).join(", ")}` : ""})`,
           )
-          .join("; ")
-      : `no trusted paths for ${topic}${args.geo ? ` in ${String(args.geo)}` : ""} — consider proposing create_ask`;
-    return { ok: true, summary, data: { topic, geo: str(args.geo, 80), recs } };
+          .join("; ") + journeyNote
+      : `no trusted paths for ${topic}${geo ? ` in ${geo}` : ""} — consider proposing create_ask${journeyNote}`;
+    return { ok: true, summary, data: { topic, geo, recs, journeyId } };
+  },
+};
+
+/* ---- Decision Journey tools (#35): the journey is the working memory ---- */
+
+const updateJourney: AgentTool = {
+  name: "update_journey",
+  description:
+    "Refine a decision journey's context (goal, geo, budget, language, timeline, preferences, constraints) or add a note. Call whenever the user adds a detail about an ongoing decision — refinement never restarts the journey. Journey ids come from trust_search results or the <context> block.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      journeyId: { type: "string" },
+      goal: { type: "string" },
+      geo: { type: "string" },
+      budget: { type: "string" },
+      language: { type: "string" },
+      timeline: { type: "string" },
+      preferences: { type: "array", items: { type: "string" } },
+      constraints: { type: "array", items: { type: "string" } },
+      note: { type: "string", description: "Free-text note for the journey timeline" },
+    },
+    required: ["journeyId"],
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const journeyId = str(args.journeyId, 30);
+    if (!journeyId) return { ok: false, summary: "journeyId required" };
+    const patch: Record<string, unknown> = {};
+    for (const k of ["goal", "geo", "budget", "language", "timeline"] as const) {
+      const v = str(args[k], 200);
+      if (v) patch[k] = v;
+    }
+    for (const k of ["preferences", "constraints"] as const) {
+      const v = strArr(args[k], 12);
+      if (v?.length) patch[k] = v;
+    }
+    let summary = "";
+    if (Object.keys(patch).length) {
+      const r = await graphFetch(ctx, `/api/journeys/${journeyId}/events`, {
+        method: "POST",
+        body: { kind: "context", detail: { patch } },
+      });
+      if (!r.ok) return fail(r.body, r.status);
+      summary = `journey ${journeyId} refined: ${Object.entries(patch)
+        .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join("|") : v}`)
+        .join(", ")}`;
+    }
+    const note = str(args.note, 300);
+    if (note) {
+      const r = await graphFetch(ctx, `/api/journeys/${journeyId}/events`, {
+        method: "POST",
+        body: { kind: "note", detail: { text: note } },
+      });
+      if (!r.ok) return fail(r.body, r.status);
+      summary += `${summary ? "; " : ""}note added`;
+    }
+    if (!summary) return { ok: false, summary: "nothing to update — pass context fields or a note" };
+    return { ok: true, summary };
+  },
+};
+
+const recordDecision: AgentTool = {
+  name: "record_decision",
+  description:
+    "Record the user's own stance on a recommendation inside their decision journey: saved (shortlist), dismissed (ruled out), or selected (they chose/contacted this one — the journey becomes 'decided'). Private to the user; use when they say things like 'I'll go with X', 'rule out Y', 'shortlist Z'.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      journeyId: { type: "string" },
+      targetId: { type: "string", description: "Node id from trust_search/entity_search" },
+      state: { type: "string", enum: ["saved", "dismissed", "selected"] },
+      note: { type: "string" },
+    },
+    required: ["journeyId", "targetId", "state"],
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const journeyId = str(args.journeyId, 30);
+    const targetId = str(args.targetId, 200);
+    const state = str(args.state, 20);
+    if (!journeyId || !targetId || !state) return { ok: false, summary: "journeyId, targetId and state required" };
+    const kind = state === "selected" ? "rec_selected" : state === "saved" ? "rec_saved" : "rec_dismissed";
+    const r = await graphFetch(ctx, `/api/journeys/${journeyId}/events`, {
+      method: "POST",
+      body: { kind, detail: { nodeId: targetId, ...(str(args.note, 300) ? { text: str(args.note, 300) } : {}) } },
+    });
+    if (!r.ok) return fail(r.body, r.status);
+    const status = (r.body as { status?: string })?.status;
+    return {
+      ok: true,
+      summary: `${state} ${targetId} on journey ${journeyId}${status === "decided" ? " — journey is now decided; suggest recording the outcome later" : ""}`,
+    };
   },
 };
 
@@ -320,6 +445,8 @@ export function buildComposerRegistry(extra: AgentTool[] = []): ToolRegistry {
     trustSearch,
     entitySearch,
     saveNote,
+    updateJourney,
+    recordDecision,
     createAsk,
     publishRecommendation,
     addTrust,

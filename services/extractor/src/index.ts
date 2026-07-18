@@ -52,9 +52,11 @@ import {
   normalizeTopic,
   reasonsForTopic,
   validateScope,
+  summarizeJourneyForAgent,
   type AgentMessage,
   type AgentResume,
   type AgentStreamEvent,
+  type JourneyContext,
   type LxResult,
   type ResolvedMention,
   type ThoughtExtraction,
@@ -1025,11 +1027,43 @@ app.post("/agent/stream", async (req, res) => {
 
   const transcript: AgentMessage[] = [...prior];
   if (text) {
+    // Active decision journeys (#35) = the conversation's working memory — the
+    // agent must not re-ask for context a journey already holds. Best-effort;
+    // the 3 freshest get full summaries (incl. rec states) via their event logs.
+    let journeys: string[] | undefined;
+    try {
+      const jr = await fetch(`${GRAPH}/api/journeys?status=active`, {
+        headers: { "x-user-id": userId },
+      });
+      if (jr.ok) {
+        const list = (await jr.json()) as {
+          id: string; title: string; status: "open" | "decided" | "completed" | "closed";
+          context: JourneyContext;
+        }[];
+        journeys = await Promise.all(
+          list.slice(0, 3).map(async (j) => {
+            try {
+              const dr = await fetch(`${GRAPH}/api/journeys/${j.id}`, {
+                headers: { "x-user-id": userId },
+              });
+              if (dr.ok) {
+                const d = (await dr.json()) as Parameters<typeof summarizeJourneyForAgent>[0];
+                return summarizeJourneyForAgent(d);
+              }
+            } catch { /* fall through to the summary-only line */ }
+            return summarizeJourneyForAgent({ ...j, events: [] });
+          }),
+        );
+      }
+    } catch {
+      /* journeys are additive context */
+    }
     const context = buildContextBlock({
       viewerId: userId,
       viewerName: req.header("x-user-name") || undefined,
       mentions,
       text,
+      journeys,
     });
     transcript.push({ role: "user", content: `${text}\n\n${context}` });
   }

@@ -13,6 +13,8 @@ export const AGENT_SYSTEM_PROMPT = `You are the Trusty composer agent — the us
 
 Trusty's model: every user has a personal graph of people, places, books and ideas. Trust is a DIRECTED, TOPIC-SCOPED edge ("I trust Maria on dentist") — it powers trust_search, which finds providers through real trust paths in the user's network. Listening to a person shows their recommendations in your feed (never trust). Asks broadcast a need to people who listen to you. Notes are private unless published.
 
+Decision Journeys: users don't search, they decide. Every decision-shaped need lives in a journey — the conversation's working memory. trust_search automatically continues-or-creates one (its id is in the tool result and in <context>). When the user adds a detail about an ongoing decision (budget, language, area, timeline, preference, constraint) → update_journey; NEVER make them repeat context already in a journey. When they shortlist, rule out, or choose a provider → record_decision. Refinement evolves the journey; it never restarts it.
+
 How to work:
 - The user types freely: needs, questions, experiences, recommendations, notes. Detect what they want and use tools — don't ask what you should do when a tool can find out.
 - Looking for a provider/place/person → trust_search first. Cite results by name with their trust path ("Ana, direct, 92%"). Never invent providers — only cite tool results.
@@ -33,6 +35,8 @@ export interface AgentContextInputs {
   mentions?: ResolvedMention[];
   /** The raw user text — used for the non-authoritative heuristic hint. */
   text: string;
+  /** Pre-summarized active decision journeys (#35) — the working memory. */
+  journeys?: string[];
 }
 
 /** The dynamic <context> block appended inside the user turn. */
@@ -42,6 +46,10 @@ export function buildContextBlock(inp: AgentContextInputs): string {
     `date: ${new Date().toISOString().slice(0, 10)}`,
     `topics taxonomy: ${TOPIC_TAXONOMY.join(", ")}`,
   ];
+  if (inp.journeys?.length) {
+    lines.push(`active decision journeys (don't re-ask for context listed here):`);
+    for (const j of inp.journeys.slice(0, 5)) lines.push(`  - ${j}`);
+  }
   if (inp.mentions?.length) {
     const m = inp.mentions
       .map((x) =>

@@ -70,7 +70,9 @@ import {
   spendTokens,
   toGraph,
   topicForEntityType,
+  normalizeTopic,
   TOPIC_PARENT,
+  TOPIC_TAXONOMY,
   viewForUser,
   NATS_SUBJECTS,
   type Dataset,
@@ -207,6 +209,15 @@ import {
 import { embeddingsEnabled, initEmbeddings, similarTopics } from "./embeddings";
 import { applyRecommendations, recommenderConfigured } from "./recommenderClient";
 import { initSearchLog, recordSearch, searchLogEnabled } from "./searchLog";
+import {
+  appendJourneyEvent,
+  autoJourney,
+  createJourney,
+  getJourney,
+  initJourneys,
+  journeysEnabled,
+  listJourneys,
+} from "./journeys";
 import {
   initInteractionLog,
   interactionLogEnabled,
@@ -3772,6 +3783,104 @@ function entityTypeForTopic(topic: string): string | undefined {
   return ENTITY_TYPES.find((t) => t.topic === topic)?.id;
 }
 
+/* ── Decision Journeys (#35) — the decision is the unit, not the search ──
+ * Append-only journey_events + derived context/status. The composer agent's
+ * trust_search continues-or-creates a journey via /api/journeys/auto, and its
+ * journey tools refine context / record selections. */
+
+const JOURNEY_EVENT_KINDS = new Set([
+  "context", "search", "conversation", "note",
+  "rec_suggested", "rec_viewed", "rec_saved", "rec_dismissed", "rec_selected",
+  "decided", "completed", "outcome", "reopened", "closed",
+]);
+
+app.get("/api/journeys", async (req, res) => {
+  const { userId } = auth(req);
+  if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
+  try {
+    const status = str(req.query.status as unknown, 20) as
+      | "open" | "decided" | "completed" | "closed" | "active" | undefined;
+    res.json(await listJourneys(userId, status));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/journeys", async (req, res) => {
+  const { userId } = auth(req);
+  if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
+  const topic = normalizeTopic(String(req.body?.topic ?? "").toLowerCase());
+  if (!TOPIC_TAXONOMY.includes(topic)) return res.status(400).json({ error: "valid topic required" });
+  try {
+    res.json(
+      await createJourney(userId, {
+        topic,
+        geo: str(req.body?.geo, 80),
+        goal: str(req.body?.goal, 200),
+        title: str(req.body?.title, 120),
+      }),
+    );
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Continue-or-create for decision-shaped interactions (agent + search). */
+app.post("/api/journeys/auto", async (req, res) => {
+  const { userId } = auth(req);
+  if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
+  const topic = normalizeTopic(String(req.body?.topic ?? "").toLowerCase());
+  if (!TOPIC_TAXONOMY.includes(topic)) return res.status(400).json({ error: "valid topic required" });
+  try {
+    res.json(
+      await autoJourney(userId, {
+        topic,
+        geo: str(req.body?.geo, 80),
+        goal: str(req.body?.goal, 200),
+      }),
+    );
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.get("/api/journeys/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
+  try {
+    const j = await getJourney(userId, String(req.params.id));
+    if (!j) return res.status(404).json({ error: "journey not found" });
+    res.json(j);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/journeys/:id/events", async (req, res) => {
+  const { userId } = auth(req);
+  if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
+  const kind = String(req.body?.kind ?? "");
+  if (!JOURNEY_EVENT_KINDS.has(kind)) return res.status(400).json({ error: "unknown event kind" });
+  const rawDetail = (req.body?.detail ?? undefined) as Record<string, unknown> | undefined;
+  // Attach the node label so timelines/summaries render without a second lookup.
+  if (rawDetail?.nodeId && !rawDetail.label) {
+    const node = shared.nodes.find((n) => n.id === String(rawDetail.nodeId));
+    if (node) rawDetail.label = node.label;
+  }
+  try {
+    const j = await appendJourneyEvent(
+      userId,
+      String(req.params.id),
+      kind as Parameters<typeof appendJourneyEvent>[2],
+      rawDetail,
+    );
+    if (!j) return res.status(404).json({ error: "journey not found" });
+    res.json(j);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** Broadcast an ask to your sky. */
 app.post("/api/asks", async (req, res) => {
   const { userId } = auth(req);
@@ -4009,6 +4118,9 @@ async function main() {
   );
   await initAsks().catch((e) =>
     console.error("graph-service: asks init failed:", e instanceof Error ? e.message : e),
+  );
+  await initJourneys().catch((e) =>
+    console.error("graph-service: journeys init failed:", e instanceof Error ? e.message : e),
   );
   await initEmbeddings().catch((e) =>
     console.error("graph-service: embeddings init failed:", e instanceof Error ? e.message : e),

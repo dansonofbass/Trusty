@@ -29,7 +29,9 @@ import AgentChat, {
   type TrustToolData,
 } from "./composer/AgentChat";
 import MentionPopover from "./composer/MentionPopover";
+import JourneysPanel from "./composer/JourneysPanel";
 import WeaveFlow from "./composer/WeaveFlow";
+import type { JourneySummary } from "@/lib/journeysClient";
 import type { SourceMode } from "@/lib/dataSource";
 import type { ExtractStreamEvent } from "@/lib/extractClient";
 import type { TrustAssertion } from "@/lib/trustClient";
@@ -125,6 +127,9 @@ export default function Composer({
 
   // Weave flow (#31): extract→review→weave inline (the old Write view, merged).
   const [weave, setWeave] = useState<{ text: string; precomputed?: ThoughtExtraction } | null>(null);
+
+  // Decision journeys (#35): agent tools create/update them — refresh after turns.
+  const [journeyNonce, setJourneyNonce] = useState(0);
 
   // Draft preservation (#29): survive refresh/crash/navigation.
   useEffect(() => {
@@ -286,6 +291,7 @@ export default function Composer({
         transcriptRef.current = result.transcript;
         patchTail((e) => ({ ...e, streaming: false }));
         void loadDocs(); // the agent may have saved a note / created an ask
+        setJourneyNonce((n) => n + 1); // …or started/refined a decision journey
         return true;
       } catch (err) {
         if (err instanceof AgentUnavailableError) {
@@ -617,6 +623,17 @@ export default function Composer({
           </p>
         )}
         {toast && <div className="mt-2 rounded-lg bg-[rgba(84,210,110,0.1)] px-2.5 py-1.5 text-[11.5px] text-[#54d26e]">{toast}</div>}
+
+        {/* decision journeys (#35) */}
+        <JourneysPanel
+          refreshKey={journeyNonce}
+          onDiscuss={(j: JourneySummary) => {
+            if (sending || !agentMode) return;
+            void runTurn({
+              text: `Continue my "${j.title}" decision journey (id ${j.id}) — summarize where I stand and suggest the next step.`,
+            });
+          }}
+        />
 
         {/* workspace (#31) */}
         <div className="mt-5 border-t border-line pt-3">

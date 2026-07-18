@@ -1,6 +1,20 @@
 export * from "./types";
 export * from "./random";
 export {
+  contextFromEvents,
+  deriveJourneyStatus,
+  deriveRecStates,
+  describeJourneyEvent,
+  journeyMatches,
+  mergeJourneyContext,
+  summarizeJourneyForAgent,
+  type JourneyContext,
+  type JourneyEvent,
+  type JourneyEventKind,
+  type JourneyRecState,
+  type JourneyStatus,
+} from "./journey";
+export {
   pendingConfirm,
   trimTranscript,
   type AgentMessage,
