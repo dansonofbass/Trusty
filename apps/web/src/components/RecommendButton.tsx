@@ -25,11 +25,14 @@ export default function RecommendButton({
   targetId,
   targetLabel,
   nodeType,
+  primary = false,
 }: {
   targetId: string;
   targetLabel: string;
   /** Node type of the target — tunes the default topic + copy (place vs person). */
   nodeType?: string;
+  /** Render the trigger as the surface's ONE solid primary action. */
+  primary?: boolean;
 }) {
   const isPlace = nodeType === "location";
   const [edges, setEdges] = useState<GLink[]>([]);
@@ -167,8 +170,8 @@ export default function RecommendButton({
       {!open ? (
         <button
           type="button"
-          className="btn w-full justify-center"
-          style={{ borderColor: "rgba(255,217,122,0.5)", color: GOLD }}
+          className={primary ? "btn-accent w-full" : "btn w-full justify-center"}
+          style={primary ? undefined : { borderColor: "var(--color-accent-line)", color: "var(--color-accent)" }}
           onClick={() => setOpen(true)}
           title="Record topic-scoped trust — and optionally share it with everyone who listens to you"
         >

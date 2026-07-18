@@ -11,7 +11,7 @@ import {
   entityTypeById,
   isUserScopedLink,
 } from "@constellation/graph-core";
-import { GOLD, NODE_COLOR, NODE_GLYPH, TRUST_ACCENT, withAlpha } from "@/lib/palette";
+import { ACCENT, NODE_COLOR, NODE_GLYPH, withAlpha } from "@/lib/palette";
 import AnnotatedText from "./AnnotatedText";
 import SourceLinks from "./SourceLinks";
 import ListenButton from "./ListenButton";
@@ -36,6 +36,38 @@ const GROUP_ORDER: NodeType[] = [
   "financial_signal",
   "location",
 ];
+
+/** Secondary footer action: icon-in-circle with a tiny label beneath. */
+function IconAction({
+  label,
+  onClick,
+  children,
+  disabled,
+  title,
+  accentLabel,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  disabled?: boolean;
+  title?: string;
+  /** Token costs render in the accent (they spend ✦). */
+  accentLabel?: boolean;
+}) {
+  return (
+    <div className="flex w-[52px] flex-col items-center gap-1">
+      <button type="button" className="icon-btn" disabled={disabled} onClick={onClick} title={title ?? label}>
+        {children}
+      </button>
+      <span
+        className="whitespace-nowrap text-[9.5px]"
+        style={{ color: accentLabel ? "var(--color-accent)" : "var(--color-faint)" }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
 
 function NodeChip({
   node,
@@ -69,8 +101,8 @@ function EntityDetails({ node }: { node: GNode }) {
         : String(v).replace(/_/g, " ");
 
   return (
-    <section className="mb-4 rounded-2xl border p-3.5" style={{ borderColor: "rgba(255,140,90,0.25)", background: "rgba(255,140,90,0.04)" }}>
-      <div className="eyebrow mb-2" style={{ color: TRUST_ACCENT }}>
+    <section className="card mb-3" style={{ borderColor: "var(--color-accent-line)", background: "rgba(255,140,90,0.04)" }}>
+      <div className="eyebrow mb-2" style={{ color: "var(--color-accent)" }}>
         {def?.label ?? node.entityType}
       </div>
       {entries.length === 0 ? (
@@ -169,11 +201,45 @@ export default function Inspector({
       .sort((a, b) => (a.type === "person" ? -1 : 1) - (b.type === "person" ? -1 : 1));
   }, [node, graph, nodeById, meId]);
 
+  // Hops from You — small capped BFS for the stat tile ("6+" beyond, "—" unreachable).
+  const hops = useMemo(() => {
+    if (!node || node.isMe || !graph.hasNode(node.id) || !graph.hasNode(meId)) return null;
+    const MAX = 6;
+    const seen = new Set<string>([meId]);
+    let frontier = [meId];
+    for (let d = 1; d <= MAX; d++) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        let found = false;
+        graph.forEachNeighbor(id, (nb) => {
+          if (found || seen.has(nb)) return;
+          if (nb === node.id) found = true;
+          seen.add(nb);
+          next.push(nb);
+        });
+        if (found) return String(d);
+      }
+      if (!next.length) break;
+      frontier = next;
+    }
+    return frontier.length ? `${MAX}+` : "—";
+  }, [node, graph, meId]);
+
+  const degree = node && graph.hasNode(node.id) ? graph.degree(node.id) : 0;
+
+  const stats: { label: string; value: string; accent?: boolean }[] = [];
+  if (node) {
+    stats.push({ label: "Links", value: String(degree) });
+    if (shared.length > 0) stats.push({ label: "Shared", value: String(shared.length) });
+    if (hops) stats.push({ label: "Hops from you", value: hops });
+    if (rec) stats.push({ label: "Affinity", value: String(rec.score), accent: true });
+  }
+
   const open = !!node;
 
   return (
     <aside
-      className="fixed bottom-4 right-4 top-24 z-30 w-[316px] transition-transform duration-300 ease-out"
+      className="fixed bottom-4 right-4 top-24 z-30 w-[340px] transition-transform duration-300 ease-out"
       style={{ transform: open ? "translateX(0)" : "translateX(calc(100% + 24px))" }}
       aria-hidden={!open}
     >
@@ -182,7 +248,7 @@ export default function Inspector({
           {/* Header */}
           <div className="flex items-start gap-3 border-b border-[var(--color-line)] p-4">
             <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[17px] font-semibold"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-[18px] font-semibold"
               style={{
                 background: withAlpha(NODE_COLOR[node.type], 0.16),
                 border: `1px solid ${withAlpha(NODE_COLOR[node.type], 0.45)}`,
@@ -199,11 +265,22 @@ export default function Inspector({
               <div className="eyebrow" style={{ color: NODE_COLOR[node.type] }}>
                 {node.isMe ? "You" : NODE_TYPE_LABEL[node.type]}
               </div>
-              <h2 className="mt-0.5 break-words text-[15px] font-semibold leading-snug text-ink">
+              <h2
+                className="mt-0.5 break-words text-[17px] font-bold leading-snug text-ink"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
                 {node.label}
               </h2>
               {node.sub && (
                 <p className="mt-0.5 text-[12px] text-[var(--color-dim)]">{node.sub}</p>
+              )}
+              {connected && !node.isMe && node.type === "person" && (
+                <span
+                  className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+                >
+                  <Check size={10} /> Friends
+                </span>
               )}
               {node.sources && node.sources.length > 0 && (
                 <SourceLinks sources={node.sources} />
@@ -212,13 +289,26 @@ export default function Inspector({
             <button
               aria-label="Close inspector"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-[var(--color-faint)] transition hover:bg-[rgba(146,166,255,0.1)] hover:text-ink"
+              className="rounded-lg p-1.5 text-[var(--color-faint)] transition hover:bg-[var(--color-tint)] hover:text-ink"
             >
               <X size={15} />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 scroll-quiet">
+            {/* Stat tiles — the node at a glance. */}
+            {stats.length >= 2 && (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {stats.slice(0, 4).map((s) => (
+                  <div key={s.label} className="stat-tile">
+                    <span className="stat-label">{s.label}</span>
+                    <span className="stat-value" style={s.accent ? { color: "var(--color-accent)" } : undefined}>
+                      {s.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             {isPlaceNode(node) ? (
               <div className="mb-4">
                 <PlaceDetail node={node} onJump={onJump} />
@@ -227,8 +317,14 @@ export default function Inspector({
               node.entityType && <EntityDetails node={node} />
             )}
             {node.type === "thought" && node.body && (
-              <section className="mb-4 rounded-2xl border border-[rgba(255,217,122,0.2)] bg-[rgba(255,217,122,0.04)] p-3.5">
-                <div className="eyebrow mb-2" style={{ color: GOLD }}>
+              <section
+                className="card mb-3"
+                style={{
+                  borderColor: withAlpha(NODE_COLOR.thought, 0.25),
+                  background: withAlpha(NODE_COLOR.thought, 0.04),
+                }}
+              >
+                <div className="eyebrow mb-2" style={{ color: NODE_COLOR.thought }}>
                   Your writing
                 </div>
                 {node.extraction?.entities?.length ? (
@@ -254,13 +350,13 @@ export default function Inspector({
             {/* Entity links (local + global SAME_AS / RELATES_TO). Allowed for
                 ideas/content and PUBLIC figures, but not social accounts. */}
             {(node.type !== "person" || node.figure) && (
-              <section className="mb-4">
+              <section className="card mb-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="eyebrow">Entity links · {entityLinks.length}</div>
                   {onStartEntityLink && (
                     <button
                       type="button"
-                      className={`btn ${linkPickActive ? "btn-gold" : ""}`}
+                      className={linkPickActive ? "btn-accent" : "btn"}
                       disabled={pending}
                       onClick={() => onStartEntityLink(node.id)}
                     >
@@ -341,14 +437,14 @@ export default function Inspector({
             {/* Why this is here — explainable recommendation */}
             {rec && (
               <section
-                className="mb-4 rounded-2xl p-3.5"
+                className="card mb-3"
                 style={{
-                  background: withAlpha(GOLD, 0.07),
-                  border: `1px solid ${withAlpha(GOLD, 0.3)}`,
+                  background: withAlpha(ACCENT, 0.07),
+                  borderColor: withAlpha(ACCENT, 0.3),
                 }}
               >
-                <div className="eyebrow mb-1.5" style={{ color: GOLD }}>
-                  ✦ Why this is here
+                <div className="eyebrow mb-1.5 flex items-center gap-1" style={{ color: "var(--color-accent)" }}>
+                  <Sparkles size={11} /> Why this is here
                 </div>
                 <p className="text-[12.5px] leading-relaxed text-ink">{rec.reason}</p>
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -363,20 +459,20 @@ export default function Inspector({
                     <span>Affinity</span>
                     <span style={{ fontFamily: "var(--font-mono)" }}>{rec.score}</span>
                   </div>
-                  <div className="h-1 overflow-hidden rounded-full bg-[rgba(146,166,255,0.12)]">
+                  <div className="h-1 overflow-hidden rounded-full bg-[var(--color-tint)]">
                     <div
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.min(100, (rec.score / Math.max(1, maxRecScore)) * 100)}%`,
-                        background: GOLD,
-                        boxShadow: `0 0 8px ${withAlpha(GOLD, 0.8)}`,
+                        background: "var(--color-accent)",
+                        boxShadow: `0 0 8px ${withAlpha(ACCENT, 0.8)}`,
                       }}
                     />
                   </div>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button
-                    className="btn btn-gold flex-1 justify-center"
+                    className="btn-accent flex-1"
                     disabled={pending}
                     onClick={() => onAcceptRec(node.id)}
                     title="The ghost edge becomes a real one"
@@ -398,7 +494,7 @@ export default function Inspector({
 
             {/* Shared lens with a friend */}
             {shared.length > 0 && (
-              <section className="mb-4">
+              <section className="card mb-3">
                 <div className="eyebrow mb-2">Shared with you · {shared.length}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {shared.slice(0, 10).map((n) => (
@@ -415,7 +511,7 @@ export default function Inspector({
 
             {/* Connections grouped by type */}
             {neighborGroups.map((g) => (
-              <section key={g.type} className="mb-4">
+              <section key={g.type} className="card mb-3">
                 <div className="eyebrow mb-2 flex items-center gap-1.5">
                   <span
                     className="h-1.5 w-1.5 rounded-full"
@@ -443,75 +539,82 @@ export default function Inspector({
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-col gap-2 border-t border-[var(--color-line)] p-3.5">
+          {/* Actions — ONE solid primary + a compact secondary icon row. */}
+          <div className="flex flex-col gap-2.5 border-t border-[var(--color-line)] p-3.5">
             {peekable && onPeek && (
-              <>
-                <p className="text-[11px] leading-snug text-[var(--color-faint)]">
-                  {peeked
-                    ? "Peeked — befriend someone here to keep this region in your sky."
-                    : "Beyond your galaxy. Peek to reveal its neighborhood, or connect to keep it."}
-                </p>
-                <button
-                  className="btn justify-center"
-                  disabled={pending}
-                  onClick={() => onPeek(node.id)}
-                  title="Spend tokens to reveal this region — fades unless you connect"
-                >
-                  <Eye size={13} />
-                  {peeked ? "Peek deeper" : "Peek this region"} · ✦{peekCost}
-                </button>
-              </>
+              <p className="text-[11px] leading-snug text-[var(--color-faint)]">
+                {peeked
+                  ? "Peeked — befriend someone here to keep this region in your sky."
+                  : "Beyond your galaxy. Peek to reveal its neighborhood, or connect to keep it."}
+              </p>
             )}
-            {!node.isMe && (
-              <button
-                className={`btn justify-center ${connected ? "" : "btn-gold"}`}
-                disabled={pending}
-                onClick={() => onConnect(node.id)}
-              >
+
+            {/* Primary: not yet connected → bring them into your sky. */}
+            {!node.isMe && !connected && (
+              <button className="btn-accent w-full" disabled={pending} onClick={() => onConnect(node.id)}>
                 {node.type === "person" ? (
-                  connected ? (
-                    <>
-                      <UserMinus size={13} /> Friends ✓ — unfriend
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={13} /> Befriend
-                    </>
-                  )
-                ) : connected ? (
                   <>
-                    <Check size={13} /> In your sky — remove
+                    <UserPlus size={14} /> Befriend
                   </>
                 ) : (
                   <>
-                    <Plus size={13} /> Add to my sky
+                    <Plus size={14} /> Add to my sky
                   </>
                 )}
               </button>
             )}
-            <div className="flex gap-2">
-              <button className="btn flex-1 justify-center" onClick={() => onFocus(node.id)}>
-                <Crosshair size={13} />
-                Focus
-              </button>
+            {/* Primary: connected person/provider → Recommend (the merged
+                Trust+Recommend action; form expands inline). Restaurants/cafes
+                get theirs inside PlaceDetail — don't double it. */}
+            {!node.isMe && connected && !isPlaceNode(node) &&
+              (node.type === "person" || node.type === "location") && (
+                <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} primary />
+              )}
+            {/* Not connected yet: the trust/recommend form stays reachable
+                below the primary as a soft button. */}
+            {!node.isMe && !connected && !isPlaceNode(node) &&
+              (node.type === "person" || node.type === "location") && (
+                <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
+              )}
+
+            {/* Secondary icon row */}
+            <div className="flex items-start justify-center gap-3 pt-0.5">
+              <IconAction label="Focus" onClick={() => onFocus(node.id)}>
+                <Crosshair size={15} />
+              </IconAction>
               {!node.isMe && (
-                <button className="btn flex-1 justify-center" onClick={() => onTrace(node.id)}>
-                  <Route size={13} />
-                  Path from You
-                </button>
+                <IconAction label="Path" onClick={() => onTrace(node.id)}>
+                  <Route size={15} />
+                </IconAction>
+              )}
+              {peekable && onPeek && (
+                <IconAction
+                  label={`Peek ✦${peekCost}`}
+                  accentLabel
+                  disabled={pending}
+                  onClick={() => onPeek(node.id)}
+                  title="Spend tokens to reveal this region — fades unless you connect"
+                >
+                  <Eye size={15} />
+                </IconAction>
+              )}
+              {!node.isMe && node.type === "person" && (
+                <div className="flex w-[52px] flex-col items-center gap-1">
+                  <ListenButton targetId={node.id} targetLabel={node.label} variant="icon" />
+                  <span className="text-[9.5px] text-[var(--color-faint)]">Listen</span>
+                </div>
+              )}
+              {!node.isMe && connected && (
+                <IconAction
+                  label={node.type === "person" ? "Unfriend" : "Remove"}
+                  disabled={pending}
+                  onClick={() => onConnect(node.id)}
+                  title={node.type === "person" ? "Remove the friendship" : "Remove from your sky"}
+                >
+                  <UserMinus size={15} />
+                </IconAction>
               )}
             </div>
-            {/* Listen (#7) — recommendation permission, distinct from trust by design. */}
-            {!node.isMe && node.type === "person" && (
-              <ListenButton targetId={node.id} targetLabel={node.label} />
-            )}
-            {/* Recommend — the merged Trust+Recommend action (Doc §2–3, #9/#36):
-                always writes the topic-scoped trust edge, optionally shares to
-                listeners' feeds. Restaurants/cafes get theirs inside PlaceDetail. */}
-            {!node.isMe && !isPlaceNode(node) && (node.type === "person" || node.type === "location") && (
-              <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
-            )}
           </div>
         </div>
       )}

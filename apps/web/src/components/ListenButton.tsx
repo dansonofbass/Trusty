@@ -11,7 +11,16 @@ import { Ear, Loader2 } from "lucide-react";
  * Shows the live state: not listening → ask; pending → waiting; listening →
  * chip with stop. Sits beside the merged Recommend (trust) button on person nodes.
  */
-export default function ListenButton({ targetId, targetLabel }: { targetId: string; targetLabel: string }) {
+export default function ListenButton({
+  targetId,
+  targetLabel,
+  variant = "row",
+}: {
+  targetId: string;
+  targetLabel: string;
+  /** "icon": a compact .icon-btn for the Inspector's secondary action row. */
+  variant?: "row" | "icon";
+}) {
   const [state, setState] = useState<"loading" | "none" | "pending" | "listening">("loading");
   const [remaining, setRemaining] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,6 +76,31 @@ export default function ListenButton({ targetId, targetLabel }: { targetId: stri
   };
 
   if (state === "loading") return null;
+
+  if (variant === "icon") {
+    const noSlotsIcon = remaining !== null && remaining <= 0;
+    const title =
+      state === "listening"
+        ? `You listen to ${targetLabel} — click to stop`
+        : state === "pending"
+          ? `Listen request sent — waiting for ${targetLabel}`
+          : noSlotsIcon
+            ? "No free Listen slots — manage at /listen"
+            : `Listen to ${targetLabel} — their recommendations reach your feed`;
+    return (
+      <button
+        type="button"
+        className="icon-btn"
+        data-active={state === "listening"}
+        disabled={busy || state === "pending" || (state === "none" && noSlotsIcon)}
+        onClick={() => void (state === "listening" ? stop() : ask())}
+        title={title}
+        style={state === "listening" ? { borderColor: "rgba(63,198,244,0.5)", background: "var(--color-info-soft)", color: "var(--color-info)" } : undefined}
+      >
+        {busy ? <Loader2 className="animate-spin" size={15} /> : <Ear size={15} />}
+      </button>
+    );
+  }
 
   if (state === "listening") {
     return (
