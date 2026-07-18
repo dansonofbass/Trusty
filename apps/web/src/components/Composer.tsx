@@ -79,11 +79,20 @@ export default function Composer({
   onExtract,
   onWeave,
   onExplore,
+  variant = "panel",
+  prefill,
+  onPrefillConsumed,
 }: {
   nodes: GNode[];
   /** Weave pipeline (#31) — handlers live in GraphExplorer (they mutate the dataset). */
   mode: SourceMode;
   pending: boolean;
+  /** "panel": desktop right workspace driven by the ActionDock store.
+   *  "page": always-open full-height content (the mobile Compose tab). */
+  variant?: "panel" | "page";
+  /** Text to seed the input with (e.g. "continue my journey…" from Decisions). */
+  prefill?: string;
+  onPrefillConsumed?: () => void;
   onExtract: (
     text: string,
     onEvent: (ev: ExtractStreamEvent) => void,
@@ -98,8 +107,10 @@ export default function Composer({
   onExplore: (thoughtId: string) => void;
 }) {
   const setTrustSearch = useUI((s) => s.setTrustSearch);
-  const open = useUI((s) => s.rightPanel === "composer");
+  const isPage = variant === "page";
+  const panelOpen = useUI((s) => s.rightPanel === "composer");
   const setRightPanel = useUI((s) => s.setRightPanel);
+  const open = isPage || panelOpen;
   const [text, setText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -138,6 +149,14 @@ export default function Composer({
     const saved = localStorage.getItem(DRAFT_KEY);
     if (saved) setText(saved);
   }, []);
+
+  // Seed the input from outside (mobile Decisions → "continue my journey…").
+  useEffect(() => {
+    if (!prefill) return;
+    setText(prefill);
+    onPrefillConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
   useEffect(() => {
     if (text) localStorage.setItem(DRAFT_KEY, text);
     else localStorage.removeItem(DRAFT_KEY);
@@ -445,26 +464,22 @@ export default function Composer({
 
   if (!open) return null;
 
-  return (
-    <PanelShell
-      title={editingId ? "Edit note" : "Compose"}
-      icon={<PenLine size={15} />}
-      onClose={() => setRightPanel(null)}
-      headerExtra={
-        <div className="flex shrink-0 items-center gap-1.5 text-[10.5px] text-[var(--color-faint)]">
-          {agentMode ? (
-            <><Sparkles size={11} style={{ color: "var(--color-accent)" }} /> AI agent</>
-          ) : (
-            <>Quick mode — agent offline</>
-          )}
-          {chat.length > 0 && (
-            <button type="button" onClick={newChat} title="New conversation" className="ml-1 flex items-center gap-1 text-dim hover:text-ink">
-              <RotateCcw size={11} /> new
-            </button>
-          )}
-        </div>
-      }
-    >
+  const headerExtra = (
+    <div className="flex shrink-0 items-center gap-1.5 text-[10.5px] text-[var(--color-faint)]">
+      {agentMode ? (
+        <><Sparkles size={11} style={{ color: "var(--color-accent)" }} /> AI agent</>
+      ) : (
+        <>Quick mode — agent offline</>
+      )}
+      {chat.length > 0 && (
+        <button type="button" onClick={newChat} title="New conversation" className="ml-1 flex items-center gap-1 text-dim hover:text-ink">
+          <RotateCcw size={11} /> new
+        </button>
+      )}
+    </div>
+  );
+
+  const inner = (
       <div className="p-4">
         {/* agent conversation */}
         <AgentChat
@@ -689,6 +704,32 @@ export default function Composer({
           )}
         </div>
       </div>
+  );
+
+  // Mobile Compose tab: always-open, full-height, no dock store / PanelShell.
+  if (isPage) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+          <PenLine size={14} style={{ color: "var(--color-accent)" }} />
+          <span className="text-[13px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
+            {editingId ? "Edit note" : "Compose"}
+          </span>
+          <div className="ml-auto">{headerExtra}</div>
+        </div>
+        <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto">{inner}</div>
+      </div>
+    );
+  }
+
+  return (
+    <PanelShell
+      title={editingId ? "Edit note" : "Compose"}
+      icon={<PenLine size={15} />}
+      onClose={() => setRightPanel(null)}
+      headerExtra={headerExtra}
+    >
+      {inner}
     </PanelShell>
   );
 }

@@ -8,6 +8,8 @@ import { NODE_COLOR, NODE_GLYPH, GOLD, TRUST_ACCENT, withAlpha } from "@/lib/pal
 import { useUI } from "@/lib/store";
 import SourceLinks from "./SourceLinks";
 import PlaceDetail from "./PlaceDetail";
+import ListenButton from "./ListenButton";
+import RecommendButton from "./RecommendButton";
 
 /**
  * Mobile node details — a bottom sheet (the phone-native answer to the desktop
@@ -176,6 +178,19 @@ export default function NodeSheet({
                   </button>
                 ))}
                 </div>
+
+                {/* Full feature parity with the desktop Inspector: the merged
+                    Recommend wizard (modal) + Listen on person nodes. */}
+                {!isMe && (node.type === "person" || node.type === "location") && (
+                  <div className="mt-3">
+                    <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
+                  </div>
+                )}
+                {!isMe && node.type === "person" && (
+                  <div className="mt-2">
+                    <ListenButton targetId={node.id} targetLabel={node.label} />
+                  </div>
+                )}
               </>
             )}
           </div>

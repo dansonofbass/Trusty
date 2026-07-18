@@ -49,21 +49,21 @@ function timeAgo(ts?: number): string | null {
   return `${Math.round(s / (86400 * 30))}mo`;
 }
 
-export default function FeedPanel({
+/** The feed's guts — filters + cards + reactions — shared by the desktop
+ *  aside and the mobile Feed tab. Chrome (aside/header/tab) stays outside. */
+export function FeedContent({
   selected,
   onJump,
   onMatch,
   onClearSelection,
-  onClose,
 }: {
   /** Node currently selected on the canvas (graph → list sync). */
   selected: { id: string; label: string } | null;
   /** Fly the graph to a node (list → graph sync). */
   onJump: (id: string) => void;
   /** Node ids matching the active list filters — the canvas highlights them. */
-  onMatch: (ids: Set<string> | null) => void;
-  onClearSelection: () => void;
-  onClose: () => void;
+  onMatch?: (ids: Set<string> | null) => void;
+  onClearSelection?: () => void;
 }) {
   const [items, setItems] = useState<FeedRec[] | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -114,6 +114,7 @@ export default function FeedPanel({
 
   // list → graph: while a list filter is active, light up the matching nodes.
   useEffect(() => {
+    if (!onMatch) return;
     const filterActive = !!topic || !!query.trim();
     if (!filterActive) {
       onMatch(null);
@@ -170,34 +171,7 @@ export default function FeedPanel({
   };
 
   return (
-    <aside className="rise fixed bottom-4 left-4 top-[100px] z-30 hidden w-[360px] flex-col md:flex">
-      <div className="panel flex min-h-0 flex-1 flex-col p-0">
-        {/* header */}
-        <div className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-4 py-3">
-          <span
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
-            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
-          >
-            <Radio size={15} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[13.5px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-              Feed
-            </div>
-            <div className="truncate text-[10.5px] text-[var(--color-faint)]">
-              what the people you listen to recommend
-            </div>
-          </div>
-          <button onClick={() => void load()} disabled={busy} aria-label="Refresh"
-            className="rounded p-1 text-[var(--color-faint)] hover:text-ink disabled:opacity-50">
-            <RefreshCw size={13} className={busy ? "animate-spin" : ""} />
-          </button>
-          <button onClick={onClose} aria-label="Close feed"
-            className="rounded p-1 text-[var(--color-faint)] hover:text-ink">
-            <X size={14} />
-          </button>
-        </div>
-
+    <>
         {/* filters */}
         <div className="space-y-2 border-b border-[var(--color-line)] px-4 py-2.5">
           <div className="flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2 py-1.5">
@@ -211,6 +185,10 @@ export default function FeedPanel({
             {query && (
               <button onClick={() => setQuery("")} aria-label="Clear" className="text-[var(--color-faint)] hover:text-ink"><X size={12} /></button>
             )}
+            <button onClick={() => void load()} disabled={busy} aria-label="Refresh"
+              className="shrink-0 text-[var(--color-faint)] hover:text-ink disabled:opacity-50">
+              <RefreshCw size={12} className={busy ? "animate-spin" : ""} />
+            </button>
           </div>
           {topics.length > 0 && (
             <div className="flex flex-wrap gap-1">
@@ -227,7 +205,7 @@ export default function FeedPanel({
               ))}
             </div>
           )}
-          {selected && (
+          {selected && onClearSelection && (
             <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-dim)]">
               <span className="rounded-full bg-[var(--color-tint)] px-2 py-0.5">
                 showing items involving <b className="text-ink">{selected.label}</b>
@@ -407,6 +385,53 @@ export default function FeedPanel({
             <Ear size={11} className="mr-1 inline" /> Manage who you listen to →
           </Link>
         </div>
+    </>
+  );
+}
+
+/** Desktop chrome: the docked left aside wrapping the shared FeedContent. */
+export default function FeedPanel({
+  selected,
+  onJump,
+  onMatch,
+  onClearSelection,
+  onClose,
+}: {
+  selected: { id: string; label: string } | null;
+  onJump: (id: string) => void;
+  onMatch: (ids: Set<string> | null) => void;
+  onClearSelection: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <aside className="rise fixed bottom-4 left-4 top-[100px] z-30 hidden w-[360px] flex-col md:flex">
+      <div className="panel flex min-h-0 flex-1 flex-col p-0">
+        <div className="flex items-center gap-2.5 border-b border-[var(--color-line)] px-4 py-3">
+          <span
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
+            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+          >
+            <Radio size={15} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
+              Feed
+            </div>
+            <div className="truncate text-[10.5px] text-[var(--color-faint)]">
+              what the people you listen to recommend
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close feed"
+            className="rounded p-1 text-[var(--color-faint)] hover:text-ink">
+            <X size={14} />
+          </button>
+        </div>
+        <FeedContent
+          selected={selected}
+          onJump={onJump}
+          onMatch={onMatch}
+          onClearSelection={onClearSelection}
+        />
       </div>
     </aside>
   );
