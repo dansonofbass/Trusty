@@ -335,7 +335,7 @@ export default function WeaveFlow({
         <div className="mb-2 flex flex-wrap gap-1.5">
           {liveEntities.map((n, i) => (
             <span key={n} className="chip review-block-in" style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}>
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#ffd97a" }} />
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#ff8c5a" }} />
               {n}
             </span>
           ))}
@@ -351,7 +351,7 @@ export default function WeaveFlow({
                 <li key={a.id} className="review-block-in flex items-center gap-2 text-[11.5px]">
                   <span className="grid w-4 shrink-0 place-items-center">
                     {a.tone === "done" ? (
-                      <span style={{ color: "#ffd97a" }}>✦</span>
+                      <span style={{ color: "#ff8c5a" }}>✦</span>
                     ) : a.tone === "ok" ? (
                       <Check size={12} className="text-[#54d26e]" />
                     ) : a.tone === "miss" ? (
@@ -394,7 +394,7 @@ export default function WeaveFlow({
 
       {(phase === "review" || phase === "weaving") && extraction && (
         <div className="space-y-3">
-          <section className="rounded-lg border border-[rgba(255,217,122,0.22)] bg-[rgba(255,217,122,0.04)] p-3">
+          <section className="rounded-lg border border-[rgba(255,140,90,0.22)] bg-[rgba(255,140,90,0.04)] p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-[11.5px] font-semibold text-ink">Your text · entities highlighted</h3>
               <span className="text-[10px] text-[var(--color-faint)]">{extraction.entities.length} found</span>

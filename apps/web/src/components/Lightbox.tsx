@@ -93,7 +93,7 @@ export default function Lightbox({
                 onClick={() => setI(k)}
                 aria-label={`Go to photo ${k + 1}`}
                 className="shrink-0 overflow-hidden rounded-md ring-2 transition"
-                style={{ borderColor: "transparent", boxShadow: k === i ? "0 0 0 2px #ffd97a" : "none" }}
+                style={{ borderColor: "transparent", boxShadow: k === i ? "0 0 0 2px #ff8c5a" : "none" }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={src} alt="" className="h-12 w-16 object-cover opacity-80 hover:opacity-100" style={{ opacity: k === i ? 1 : 0.6 }} />

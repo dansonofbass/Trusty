@@ -812,7 +812,7 @@ export default function GraphExplorer() {
             className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
             style={
               lensOpen
-                ? { borderColor: "rgba(255,217,122,0.5)", background: "rgba(255,217,122,0.1)", color: "#ffd97a" }
+                ? { borderColor: "rgba(255,140,90,0.5)", background: "rgba(255,140,90,0.1)", color: "#ff8c5a" }
                 : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
             }
           >
@@ -838,7 +838,7 @@ export default function GraphExplorer() {
             className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
             style={
               view === "circles"
-                ? { borderColor: "rgba(255,217,122,0.5)", background: "rgba(255,217,122,0.1)", color: "#ffd97a" }
+                ? { borderColor: "rgba(255,140,90,0.5)", background: "rgba(255,140,90,0.1)", color: "#ff8c5a" }
                 : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
             }
           >
@@ -851,7 +851,7 @@ export default function GraphExplorer() {
             className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
             style={
               view === "discover"
-                ? { borderColor: "rgba(255,217,122,0.5)", background: "rgba(255,217,122,0.1)", color: "#ffd97a" }
+                ? { borderColor: "rgba(255,140,90,0.5)", background: "rgba(255,140,90,0.1)", color: "#ff8c5a" }
                 : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
             }
           >

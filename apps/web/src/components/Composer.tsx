@@ -55,7 +55,7 @@ const DRAFT_KEY = "trusty_composer_draft_v1";
 const INTENT_META: Record<ComposerIntent, { label: string; icon: React.ElementType; color: string }> = {
   search: { label: "Search", icon: SearchIcon, color: "#3fc6f4" },
   question: { label: "Question", icon: SearchIcon, color: "#3fc6f4" },
-  recommendation: { label: "Recommendation", icon: Megaphone, color: "#ffd97a" },
+  recommendation: { label: "Recommendation", icon: Megaphone, color: "#ff8c5a" },
   experience: { label: "Experience", icon: Sparkles, color: "#54d26e" },
   decision_update: { label: "Decision", icon: Check, color: "#e25cff" },
   note: { label: "Private note", icon: FileText, color: "#8e97bd" },
@@ -521,7 +521,7 @@ export default function Composer({
               ? "Ask, need, recommend, note… the agent detects intent, searches your network and acts — outward actions wait for your OK. Enter to send, Shift+Enter for a new line."
               : "Write naturally — search, recommend, capture an experience, note a decision… the heuristics sort it out."
           }
-          className="w-full resize-none rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] p-3 text-[13px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[rgba(255,217,122,0.4)]"
+          className="w-full resize-none rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] p-3 text-[13px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[rgba(255,140,90,0.4)]"
         />
 
         {/* mention autocomplete: @people · #topics · [[entities]] */}
@@ -649,7 +649,7 @@ export default function Composer({
                 <button key={c} onClick={() => setActiveCollection(activeCollection === c ? null : c)}
                   className="rounded-full border px-2 py-0.5 text-[10.5px]"
                   style={{
-                    borderColor: activeCollection === c ? "rgba(255,217,122,0.6)" : "var(--color-line)",
+                    borderColor: activeCollection === c ? "rgba(255,140,90,0.6)" : "var(--color-line)",
                     color: activeCollection === c ? GOLD : "var(--color-faint)",
                   }}>
                   {c.replace(/_/g, " ")}
@@ -664,7 +664,7 @@ export default function Composer({
           ) : (
             <ul className="space-y-1.5">
               {docs.map((d) => (
-                <li key={d.id} className="group flex items-start gap-2 rounded-xl border border-[var(--color-line)] p-2.5 transition hover:border-[rgba(255,217,122,0.35)]">
+                <li key={d.id} className="group flex items-start gap-2 rounded-xl border border-[var(--color-line)] p-2.5 transition hover:border-[rgba(255,140,90,0.35)]">
                   <button onClick={() => void editDoc(d.id)} className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-[12.5px] font-medium text-ink">{d.title || "Untitled"}</span>
@@ -672,7 +672,7 @@ export default function Composer({
                         {(d.kind ?? "note").replace(/_/g, " ")}
                       </span>
                       {d.status === "published" && (
-                        <span className="shrink-0 rounded-full bg-[rgba(255,217,122,0.12)] px-1.5 py-0.5 text-[9.5px]" style={{ color: GOLD }}>published</span>
+                        <span className="shrink-0 rounded-full bg-[rgba(255,140,90,0.12)] px-1.5 py-0.5 text-[9.5px]" style={{ color: GOLD }}>published</span>
                       )}
                     </div>
                     {d.snippet && <div className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--color-faint)]">{d.snippet}</div>}

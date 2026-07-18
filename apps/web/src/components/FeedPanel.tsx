@@ -163,8 +163,8 @@ export default function FeedPanel({
                 <button key={t} onClick={() => setTopic(topic === t ? null : t)}
                   className="rounded-full border px-2 py-0.5 text-[10.5px]"
                   style={{
-                    borderColor: topic === t ? "rgba(255,217,122,0.6)" : "var(--color-line)",
-                    color: topic === t ? "#ffd97a" : "var(--color-faint)",
+                    borderColor: topic === t ? "rgba(255,140,90,0.6)" : "var(--color-line)",
+                    color: topic === t ? "#ff8c5a" : "var(--color-faint)",
                   }}>
                   {t.replace(/_/g, " ")}
                 </button>

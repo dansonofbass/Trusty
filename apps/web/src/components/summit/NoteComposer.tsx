@@ -33,7 +33,7 @@ export const NOTE_KIND_COLOR: Record<string, string> = {
   startup: "#7c96ff",
   organization: "#7c96ff",
   person: "#7c96ff",
-  idea: "#ffd97a",
+  idea: "#ff8c5a",
   concept: "#8e97bd",
 };
 const kindColor = (k: string) => NOTE_KIND_COLOR[k] ?? "#8e97bd";

@@ -31,7 +31,7 @@ export default function WelcomeToast() {
       <div className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-2xl border border-line bg-nebula/95 p-4 shadow-2xl backdrop-blur-md rise">
         <div
           className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
-          style={{ background: "rgba(255,217,122,0.14)", color: GOLD }}
+          style={{ background: "rgba(255,140,90,0.14)", color: GOLD }}
         >
           <Sparkles size={16} />
         </div>

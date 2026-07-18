@@ -153,7 +153,7 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
   return (
     <div
       className="rounded-xl border bg-space/40 p-3 transition"
-      style={{ borderColor: highlight ? "rgba(255,217,122,0.6)" : "var(--color-line)" }}
+      style={{ borderColor: highlight ? "rgba(255,140,90,0.6)" : "var(--color-line)" }}
     >
       <div className="flex items-center gap-2">
         <input
@@ -196,7 +196,7 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
             <span
               key={i}
               className="rounded-full border px-2 py-0.5 text-[10.5px] text-ink"
-              style={{ borderColor: "rgba(255,217,122,0.4)" }}
+              style={{ borderColor: "rgba(255,140,90,0.4)" }}
             >
               🤝 {name}
             </span>

@@ -160,7 +160,7 @@ export default function ListenPage() {
                     <span className="rounded-full bg-[rgba(146,166,255,0.1)] px-2 py-0.5 text-dim">{b.base} base</span>
                     {b.fromContribution > 0 && <span className="rounded-full bg-[rgba(84,210,110,0.12)] px-2 py-0.5 text-[#54d26e]">+{b.fromContribution} contribution</span>}
                     {b.fromTenure > 0 && <span className="rounded-full bg-[rgba(63,198,244,0.12)] px-2 py-0.5 text-[#3fc6f4]">+{b.fromTenure} membership</span>}
-                    {b.fromBoosts > 0 && <span className="rounded-full bg-[rgba(255,217,122,0.12)] px-2 py-0.5" style={{ color: GOLD }}>+{b.fromBoosts} boost</span>}
+                    {b.fromBoosts > 0 && <span className="rounded-full bg-[rgba(255,140,90,0.12)] px-2 py-0.5" style={{ color: GOLD }}>+{b.fromBoosts} boost</span>}
                   </div>
                 )}
                 {credits && (
@@ -168,7 +168,7 @@ export default function ListenPage() {
                     onClick={() => void boost()}
                     disabled={!canBoost || busy === "boost"}
                     title={canBoost ? undefined : `Needs ${credits.config.boost.cost} credits (you have ${credits.balance})`}
-                    className="ml-auto flex items-center gap-1.5 rounded-xl border border-[rgba(255,217,122,0.3)] bg-[rgba(255,217,122,0.07)] px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40"
+                    className="ml-auto flex items-center gap-1.5 rounded-xl border border-[rgba(255,140,90,0.3)] bg-[rgba(255,140,90,0.07)] px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40"
                     style={{ color: GOLD }}
                   >
                     {busy === "boost" ? <Loader2 className="animate-spin" size={13} /> : <Zap size={13} />}
@@ -292,7 +292,7 @@ export default function ListenPage() {
                         onClick={() => void act("policy", () => fetch("/api/listen/policy", {
                           method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ policy: p }),
                         }))}
-                        className={`rounded-lg border px-3 py-1 text-[11.5px] ${listen.policy === p ? "border-gold/60 bg-[rgba(255,217,122,0.1)] font-semibold" : "border-line text-dim hover:text-ink"}`}
+                        className={`rounded-lg border px-3 py-1 text-[11.5px] ${listen.policy === p ? "border-gold/60 bg-[rgba(255,140,90,0.1)] font-semibold" : "border-line text-dim hover:text-ink"}`}
                         style={listen.policy === p ? { color: GOLD } : undefined}>
                         {p === "manual" ? "Approved by me" : "Auto-accepted"}
                       </button>

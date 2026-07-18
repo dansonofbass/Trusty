@@ -103,7 +103,7 @@ export default function TopBar({
               type="button"
               onClick={() => setWalletOpen((v) => !v)}
               title="Your tokens — what they're for and your activity"
-              className="flex items-center rounded-lg border border-[rgba(255,217,122,0.3)] bg-[rgba(255,217,122,0.06)] px-2.5 py-1.5 transition hover:border-[rgba(255,217,122,0.5)]"
+              className="flex items-center rounded-lg border border-[rgba(255,140,90,0.3)] bg-[rgba(255,140,90,0.06)] px-2.5 py-1.5 transition hover:border-[rgba(255,140,90,0.5)]"
               aria-expanded={walletOpen}
             >
               <span

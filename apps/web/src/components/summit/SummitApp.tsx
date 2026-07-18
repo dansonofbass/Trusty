@@ -747,7 +747,7 @@ function Schedule() {
     <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
       style={s === "confirmed" ? { background: "rgba(154,240,200,0.16)", color: "#9af0c8" }
         : s === "declined" ? { background: "rgba(255,120,120,0.14)", color: "#ff9a9a" }
-        : { background: "rgba(255,217,122,0.14)", color: "#ffd97a" }}>{s}</span>
+        : { background: "rgba(255,140,90,0.14)", color: "#ff8c5a" }}>{s}</span>
   );
 
   return (

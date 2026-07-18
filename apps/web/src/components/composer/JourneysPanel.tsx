@@ -22,7 +22,7 @@ import { GOLD } from "@/lib/palette";
 
 const STATUS_META: Record<JourneyStatus, { label: string; color: string }> = {
   open: { label: "deciding", color: "#3fc6f4" },
-  decided: { label: "decided", color: "#ffd97a" },
+  decided: { label: "decided", color: "#ff8c5a" },
   completed: { label: "completed", color: "#54d26e" },
   closed: { label: "closed", color: "#8e97bd" },
 };
@@ -132,7 +132,7 @@ export default function JourneysPanel({
           const meta = STATUS_META[j.status];
           const expanded = openId === j.id;
           return (
-            <li key={j.id} className="rounded-xl border border-[var(--color-line)] p-2.5 transition hover:border-[rgba(255,217,122,0.35)]">
+            <li key={j.id} className="rounded-xl border border-[var(--color-line)] p-2.5 transition hover:border-[rgba(255,140,90,0.35)]">
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => setOpenId(expanded ? null : j.id)} className="min-w-0 flex-1 text-left">
                   <span className="flex items-center gap-1.5">
@@ -146,7 +146,7 @@ export default function JourneysPanel({
                   type="button"
                   title="Continue this decision with the agent"
                   onClick={() => onDiscuss(j)}
-                  className="shrink-0 rounded-lg border border-[rgba(255,217,122,0.4)] p-1.5 text-[10px]"
+                  className="shrink-0 rounded-lg border border-[rgba(255,140,90,0.4)] p-1.5 text-[10px]"
                   style={{ color: GOLD }}
                 >
                   <MessageCircle size={12} />

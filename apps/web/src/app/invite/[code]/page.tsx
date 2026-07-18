@@ -161,7 +161,7 @@ function Starfield() {
           "radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,0.7), transparent)," +
           "radial-gradient(1.5px 1.5px at 70% 20%, rgba(146,166,255,0.6), transparent)," +
           "radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.5), transparent)," +
-          "radial-gradient(1.5px 1.5px at 85% 65%, rgba(255,217,122,0.5), transparent)," +
+          "radial-gradient(1.5px 1.5px at 85% 65%, rgba(255,140,90,0.5), transparent)," +
           "radial-gradient(1px 1px at 55% 45%, rgba(255,255,255,0.4), transparent)," +
           "radial-gradient(1px 1px at 15% 80%, rgba(46,230,202,0.5), transparent)," +
           "radial-gradient(circle at 50% 0%, rgba(124,150,255,0.10), transparent 60%)",

@@ -155,7 +155,7 @@ export default function RecommendButton({
       )}
 
       {done && (
-        <div className="rounded-xl border border-[rgba(255,217,122,0.35)] bg-[rgba(255,217,122,0.06)] px-3 py-2 text-[11.5px] text-ink">
+        <div className="rounded-xl border border-[rgba(255,140,90,0.35)] bg-[rgba(255,140,90,0.06)] px-3 py-2 text-[11.5px] text-ink">
           <Megaphone size={12} className="mr-1.5 inline" style={{ color: GOLD }} />
           {done === "shared" ? (
             <>Recommended — trust recorded, and people who <b>listen to you</b> will see it in their feed.</>
@@ -178,7 +178,7 @@ export default function RecommendButton({
           <Megaphone size={13} /> Recommend {isPlace ? "this place" : targetLabel}
         </button>
       ) : (
-        <div className="rounded-xl border p-3" style={{ borderColor: "rgba(255,217,122,0.4)", background: "rgba(255,217,122,0.05)" }}>
+        <div className="rounded-xl border p-3" style={{ borderColor: "rgba(255,140,90,0.4)", background: "rgba(255,140,90,0.05)" }}>
           <div className="mb-2 text-[12px] font-semibold text-ink">
             Recommend <span style={{ color: GOLD }}>{targetLabel}</span> for…
           </div>
@@ -217,7 +217,7 @@ export default function RecommendButton({
                 onClick={() => toggleReason(rc)}
                 className="rounded-full border px-1.5 py-0.5 text-[10px]"
                 style={{
-                  borderColor: reasons.includes(rc) ? "rgba(255,217,122,0.6)" : "var(--color-line)",
+                  borderColor: reasons.includes(rc) ? "rgba(255,140,90,0.6)" : "var(--color-line)",
                   color: reasons.includes(rc) ? "var(--color-ink)" : "var(--color-faint)",
                 }}
               >

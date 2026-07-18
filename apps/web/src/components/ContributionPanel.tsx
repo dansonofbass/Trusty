@@ -98,7 +98,7 @@ export default function ContributionPanel({ onClose }: { onClose: () => void }) 
             <span className="text-[24px] font-bold" style={{ color: GOLD, fontFamily: "var(--font-mono)" }}>
               {data.c.score.score}
             </span>
-            <span className="rounded-full bg-[rgba(255,217,122,0.12)] px-2 py-0.5 text-[10.5px] font-semibold" style={{ color: GOLD }}>
+            <span className="rounded-full bg-[rgba(255,140,90,0.12)] px-2 py-0.5 text-[10.5px] font-semibold" style={{ color: GOLD }}>
               {data.c.score.stage}
             </span>
           </div>
@@ -122,7 +122,7 @@ export default function ContributionPanel({ onClose }: { onClose: () => void }) 
                 </div>
               )}
             </Link>
-            <div className="rounded-xl border border-[rgba(255,217,122,0.25)] bg-[rgba(255,217,122,0.05)] p-2.5">
+            <div className="rounded-xl border border-[rgba(255,140,90,0.25)] bg-[rgba(255,140,90,0.05)] p-2.5">
               <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--color-faint)]">
                 <Coins size={10} /> Credits
               </div>
@@ -140,7 +140,7 @@ export default function ContributionPanel({ onClose }: { onClose: () => void }) 
             onClick={() => void boost()}
             disabled={boosting || data.cr.balance < data.cr.config.boost.cost}
             title={data.cr.balance < data.cr.config.boost.cost ? `Needs ${data.cr.config.boost.cost} credits` : undefined}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[rgba(255,217,122,0.3)] bg-[rgba(255,217,122,0.08)] px-3 py-1.5 text-[12px] font-semibold transition hover:border-[rgba(255,217,122,0.5)] disabled:opacity-40"
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[rgba(255,140,90,0.3)] bg-[rgba(255,140,90,0.08)] px-3 py-1.5 text-[12px] font-semibold transition hover:border-[rgba(255,140,90,0.5)] disabled:opacity-40"
             style={{ color: GOLD }}
           >
             {boosting ? <Loader2 className="animate-spin" size={13} /> : <Zap size={13} />}

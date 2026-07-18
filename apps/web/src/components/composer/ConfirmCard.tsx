@@ -56,7 +56,7 @@ export default function ConfirmCard({
   }
 
   return (
-    <div className="mt-2 rounded-xl border p-3" style={{ borderColor: "rgba(255,217,122,0.45)", background: "rgba(255,217,122,0.06)" }}>
+    <div className="mt-2 rounded-xl border p-3" style={{ borderColor: "rgba(255,140,90,0.45)", background: "rgba(255,140,90,0.06)" }}>
       <div className="flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
         <ShieldQuestion size={14} style={{ color: GOLD }} /> {confirm.title}
       </div>

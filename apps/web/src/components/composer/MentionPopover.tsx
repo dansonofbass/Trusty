@@ -132,7 +132,7 @@ export default function MentionPopover({
               </>
             ) : (
               <>
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11px]" style={{ background: "rgba(255,217,122,0.12)", color: GOLD }}>
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11px]" style={{ background: "rgba(255,140,90,0.12)", color: GOLD }}>
                   #
                 </span>
                 <span className="truncate text-[12.5px] text-ink">{c.label}</span>
