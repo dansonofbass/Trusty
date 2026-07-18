@@ -5,7 +5,7 @@ import { Megaphone, Send, Loader2, Check, Search, UserPlus, Copy, Type } from "l
 import type { GNode } from "@constellation/graph-core";
 import { TRUST_ACCENT, withAlpha } from "@/lib/palette";
 import { answerAsk, askInbox, myAsks, type InboxAsk, type MyAsk } from "@/lib/asksClient";
-import { searchDirectory } from "@/lib/trustClient";
+import { searchShared } from "@/lib/trustClient";
 import { createInvite, inviteUrl } from "@/lib/inviteClient";
 import { useUI } from "@/lib/store";
 import PanelShell from "./dock/PanelShell";
@@ -169,8 +169,15 @@ function InboxCard({ ask, onAnswered }: { ask: InboxAsk; onAnswered: () => void 
     let alive = true;
     setSearching(true);
     const t = setTimeout(() => {
-      searchDirectory(term)
-        .then((ns) => { if (alive) setResults(ns.slice(0, 6)); })
+      searchShared(term)
+        // Answering an ask names a person/place/provider — thoughts, posts and
+        // other knowledge nodes aren't recommendable targets.
+        .then((ns) => {
+          if (alive)
+            setResults(
+              ns.filter((n) => n.type === "person" || n.type === "location" || !!n.entityType).slice(0, 6),
+            );
+        })
         .catch(() => { if (alive) setResults([]); })
         .finally(() => { if (alive) setSearching(false); });
     }, 250);

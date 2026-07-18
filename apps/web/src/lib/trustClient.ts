@@ -45,13 +45,25 @@ async function jsonOrThrow(r: Response) {
   return body;
 }
 
-/** Search people & entities in the (general) app directory by free text. */
+/** Search people & entities in the (general) app directory by free text.
+ *  NOTE: only returns ontology entities (nodes WITH an entityType) — plain
+ *  person nodes are invisible here. For "name someone from the graph" flows
+ *  use {@link searchShared}. */
 export async function searchDirectory(q: string): Promise<import("@constellation/graph-core").GNode[]> {
   const p = new URLSearchParams();
   if (q.trim()) p.set("q", q.trim());
   const r = await fetch(`/api/directory?${p}`, { cache: "no-store" });
   const b = (await jsonOrThrow(r)) as { nodes: import("@constellation/graph-core").GNode[] };
   return b.nodes ?? [];
+}
+
+/** Label search over the WHOLE shared graph (people, places, providers…) —
+ *  the same search the unified ⌘K palette and the agent's entity_search use. */
+export async function searchShared(q: string): Promise<import("@constellation/graph-core").GNode[]> {
+  const term = q.trim();
+  if (term.length < 2) return [];
+  const r = await fetch(`/api/search?q=${encodeURIComponent(term)}`, { cache: "no-store" });
+  return (await jsonOrThrow(r)) as import("@constellation/graph-core").GNode[];
 }
 
 /** Resolve a natural-language query into a structured trust scope. */
