@@ -9,7 +9,7 @@ import { Ear, Loader2 } from "lucide-react";
  * relationship. Directional, acceptance-based, capacity-bounded, and NEVER
  * trust: it only makes their future recommendations eligible for you.
  * Shows the live state: not listening → ask; pending → waiting; listening →
- * chip with stop. Sits beside TrustButton on person nodes.
+ * chip with stop. Sits beside the merged Recommend (trust) button on person nodes.
  */
 export default function ListenButton({ targetId, targetLabel }: { targetId: string; targetLabel: string }) {
   const [state, setState] = useState<"loading" | "none" | "pending" | "listening">("loading");

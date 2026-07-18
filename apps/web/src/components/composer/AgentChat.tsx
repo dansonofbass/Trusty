@@ -45,9 +45,10 @@ export const TOOL_LABEL: Record<string, string> = {
   trust_search: "Searching your trust network",
   entity_search: "Looking up your graph",
   save_note: "Saving privately",
+  update_journey: "Updating your decision journey",
+  record_decision: "Recording your decision",
   create_ask: "Asking your network",
-  publish_recommendation: "Publishing recommendation",
-  add_trust: "Recording trust",
+  recommend: "Recommending (trust + share)",
   request_listen: "Sending listen request",
   extract_entities: "Extracting entities",
 };

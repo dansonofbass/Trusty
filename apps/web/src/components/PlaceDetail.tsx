@@ -9,7 +9,7 @@ import { placeDetail, setSaved, type PlaceDetail as PlaceDetailT } from "@/lib/p
 import { markIntent } from "@/lib/outcomeClient";
 import { createAsk } from "@/lib/asksClient";
 import { useUI } from "@/lib/store";
-import TrustButton from "./TrustButton";
+import RecommendButton from "./RecommendButton";
 
 /**
  * Restaurant/cafe QUICK PEEK — the compact panel/sheet view. Shows just enough
@@ -137,7 +137,7 @@ export default function PlaceDetail({
 
       {/* key actions */}
       <div className="space-y-2">
-        <TrustButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
+        <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
         <div className="grid grid-cols-2 gap-2">
           <button onClick={useThis} disabled={intended}
             className="flex items-center justify-center gap-1.5 rounded-lg border border-line py-2 text-[12.5px] text-ink disabled:opacity-60">

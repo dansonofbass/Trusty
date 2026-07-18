@@ -14,7 +14,6 @@ import {
 import { GOLD, NODE_COLOR, NODE_GLYPH, TRUST_ACCENT, withAlpha } from "@/lib/palette";
 import AnnotatedText from "./AnnotatedText";
 import SourceLinks from "./SourceLinks";
-import TrustButton from "./TrustButton";
 import ListenButton from "./ListenButton";
 import RecommendButton from "./RecommendButton";
 import PlaceDetail from "./PlaceDetail";
@@ -503,16 +502,13 @@ export default function Inspector({
                 </button>
               )}
             </div>
-            {/* Trust a person OR a place/provider, scoped to a topic (Doc §2–3).
-                Restaurants/cafes get their Trust button inside PlaceDetail — don't double it. */}
-            {!node.isMe && !isPlaceNode(node) && (node.type === "person" || node.type === "location") && (
-              <TrustButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
-            )}
             {/* Listen (#7) — recommendation permission, distinct from trust by design. */}
             {!node.isMe && node.type === "person" && (
               <ListenButton targetId={node.id} targetLabel={node.label} />
             )}
-            {/* Recommend (#9/#36) — publish knowledge; reaches YOUR listeners' feeds. */}
+            {/* Recommend — the merged Trust+Recommend action (Doc §2–3, #9/#36):
+                always writes the topic-scoped trust edge, optionally shares to
+                listeners' feeds. Restaurants/cafes get theirs inside PlaceDetail. */}
             {!node.isMe && !isPlaceNode(node) && (node.type === "person" || node.type === "location") && (
               <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
             )}

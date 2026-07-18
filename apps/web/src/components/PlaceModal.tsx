@@ -16,7 +16,7 @@ import {
 import { markIntent } from "@/lib/outcomeClient";
 import { createAsk } from "@/lib/asksClient";
 import { useUI } from "@/lib/store";
-import TrustButton from "./TrustButton";
+import RecommendButton from "./RecommendButton";
 import Lightbox from "./Lightbox";
 
 // Client-only: maplibre touches the DOM; never render it on the server.
@@ -483,7 +483,7 @@ export default function PlaceModal({ id }: { id: string }) {
                   </>
                 )}
                 <div className="mt-3">
-                  <TrustButton targetId={id} targetLabel={label} nodeType="location" />
+                  <RecommendButton targetId={id} targetLabel={label} nodeType="location" />
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button onClick={useThis} disabled={intended}

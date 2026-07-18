@@ -16,7 +16,7 @@ import {
   type ResolvedMention,
 } from "@constellation/graph-core";
 import { useUI } from "@/lib/store";
-import { resolveScope, trustSearch, type TrustRec } from "@/lib/trustClient";
+import { addTrust, resolveScope, trustSearch, type TrustRec } from "@/lib/trustClient";
 import { AgentUnavailableError, streamAgentTurn } from "@/lib/agentClient";
 import {
   deleteWorkspaceDoc, fetchWorkspace, fetchWriting, saveDraft, updateWorkspaceDoc,
@@ -392,11 +392,15 @@ export default function Composer({
     }
   };
 
-  /** Explicit publication (quick mode; the agent path uses publish_recommendation). */
+  /** Explicit publication (quick mode; the agent path uses the merged recommend
+   *  tool). Merged semantics: recommending also records the trust edge. */
   const publish = async () => {
     if (!target || !analysis.topics[0]) return;
     setBusy("publish");
     try {
+      await addTrust({ to: target.id, scope: { topic: analysis.topics[0] } }).catch(() => {
+        /* trust edge is best-effort here — the publication is the explicit act */
+      });
       const r = await fetch("/api/recs", {
         method: "POST",
         headers: { "content-type": "application/json" },

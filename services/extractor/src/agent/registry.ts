@@ -331,22 +331,29 @@ const createAsk: AgentTool = {
   },
 };
 
-const publishRecommendation: AgentTool = {
-  name: "publish_recommendation",
+const recommend: AgentTool = {
+  name: "recommend",
   description:
-    "Publish the user's recommendation of a graph node for a topic — it appears in the feed of everyone who listens to them. Resolve the target with entity_search first; targetId must be a real node id.",
+    "The user vouches for a person/provider/place on a topic. ALWAYS records a directed, topic-scoped trust edge (their quiet, revocable reliance — powers their network's searches). With share=true (the default) it ALSO publishes an immutable recommendation into the feeds of everyone who listens to them. Use share=false when the user wants trust recorded without broadcasting. Only for clear first-person endorsement; resolve the node id with entity_search first.",
   confirm: true,
-  confirmTitle: "Publish this recommendation?",
+  confirmTitle: "Recommend them?",
   confirmDescription:
-    "People who listen to you will see this in their feed. Recommendations are permanent evidence.",
+    "Records topic-scoped trust (removable later). If shared, listeners also see it in their feed — published recommendations are permanent evidence.",
   inputSchema: {
     type: "object",
     additionalProperties: false,
     properties: {
       targetId: { type: "string", description: "Node id from entity_search / trust_search" },
       topic: { type: "string", description: `One of: ${TOPIC_LIST}` },
-      note: { type: "string", description: "Why — shown with the recommendation (max 500)" },
+      geo: { type: "string" },
+      context: { type: "string", description: "Use-case context (e.g. family_visa_case)" },
       reasons: { type: "array", items: { type: "string" }, description: "snake_case reason codes" },
+      note: { type: "string", description: "Why — shown with the recommendation (max 500)" },
+      confidence: { type: "number", description: "0..1 trust strength (default 0.8)" },
+      share: {
+        type: "boolean",
+        description: "true (default): also publish to listeners' feeds; false: quiet trust only",
+      },
     },
     required: ["targetId", "topic"],
   },
@@ -356,56 +363,43 @@ const publishRecommendation: AgentTool = {
     if (!topic) return topicError(args.topic);
     const targetId = str(args.targetId, 200);
     if (!targetId) return { ok: false, summary: "targetId required" };
-    const r = await graphFetch(ctx, "/api/recs", {
-      method: "POST",
-      body: { targetId, topic, note: str(args.note, 500), reasons: strArr(args.reasons) },
-    });
-    if (!r.ok) return fail(r.body, r.status);
-    return { ok: true, summary: `recommendation published (${(r.body as { id?: string })?.id ?? "ok"})`, data: r.body };
-  },
-};
-
-const addTrust: AgentTool = {
-  name: "add_trust",
-  description:
-    "Record that the user trusts a person/provider for a topic (a directed, topic-scoped trust edge). Only when the user clearly states first-person trust. Resolve the node id with entity_search first.",
-  confirm: true,
-  confirmTitle: "Add this trust edge?",
-  confirmDescription:
-    "Trust is topic-scoped and flows to your network's search results. You can remove it later.",
-  inputSchema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      to: { type: "string", description: "Node id of the trusted person/provider" },
-      topic: { type: "string", description: `One of: ${TOPIC_LIST}` },
-      geo: { type: "string" },
-      reasons: { type: "array", items: { type: "string" }, description: "snake_case reason codes" },
-      note: { type: "string" },
-      confidence: { type: "number", description: "0..1, how strongly (default 0.8)" },
-    },
-    required: ["to", "topic"],
-  },
-  async execute(input, ctx) {
-    const args = (input ?? {}) as Record<string, unknown>;
-    const topic = canonicalTopic(args.topic);
-    if (!topic) return topicError(args.topic);
-    const to = str(args.to, 200);
-    if (!to) return { ok: false, summary: "to (node id) required" };
+    const share = args.share !== false;
+    const note = str(args.note, 500);
+    const reasons = strArr(args.reasons);
     const confidence =
       typeof args.confidence === "number" ? Math.max(0, Math.min(1, args.confidence)) : undefined;
-    const r = await graphFetch(ctx, "/api/trust", {
+    // Trust edge first — recommending IS relying; it's the quiet, revocable half.
+    const t = await graphFetch(ctx, "/api/trust", {
       method: "POST",
       body: {
-        to,
-        scope: { topic, geo: str(args.geo, 80) },
-        reasons: strArr(args.reasons),
-        note: str(args.note, 300),
+        to: targetId,
+        scope: { topic, geo: str(args.geo, 80), context: str(args.context, 120) },
+        reasons,
+        note,
         confidence,
       },
     });
-    if (!r.ok) return fail(r.body, r.status);
-    return { ok: true, summary: `trust edge recorded → ${to} on ${topic}` };
+    if (!t.ok) return fail(t.body, t.status);
+    if (!share) {
+      return { ok: true, summary: `quiet trust recorded → ${targetId} on ${topic} (not shared with listeners)` };
+    }
+    const r = await graphFetch(ctx, "/api/recs", {
+      method: "POST",
+      body: { targetId, topic, context: str(args.context, 120), reasons, note },
+    });
+    if (!r.ok) {
+      return {
+        ok: true,
+        summary: `trust recorded → ${targetId} on ${topic}, but publishing to listeners failed: ${
+          (r.body as { error?: string } | null)?.error ?? r.status
+        }`,
+      };
+    }
+    return {
+      ok: true,
+      summary: `recommended ${targetId} on ${topic} — trust recorded AND published to listeners (rec ${(r.body as { id?: string })?.id ?? "ok"})`,
+      data: r.body,
+    };
   },
 };
 
@@ -448,8 +442,7 @@ export function buildComposerRegistry(extra: AgentTool[] = []): ToolRegistry {
     updateJourney,
     recordDecision,
     createAsk,
-    publishRecommendation,
-    addTrust,
+    recommend,
     requestListen,
     ...extra,
   ];
