@@ -7,6 +7,7 @@ import { Search, Share2, Monitor, LogOut, ChevronRight, ThumbsUp, ThumbsDown, Pl
 import { TOPIC_TAXONOMY } from "@constellation/graph-core";
 import { GOLD, TRUST_ACCENT } from "@/lib/palette";
 import { useUI } from "@/lib/store";
+import Brand from "@/components/Brand";
 import { addTrust, recordOutcome, resolveScope, trustSearch, type ResolvedScope, type TrustRec } from "@/lib/trustClient";
 import { createInvite } from "@/lib/inviteClient";
 import { markIntent } from "@/lib/outcomeClient";
@@ -136,7 +137,7 @@ export default function MobileSearch() {
     <div className={`relative z-10 flex flex-col text-ink ${tab === "graph" ? "h-[100dvh] overflow-hidden" : "min-h-[100dvh]"}`}>
       {/* ---- app bar ---- */}
       <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-space/90 px-4 py-3 backdrop-blur-md" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
-        <Wordmark />
+        <Brand size={22} />
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
@@ -316,22 +317,6 @@ function withA(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-function Wordmark() {
-  return (
-    <div className="flex items-center gap-2">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M4 17 L10 7 L15 13 L20 5" stroke="rgba(146,166,255,0.55)" strokeWidth="1" />
-        <circle cx="4" cy="17" r="2" fill="#7c96ff" />
-        <circle cx="10" cy="7" r="1.6" fill="#e25cff" />
-        <circle cx="15" cy="13" r="1.6" fill="#2ee6ca" />
-        <circle cx="20" cy="5" r="2.2" fill="#ffd97a" />
-      </svg>
-      <span className="text-[12px] font-bold tracking-[0.2em] text-ink" style={{ fontFamily: "var(--font-display)" }}>
-        TRUSTY
-      </span>
-    </div>
-  );
-}
 
 function Intro({ onPick }: { onPick: (t: string) => void }) {
   return (

@@ -22,7 +22,11 @@ export const NODE_COLOR: Record<NodeType, string> = {
   outcome: "#54d26e", // green — verified evidence
 };
 
-export const GOLD = "#ffd97a";
+/** Brand accent — orange. THE UI action/highlight color (see --color-accent). */
+export const ACCENT = "#ff8c5a";
+/** DEPRECATED alias — gold was retired from the UI; kept so legacy imports land
+ *  on the brand accent. Canvas taxonomy keeps its own #ffd97a via NODE_COLOR. */
+export const GOLD = ACCENT;
 export const ME_CORE = "#ffffff";
 
 /** Small canvas glyph drawn inside larger nodes. */
@@ -78,8 +82,8 @@ export const EDGE_BASE: Record<EdgeType, { color: string; width: number }> = {
   MET_AT: { color: "rgba(124,150,255,0.50)", width: 1.2 },
 };
 
-/** Accent for the Trust Graph (trust edges, trust-path explanation, score bar). */
-export const TRUST_ACCENT = "#ff8c5a";
+/** Accent for the Trust Graph — same hue as the brand accent by design. */
+export const TRUST_ACCENT = ACCENT;
 
 /** Dashed mint for user-scoped entity links (local until promoted). */
 export const USER_ENTITY_LINK_COLOR = "rgba(154,240,200,0.75)";

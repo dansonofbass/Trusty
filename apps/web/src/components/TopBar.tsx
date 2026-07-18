@@ -7,31 +7,13 @@ import { GOLD } from "@/lib/palette";
 import { useUI, type ViewId } from "@/lib/store";
 import WalletPanel from "./WalletPanel";
 import ContributionPanel from "./ContributionPanel";
+import Brand from "./Brand";
 
 const TABS: { id: ViewId; label: string; icon: React.ElementType }[] = [
   { id: "universe", label: "Universe", icon: Orbit },
   { id: "path", label: "Path", icon: Route },
 ];
 
-function Wordmark() {
-  return (
-    <div className="flex items-center gap-2.5 pl-1">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M4 17 L10 7 L15 13 L20 5" stroke="rgba(146,166,255,0.55)" strokeWidth="1" />
-        <circle cx="4" cy="17" r="2" fill="#7c96ff" />
-        <circle cx="10" cy="7" r="1.6" fill="#e25cff" />
-        <circle cx="15" cy="13" r="1.6" fill="#2ee6ca" />
-        <circle cx="20" cy="5" r="2.2" fill="#ffd97a" />
-      </svg>
-      <span
-        className="hidden font-display text-[13px] font-bold tracking-[0.28em] text-ink lg:inline"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        TRUSTY
-      </span>
-    </div>
-  );
-}
 
 export default function TopBar({
   wallet,
@@ -67,7 +49,7 @@ export default function TopBar({
   return (
     <header className="rise pointer-events-none fixed inset-x-0 top-0 z-30 flex justify-center px-4 pt-4">
       <div className="panel pointer-events-auto flex w-full max-w-6xl items-center gap-2 px-3.5 py-2.5">
-        <Wordmark />
+        <Brand className="hidden lg:inline" />
 
         <nav className="ml-2 hidden items-center gap-1 md:flex" aria-label="Views">
           {TABS.map((t) => (

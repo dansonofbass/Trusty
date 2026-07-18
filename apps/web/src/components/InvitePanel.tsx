@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { UserPlus, Copy, Check, Share2, Users, Eye } from "lucide-react";
-import { GOLD } from "@/lib/palette";
+import { ACCENT } from "@/lib/palette";
 import { useUI } from "@/lib/store";
+import PanelShell from "./dock/PanelShell";
 import {
   createInvite,
   inviteUrl,
@@ -21,8 +22,9 @@ import {
  * (viewed → joined) — both instrumentation and motivation ("2 friends joined").
  */
 export default function InvitePanel() {
-  const open = useUI((s) => s.inviteOpen);
-  const setOpen = useUI((s) => s.setInviteOpen);
+  const open = useUI((s) => s.rightPanel === "invite");
+  const setRightPanel = useUI((s) => s.setRightPanel);
+  const setOpen = (v: boolean) => setRightPanel(v ? "invite" : null);
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [stats, setStats] = useState<InviteStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -62,28 +64,10 @@ export default function InvitePanel() {
     }
   };
 
+  if (!open) return null;
+
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink shadow-lg backdrop-blur-md hover:border-gold/60"
-        style={{ fontFamily: "var(--font-display)", borderColor: open ? "rgba(255,217,122,0.6)" : undefined }}
-      >
-        <UserPlus size={15} /> Invite
-      </button>
-
-      {open && (
-        <aside className="pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-              Grow your trusted network
-            </h2>
-            <button type="button" onClick={() => setOpen(false)} className="text-dim hover:text-ink">
-              ✕
-            </button>
-          </div>
-
+    <PanelShell title="Grow your trusted network" icon={<UserPlus size={15} />} onClose={() => setOpen(false)}>
           <div className="border-b border-line px-4 py-3">
             <p className="text-[12.5px] leading-relaxed text-dim">
               Trust search is only as good as your network. Invite the friends whose
@@ -93,8 +77,7 @@ export default function InvitePanel() {
               type="button"
               onClick={mint}
               disabled={creating}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-bold text-space transition hover:brightness-110 disabled:opacity-60"
-              style={{ fontFamily: "var(--font-display)", background: GOLD }}
+              className="btn-accent mt-3 w-full"
             >
               <UserPlus size={15} /> {creating ? "Creating…" : "Create invite link"}
             </button>
@@ -124,9 +107,7 @@ export default function InvitePanel() {
               ))}
             </div>
           </div>
-        </aside>
-      )}
-    </>
+    </PanelShell>
   );
 }
 
@@ -135,7 +116,7 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
     <div className="bg-nebula/95 px-2 py-2.5">
       <div
         className="text-[18px] font-bold"
-        style={{ color: accent ? GOLD : "var(--color-ink)", fontFamily: "var(--font-mono)" }}
+        style={{ color: accent ? ACCENT : "var(--color-ink)", fontFamily: "var(--font-mono)" }}
       >
         {value}
       </div>
@@ -203,7 +184,7 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
         <span className="inline-flex items-center gap-1">
           <Eye size={12} /> {inv.visits} viewed
         </span>
-        <span className="inline-flex items-center gap-1" style={{ color: inv.joined ? GOLD : undefined }}>
+        <span className="inline-flex items-center gap-1" style={{ color: inv.joined ? ACCENT : undefined }}>
           <Users size={12} /> {inv.joined} joined
         </span>
         {inv.revoked && <span className="text-rose-300">revoked</span>}

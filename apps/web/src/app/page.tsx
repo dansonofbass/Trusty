@@ -57,11 +57,12 @@ export default function Home() {
   return (
     <>
       <GraphExplorer />
-      <AddEntity />
+      {/* Docked: no own FABs — the ActionDock (in GraphExplorer) drives them. */}
+      <AddEntity variant="docked" />
       <InvitePanel />
       <WelcomeToast />
       <OutcomePrompts />
-      <AsksPanel />
+      <AsksPanel variant="docked" />
     </>
   );
 }

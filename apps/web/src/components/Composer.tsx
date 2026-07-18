@@ -30,6 +30,7 @@ import AgentChat, {
 } from "./composer/AgentChat";
 import MentionPopover from "./composer/MentionPopover";
 import JourneysPanel from "./composer/JourneysPanel";
+import PanelShell from "./dock/PanelShell";
 import WeaveFlow from "./composer/WeaveFlow";
 import type { JourneySummary } from "@/lib/journeysClient";
 import type { SourceMode } from "@/lib/dataSource";
@@ -97,7 +98,8 @@ export default function Composer({
   onExplore: (thoughtId: string) => void;
 }) {
   const setTrustSearch = useUI((s) => s.setTrustSearch);
-  const [open, setOpen] = useState(false);
+  const open = useUI((s) => s.rightPanel === "composer");
+  const setRightPanel = useUI((s) => s.setRightPanel);
   const [text, setText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -440,29 +442,17 @@ export default function Composer({
   const showSearch = !agentMode && analysis.intents.some((g) => (g.intent === "search" || g.intent === "question") && g.confidence >= 0.5);
   const showPublish = !agentMode && analysis.primary === "recommendation" && !!target && !!analysis.topics[0];
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        title="Compose — write naturally; the AI agent detects intent and acts (with your confirmation)"
-        className="fixed bottom-[124px] right-6 z-40 flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold backdrop-blur-md shadow-lg"
-        style={{ fontFamily: "var(--font-display)", borderColor: "rgba(255,217,122,0.45)", background: "rgba(255,217,122,0.08)", color: GOLD }}
-      >
-        <PenLine size={14} /> Compose
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
-    <aside className="pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[400px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
-      {/* header */}
-      <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <h2 className="flex items-center gap-2 text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-          <PenLine size={15} style={{ color: GOLD }} /> {editingId ? "Edit note" : "Compose"}
-        </h2>
-        <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--color-faint)]">
+    <PanelShell
+      title={editingId ? "Edit note" : "Compose"}
+      icon={<PenLine size={15} />}
+      onClose={() => setRightPanel(null)}
+      headerExtra={
+        <div className="flex shrink-0 items-center gap-1.5 text-[10.5px] text-[var(--color-faint)]">
           {agentMode ? (
-            <><Sparkles size={11} style={{ color: GOLD }} /> AI agent</>
+            <><Sparkles size={11} style={{ color: "var(--color-accent)" }} /> AI agent</>
           ) : (
             <>Quick mode — agent offline</>
           )}
@@ -471,11 +461,10 @@ export default function Composer({
               <RotateCcw size={11} /> new
             </button>
           )}
-          <button type="button" onClick={() => setOpen(false)} className="ml-2 text-dim hover:text-ink" aria-label="Close">✕</button>
         </div>
-      </div>
-
-      <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto p-4">
+      }
+    >
+      <div className="p-4">
         {/* agent conversation */}
         <AgentChat
           entries={chat}
@@ -699,6 +688,6 @@ export default function Composer({
           )}
         </div>
       </div>
-    </aside>
+    </PanelShell>
   );
 }

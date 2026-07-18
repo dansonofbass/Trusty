@@ -28,7 +28,8 @@ export default function HintBar({
   const showPathStrip = view === "path" && (pathPick.length > 0 || pathNodes);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
+    // bottom-[84px]: clears the ActionDock, which owns the bottom-center band.
+    <div className="pointer-events-none fixed inset-x-0 bottom-[84px] z-30 flex justify-center px-4">
       <div className="flex max-w-3xl flex-col items-center gap-2">
         {focusId && (
           <button

@@ -33,6 +33,7 @@ import { useUI } from "@/lib/store";
 import GraphCanvas, { type CanvasApi } from "./GraphCanvas";
 import TopBar from "./TopBar";
 import TrustSearch from "./TrustSearch";
+import ActionDock from "./ActionDock";
 import LeftRail from "./LeftRail";
 import FeedPanel from "./FeedPanel";
 import Composer from "./Composer";
@@ -717,9 +718,10 @@ export default function GraphExplorer() {
   // Esc walks back: focus → selection → path picks.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
       const s = useUI.getState();
-      if (s.focusId) s.setFocus(null);
+      if (s.rightPanel) s.setRightPanel(null); // dock workspace first
+      else if (s.focusId) s.setFocus(null);
       else if (s.linkPickFrom) {
         s.setLinkPickFrom(null);
         setLinkPickTarget(null);
@@ -913,6 +915,10 @@ export default function GraphExplorer() {
         onRemoveEntityLink={handleRemoveEntityLink}
       />
 
+      {/* ActionDock — the ONE coordinated creation surface (bottom-center):
+          Compose / Add entity / Asks / Invite, mutually-exclusive workspaces. */}
+      <ActionDock />
+
       {/* Unified composer (#29) + private workspace (#31) — the right-side creation
           zone; carries the weave pipeline (the old Write view, merged). */}
       <Composer
@@ -947,8 +953,9 @@ export default function GraphExplorer() {
         />
       )}
 
+      {/* Toast above the ActionDock — the bottom-right corner belongs to the Inspector. */}
       {notice && (
-        <div className="pointer-events-none fixed bottom-20 right-4 z-40 max-w-[300px]">
+        <div className="pointer-events-none fixed bottom-[84px] left-1/2 z-50 max-w-[340px] -translate-x-1/2">
           <div className="panel rise px-3.5 py-2.5 text-[12.5px] text-ink">{notice}</div>
         </div>
       )}

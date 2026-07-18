@@ -7,6 +7,8 @@ import { TRUST_ACCENT, withAlpha } from "@/lib/palette";
 import { answerAsk, askInbox, myAsks, type InboxAsk, type MyAsk } from "@/lib/asksClient";
 import { searchDirectory } from "@/lib/trustClient";
 import { createInvite, inviteUrl } from "@/lib/inviteClient";
+import { useUI } from "@/lib/store";
+import PanelShell from "./dock/PanelShell";
 
 /**
  * Ask-my-network surface. Two halves of the loop:
@@ -16,8 +18,19 @@ import { createInvite, inviteUrl } from "@/lib/inviteClient";
  *    trust search through the friend bridge).
  * The FAB badge nudges friends to answer — that's where the edges come from.
  */
-export default function AsksPanel() {
-  const [open, setOpen] = useState(false);
+export default function AsksPanel({
+  variant = "standalone",
+}: {
+  /** "docked": no FAB, driven by the ActionDock's rightPanel store (desktop).
+   *  "standalone": own FAB + local state (mobile /m — unchanged). */
+  variant?: "standalone" | "docked";
+}) {
+  const docked = variant === "docked";
+  const [localOpen, setLocalOpen] = useState(false);
+  const rightPanel = useUI((s) => s.rightPanel);
+  const setRightPanel = useUI((s) => s.setRightPanel);
+  const open = docked ? rightPanel === "asks" : localOpen;
+  const setOpen = (v: boolean) => (docked ? setRightPanel(v ? "asks" : null) : setLocalOpen(v));
   const [inbox, setInbox] = useState<InboxAsk[]>([]);
   const [mine, setMine] = useState<MyAsk[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,12 +60,45 @@ export default function AsksPanel() {
     if (open) refresh();
   }, [open, refresh]);
 
+  const body = (
+    <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+            {loading && inbox.length === 0 && mine.length === 0 && (
+              <p className="text-sm text-dim">Loading…</p>
+            )}
+
+            <Section title={`Asks for you${inbox.length ? ` · ${inbox.length}` : ""}`}>
+              {inbox.length === 0 ? (
+                <Empty>No open asks from your friends right now.</Empty>
+              ) : (
+                inbox.map((a) => <InboxCard key={a.id} ask={a} onAnswered={refresh} />)
+              )}
+            </Section>
+
+            <Section title="Your asks">
+              {mine.length === 0 ? (
+                <Empty>When a search finds nothing, broadcast it — it&apos;ll show here.</Empty>
+              ) : (
+                mine.map((a) => <MyAskCard key={a.id} ask={a} />)
+              )}
+            </Section>
+    </div>
+  );
+
+  if (docked) {
+    if (!open) return null;
+    return (
+      <PanelShell title="Ask your network" icon={<Megaphone size={15} />} onClose={() => setOpen(false)}>
+        {body}
+      </PanelShell>
+    );
+  }
+
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-[76px] right-6 z-40 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink shadow-lg backdrop-blur-md hover:border-gold/60"
+        onClick={() => setOpen(!open)}
+        className="fixed bottom-[76px] right-6 z-40 flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink shadow-lg backdrop-blur-md hover:border-[var(--color-accent-line)]"
         style={{ fontFamily: "var(--font-display)", borderColor: open ? withAlpha(TRUST_ACCENT, 0.6) : undefined }}
       >
         <Megaphone size={15} /> Asks
@@ -76,28 +122,7 @@ export default function AsksPanel() {
               ✕
             </button>
           </div>
-
-          <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-            {loading && inbox.length === 0 && mine.length === 0 && (
-              <p className="text-sm text-dim">Loading…</p>
-            )}
-
-            <Section title={`Asks for you${inbox.length ? ` · ${inbox.length}` : ""}`}>
-              {inbox.length === 0 ? (
-                <Empty>No open asks from your friends right now.</Empty>
-              ) : (
-                inbox.map((a) => <InboxCard key={a.id} ask={a} onAnswered={refresh} />)
-              )}
-            </Section>
-
-            <Section title="Your asks">
-              {mine.length === 0 ? (
-                <Empty>When a search finds nothing, broadcast it — it&apos;ll show here.</Empty>
-              ) : (
-                mine.map((a) => <MyAskCard key={a.id} ask={a} />)
-              )}
-            </Section>
-          </div>
+          {body}
         </aside>
       )}
     </>

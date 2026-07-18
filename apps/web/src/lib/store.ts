@@ -13,6 +13,9 @@ export interface TrustSearchState {
 
 export type ViewId = "universe" | "circles" | "discover" | "path";
 
+/** The mutually-exclusive right-side workspaces, driven by the ActionDock. */
+export type RightPanelId = "composer" | "asks" | "addEntity" | "invite";
+
 /** A paid, ephemeral peek into a region centered on `center`. Session-only. */
 export interface Peek {
   center: string;
@@ -50,7 +53,7 @@ interface UIState {
   trustSearch: TrustSearchState | null; // active trust-search results (graph overlay)
   trustFocusId: string | null; // result the user is hovering/inspecting → camera target
   graphNonce: number; // bump to force GraphExplorer to reload the dataset
-  inviteOpen: boolean; // controls the InvitePanel (onboarding can open it)
+  rightPanel: RightPanelId | null; // ONE right workspace at a time (ActionDock)
   placeModalId: string | null; // restaurant/cafe id shown in the full-screen detail modal
   searchOpen: boolean; // unified top search (entities + trust) — ⌘K / click
 
@@ -72,7 +75,8 @@ interface UIState {
   setTrustSearch: (t: TrustSearchState | null) => void;
   setTrustFocus: (id: string | null) => void;
   bumpGraph: () => void;
-  setInviteOpen: (v: boolean) => void;
+  setRightPanel: (p: RightPanelId | null) => void;
+  toggleRightPanel: (p: RightPanelId) => void;
   setSearchOpen: (v: boolean) => void;
   openPlace: (id: string) => void;
   closePlace: () => void;
@@ -93,7 +97,7 @@ export const useUI = create<UIState>((set) => ({
   trustSearch: null,
   trustFocusId: null,
   graphNonce: 0,
-  inviteOpen: false,
+  rightPanel: null,
   placeModalId: null,
   searchOpen: false,
 
@@ -136,7 +140,8 @@ export const useUI = create<UIState>((set) => ({
   setTrustSearch: (trustSearch) => set({ trustSearch, trustFocusId: null }),
   setTrustFocus: (trustFocusId) => set({ trustFocusId }),
   bumpGraph: () => set((s) => ({ graphNonce: s.graphNonce + 1 })),
-  setInviteOpen: (inviteOpen) => set({ inviteOpen }),
+  setRightPanel: (rightPanel) => set({ rightPanel }),
+  toggleRightPanel: (p) => set((s) => ({ rightPanel: s.rightPanel === p ? null : p })),
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   openPlace: (id) => set({ placeModalId: id }),
   closePlace: () => set({ placeModalId: null }),
@@ -152,5 +157,6 @@ export const useUI = create<UIState>((set) => ({
       peeks: [],
       trustSearch: null,
       trustFocusId: null,
+      rightPanel: null,
     }),
 }));

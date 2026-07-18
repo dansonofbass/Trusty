@@ -9,16 +9,27 @@ import {
 } from "@constellation/graph-core";
 import { useUI } from "@/lib/store";
 import { createEntity } from "@/lib/ontologyClient";
-
-const MINT = "#9af0c8";
+import { Plus } from "lucide-react";
+import PanelShell from "./dock/PanelShell";
 
 /**
  * Add an ontology entity (provider / place / property) with all its typed
  * properties — the form is generated from the entity type's schema, so a home
  * gets bedrooms/price/area and a restaurant gets cuisine/price range, etc.
  */
-export default function AddEntity() {
-  const [open, setOpen] = useState(false);
+export default function AddEntity({
+  variant = "standalone",
+}: {
+  /** "docked": no FAB, driven by the ActionDock (desktop). "standalone": own
+   *  FAB + local state (MobileGraph — unchanged). */
+  variant?: "standalone" | "docked";
+}) {
+  const docked = variant === "docked";
+  const [localOpen, setLocalOpen] = useState(false);
+  const rightPanel = useUI((s) => s.rightPanel);
+  const setRightPanel = useUI((s) => s.setRightPanel);
+  const open = docked ? rightPanel === "addEntity" : localOpen;
+  const setOpen = (v: boolean) => (docked ? setRightPanel(v ? "addEntity" : null) : setLocalOpen(v));
   const [typeId, setTypeId] = useState("");
   const [label, setLabel] = useState("");
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -69,29 +80,8 @@ export default function AddEntity() {
     }
   }
 
-  return (
-    <>
-      {/* Right side is the CREATION zone — this affordance grows into the
-          Unified AI Composer (#29) + Personal Knowledge Workspace (#31). */}
-      <button
-        type="button"
-        onClick={() => (open ? close() : setOpen(true))}
-        className="fixed bottom-[76px] right-6 z-40 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink backdrop-blur-md shadow-lg hover:border-gold/60"
-        style={{ fontFamily: "var(--font-display)", borderColor: open ? "rgba(154,240,200,0.6)" : undefined }}
-      >
-        ＋ Add entity
-      </button>
-
-      {open && (
-        <aside className="pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-              {def ? `New ${def.label}` : "Add a provider or place"}
-            </h2>
-            <button type="button" onClick={close} className="text-dim hover:text-ink">✕</button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+  const body = (
+    <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
             {!def ? (
               // Step 1 — pick the entity type (grouped by domain).
               <div className="space-y-4">
@@ -135,24 +125,60 @@ export default function AddEntity() {
                 {err && <p className="text-sm text-rose-300">{err}</p>}
               </div>
             )}
-          </div>
+    </div>
+  );
 
-          {def && (
-            <div className="border-t border-line px-4 py-3">
-              <button
-                type="button"
-                disabled={!label.trim() || saving}
-                onClick={() => void create()}
-                className="w-full rounded-lg px-4 py-2 text-sm font-semibold text-space disabled:opacity-50"
-                style={{ background: MINT }}
-              >
-                {saving ? "Adding…" : `Add ${def.label}`}
-              </button>
-              <p className="mt-2 text-center text-[11px] text-faint">
-                Then trust it (Inspector → ✦ Trust) so it shows in trust search.
-              </p>
-            </div>
-          )}
+  const footer = def ? (
+    <div>
+      <button
+        type="button"
+        disabled={!label.trim() || saving}
+        onClick={() => void create()}
+        className="btn-accent w-full"
+      >
+        {saving ? "Adding…" : `Add ${def.label}`}
+      </button>
+      <p className="mt-2 text-center text-[11px] text-faint">
+        Then recommend it (Inspector → Recommend) so it shows in trust search.
+      </p>
+    </div>
+  ) : undefined;
+
+  if (docked) {
+    if (!open) return null;
+    return (
+      <PanelShell
+        title={def ? `New ${def.label}` : "Add a provider or place"}
+        icon={<Plus size={15} />}
+        onClose={close}
+        footer={footer}
+      >
+        {body}
+      </PanelShell>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => (open ? close() : setOpen(true))}
+        className="fixed bottom-[76px] right-6 z-40 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink backdrop-blur-md shadow-lg hover:border-[var(--color-accent-line)]"
+        style={{ fontFamily: "var(--font-display)", borderColor: open ? "rgba(154,240,200,0.6)" : undefined }}
+      >
+        ＋ Add entity
+      </button>
+
+      {open && (
+        <aside className="pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <h2 className="text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
+              {def ? `New ${def.label}` : "Add a provider or place"}
+            </h2>
+            <button type="button" onClick={close} className="text-dim hover:text-ink">✕</button>
+          </div>
+          {body}
+          {footer && <div className="border-t border-line px-4 py-3">{footer}</div>}
         </aside>
       )}
     </>

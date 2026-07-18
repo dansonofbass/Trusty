@@ -7,15 +7,39 @@
 /* ------------------------------------------------------------------ */
 
 @theme {
-  --color-space: #070b18;
+  /* deep-blue surface scale (brand: deep blue with a bit of orange) */
+  --color-space: #081022;
   --color-nebula: #0d1430;
-  --color-surface: rgba(13, 19, 40, 0.72);
+  --color-surface: rgba(13, 19, 40, 0.72); /* glass panels */
+  --color-card: #101a38; /* opaque card-on-card */
+  --color-card-2: #16214a; /* nested tile */
   --color-line: rgba(146, 166, 255, 0.14);
+  --color-line-strong: rgba(146, 166, 255, 0.35);
+  --color-tint-soft: rgba(146, 166, 255, 0.05);
+  --color-tint: rgba(146, 166, 255, 0.08);
+  --color-tint-strong: rgba(146, 166, 255, 0.16);
   --color-ink: #e9edff;
   --color-dim: #8e97bd;
   --color-faint: #5a6388;
-  --color-gold: #ffd97a;
+
+  /* brand accent — orange. ALL primary actions, wallet, highlights. */
+  --color-accent: #ff8c5a;
+  --color-accent-hi: #ffa478;
+  --color-accent-soft: rgba(255, 140, 90, 0.12);
+  --color-accent-line: rgba(255, 140, 90, 0.4);
+  --color-on-accent: #221008;
+
+  /* supporting hues */
+  --color-info: #3fc6f4; /* listen / search */
+  --color-info-soft: rgba(63, 198, 244, 0.08);
+  --color-mint: #9af0c8; /* knowledge layer */
+  --color-mint-soft: rgba(154, 240, 200, 0.08);
+  --color-danger: #ff9a90;
   --color-me: #ffffff;
+
+  /* DEPRECATED compat alias — gold was retired; every `gold` utility now
+     renders the brand accent. Use accent tokens in new code. */
+  --color-gold: #ff8c5a;
 
   --font-display: "Syne", "Vazirmatn", sans-serif;
   --font-body: "Spline Sans", "Vazirmatn", ui-sans-serif, sans-serif;
@@ -93,7 +117,7 @@ body {
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--color-line);
-  background: rgba(146, 166, 255, 0.06);
+  background: var(--color-tint-soft);
   font-size: 12px;
   color: var(--color-ink);
   cursor: pointer;
@@ -103,8 +127,8 @@ body {
     transform 0.15s ease;
 }
 .chip:hover {
-  background: rgba(146, 166, 255, 0.14);
-  border-color: rgba(146, 166, 255, 0.35);
+  background: var(--color-tint);
+  border-color: var(--color-line-strong);
   transform: translateY(-1px);
 }
 
@@ -115,7 +139,7 @@ body {
   padding: 7px 13px;
   border-radius: 12px;
   border: 1px solid var(--color-line);
-  background: rgba(146, 166, 255, 0.08);
+  background: var(--color-tint);
   font-size: 12.5px;
   font-weight: 500;
   color: var(--color-ink);
@@ -125,17 +149,115 @@ body {
     border-color 0.15s ease;
 }
 .btn:hover {
-  background: rgba(146, 166, 255, 0.16);
-  border-color: rgba(146, 166, 255, 0.35);
+  background: var(--color-tint-strong);
+  border-color: var(--color-line-strong);
 }
+/* Soft accent button — bordered orange tint (secondary emphasis). The old
+   .btn-gold, re-pointed at the brand accent. */
 .btn-gold {
-  background: rgba(255, 217, 122, 0.12);
-  border-color: rgba(255, 217, 122, 0.35);
-  color: var(--color-gold);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent);
 }
 .btn-gold:hover {
-  background: rgba(255, 217, 122, 0.2);
-  border-color: rgba(255, 217, 122, 0.6);
+  background: rgba(255, 140, 90, 0.2);
+  border-color: var(--color-accent);
+}
+
+/* Primary action — chunky, solid accent, dark text. ONE per surface. */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(255, 140, 90, 0.25);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.btn-accent:hover {
+  background: var(--color-accent-hi);
+}
+.btn-accent:active {
+  transform: translateY(1px);
+}
+.btn-accent:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Opaque card-on-card surface (large-radius stacked cards). */
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: 20px;
+  padding: 14px;
+}
+
+/* 2-col stat tile: mono label above bold display value. */
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--color-tint-soft);
+  border: 1px solid var(--color-line);
+}
+.stat-tile .stat-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+.stat-tile .stat-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+/* Icon-in-circle (secondary action rows + the ActionDock). */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-tint);
+  color: var(--color-dim);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.icon-btn:hover {
+  background: var(--color-tint-strong);
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+.icon-btn[data-active="true"] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent);
+}
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* View tabs */
@@ -157,7 +279,7 @@ body {
 }
 .tab[data-active="true"] {
   color: var(--color-ink);
-  background: rgba(146, 166, 255, 0.12);
+  background: var(--color-tint);
   border-color: rgba(146, 166, 255, 0.28);
   box-shadow: inset 0 1px 0 rgba(190, 205, 255, 0.1);
 }
@@ -202,11 +324,11 @@ body {
 }
 
 ::selection {
-  background: rgba(255, 217, 122, 0.3);
+  background: rgba(255, 140, 90, 0.3);
 }
 
 :focus-visible {
-  outline: 2px solid rgba(255, 217, 122, 0.7);
+  outline: 2px solid rgba(255, 140, 90, 0.7);
   outline-offset: 2px;
   border-radius: 6px;
 }

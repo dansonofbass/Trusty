@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Brand from "@/components/Brand";
 
 /**
  * Public invite landing page (logged-out visitors welcome — excluded from the
@@ -47,7 +48,7 @@ export default async function InvitePage({
 
       <section className="relative z-10 w-full max-w-md">
         <div className="rounded-3xl border border-line bg-[rgba(14,16,30,0.72)] p-7 shadow-2xl backdrop-blur-xl sm:p-9">
-          <Wordmark />
+          <Brand size={26} />
 
           {inviter ? (
             <>
@@ -148,25 +149,6 @@ function Perk({ emoji, children }: { emoji: string; children: React.ReactNode })
   );
 }
 
-function Wordmark() {
-  return (
-    <div className="flex items-center gap-2.5">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path d="M4 17 L10 7 L15 13 L20 5" stroke="rgba(146,166,255,0.55)" strokeWidth="1" />
-        <circle cx="4" cy="17" r="2" fill="#7c96ff" />
-        <circle cx="10" cy="7" r="1.6" fill="#e25cff" />
-        <circle cx="15" cy="13" r="1.6" fill="#2ee6ca" />
-        <circle cx="20" cy="5" r="2.2" fill="#ffd97a" />
-      </svg>
-      <span
-        className="text-[13px] font-bold tracking-[0.28em] text-ink"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        TRUSTY
-      </span>
-    </div>
-  );
-}
 
 /** Cheap decorative starfield — pure CSS radial-gradient dots, no JS. */
 function Starfield() {
