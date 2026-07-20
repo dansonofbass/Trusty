@@ -294,6 +294,54 @@ export const TRUST_LABEL_TEXT: Record<SpecialistTrustLabel, string> = {
   highly_reliable: "Highly reliable",
 };
 
+/* ------------------------ claim-specific verification -------------- */
+
+/** Verification is CLAIM-SPECIFIC (#39): each badge states exactly what was
+ *  checked. There is deliberately no single generic "verified" badge. */
+export type SpecialistVerificationType =
+  | "identity"
+  | "professional_email"
+  | "organization_affiliation"
+  | "license"
+  | "office_location"
+  | "website_ownership"
+  | "phone"
+  | "credential";
+
+export const VERIFICATION_TEXT: Record<SpecialistVerificationType, { label: string; means: string }> = {
+  identity: { label: "Identity verified", means: "The person managing this profile proved who they are." },
+  professional_email: { label: "Professional email verified", means: "Control of the listed professional email address was confirmed." },
+  organization_affiliation: { label: "Organization verified", means: "Affiliation with the listed organization was confirmed." },
+  license: { label: "License verified", means: "The stated license was checked against its issuing authority at the verification date." },
+  office_location: { label: "Office location verified", means: "The listed office address was confirmed." },
+  website_ownership: { label: "Website verified", means: "Control of the listed website was confirmed." },
+  phone: { label: "Phone verified", means: "The listed professional phone number was confirmed." },
+  credential: { label: "Credential verified", means: "The stated credential was checked with its source at the verification date." },
+};
+
+export const SPECIALIST_VERIFICATION_TYPES = Object.keys(VERIFICATION_TEXT) as SpecialistVerificationType[];
+
+export interface SpecialistVerification {
+  type: SpecialistVerificationType;
+  /** What exactly was checked (license no., email address, …). */
+  what: string;
+  source: string;
+  verifiedAt: string;
+  expiresAt: string | null;
+  status: "active" | "expired" | "revoked" | "uncertain";
+}
+
+/** Expired verification must never display as current (#39). Effective
+ *  status is computed at read time — no cron required. */
+export function effectiveVerificationStatus(
+  v: Pick<SpecialistVerification, "status" | "expiresAt">,
+  nowMs: number,
+): SpecialistVerification["status"] {
+  if (v.status !== "active") return v.status;
+  if (v.expiresAt && Date.parse(v.expiresAt) < nowMs) return "expired";
+  return "active";
+}
+
 /* ------------------------- domain taxonomies ----------------------- */
 
 /** Per-profession service/context vocabularies (#39). These seed the profile

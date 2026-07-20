@@ -35,6 +35,9 @@ export default function SpecialistsAdminPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [vForm, setVForm] = useState({ type: "license", what: "", source: "", expiresAt: "" });
+  const [vDone, setVDone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -49,6 +52,30 @@ export default function SpecialistsAdminPage() {
     }
   }, [tab]);
   useEffect(() => { void load(); }, [load]);
+
+  const grantVerification = async (nodeId: string) => {
+    setBusy(nodeId);
+    try {
+      const r = await fetch(`/api/admin/specialists/${encodeURIComponent(nodeId)}/verifications`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: vForm.type,
+          what: vForm.what,
+          source: vForm.source,
+          expiresAt: vForm.expiresAt || undefined,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `verification failed (${r.status})`);
+      setVDone(nodeId);
+      setVerifying(null);
+      setVForm({ type: "license", what: "", source: "", expiresAt: "" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const review = async (id: string, approve: boolean, rejectReason?: string) => {
     setBusy(id);
@@ -123,6 +150,21 @@ export default function SpecialistsAdminPage() {
                     {c.reason && <> · “{c.reason}”</>}
                   </div>
                 </div>
+                {tab === "approved" && (
+                  <div className="flex shrink-0 items-center gap-2">
+                    {vDone === c.nodeId && <span className="flex items-center gap-1 text-[11.5px] text-emerald-400"><Check size={12} /> granted</span>}
+                    <a href={`/s/${encodeURIComponent(c.nodeId)}`} target="_blank" rel="noreferrer"
+                      className="rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink">
+                      Profile
+                    </a>
+                    <button
+                      onClick={() => setVerifying(verifying === c.nodeId ? null : c.nodeId)}
+                      className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink"
+                    >
+                      <BadgeCheck size={13} /> Verify…
+                    </button>
+                  </div>
+                )}
                 {tab === "pending" && (
                   <div className="flex shrink-0 items-center gap-2">
                     <button
@@ -161,6 +203,50 @@ export default function SpecialistsAdminPage() {
                 <p className="mt-2 flex gap-1.5 rounded-lg bg-[var(--color-tint)] px-3 py-2 text-[12.5px] italic text-dim">
                   <MessageSquareQuote size={13} className="mt-0.5 shrink-0 text-faint" /> {c.evidence.statement}
                 </p>
+              )}
+
+              {verifying === c.nodeId && (
+                <div className="mt-3 space-y-2 rounded-xl border border-line p-3">
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={vForm.type}
+                      onChange={(e) => setVForm((f) => ({ ...f, type: e.target.value }))}
+                      className="rounded-lg border border-line bg-transparent px-2 py-1.5 text-[12.5px] text-ink outline-none"
+                    >
+                      {["license", "identity", "professional_email", "organization_affiliation", "office_location", "website_ownership", "phone", "credential"].map((t) => (
+                        <option key={t} value={t} className="bg-[#111827]">{t.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={vForm.expiresAt}
+                      onChange={(e) => setVForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                      placeholder="Expires (YYYY-MM-DD, optional)"
+                      className="w-52 rounded-lg border border-line bg-transparent px-3 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
+                    />
+                  </div>
+                  <input
+                    value={vForm.what}
+                    onChange={(e) => setVForm((f) => ({ ...f, what: e.target.value }))}
+                    placeholder="Exactly what was checked (e.g. license AM-4471 active)"
+                    className="w-full rounded-lg border border-line bg-transparent px-3 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={vForm.source}
+                      onChange={(e) => setVForm((f) => ({ ...f, source: e.target.value }))}
+                      placeholder="Source (e.g. RA Chamber of Advocates registry)"
+                      className="min-w-0 flex-1 rounded-lg border border-line bg-transparent px-3 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
+                    />
+                    <button
+                      disabled={busy === c.nodeId || !vForm.what.trim() || !vForm.source.trim()}
+                      onClick={() => void grantVerification(c.nodeId)}
+                      className="rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-space disabled:opacity-50"
+                      style={{ background: "var(--color-accent)" }}
+                    >
+                      Grant
+                    </button>
+                  </div>
+                </div>
               )}
 
               {rejecting === c.id && (

@@ -19,8 +19,10 @@ import {
   invalidProviderField,
   applyProviderPatch,
   validateClaimEvidence,
+  effectiveVerificationStatus,
   MANAGER_PERMISSIONS,
   SPECIALIST_MANAGER_ROLES,
+  SPECIALIST_VERIFICATION_TYPES,
   type SpecialistClaimEvidence,
   type SpecialistEventKind,
   type SpecialistLayerName,
@@ -28,6 +30,8 @@ import {
   type SpecialistManagerRole,
   type SpecialistPermissions,
   type SpecialistState,
+  type SpecialistVerification,
+  type SpecialistVerificationType,
 } from "@constellation/graph-core";
 
 const DATABASE_URL = process.env.DATABASE_URL?.trim();
@@ -84,6 +88,19 @@ export async function initSpecialists(): Promise<void> {
     )`);
   await p.query(`CREATE INDEX IF NOT EXISTS specialist_claims_idx ON specialist_claims(status, created_at DESC)`);
   await p.query(`CREATE INDEX IF NOT EXISTS specialist_claims_node_idx ON specialist_claims(node_id, user_id)`);
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS specialist_verifications (
+      id          BIGSERIAL PRIMARY KEY,
+      node_id     TEXT NOT NULL,
+      type        TEXT NOT NULL,
+      what        TEXT NOT NULL,               -- exactly what was checked
+      source      TEXT NOT NULL,               -- who/what confirmed it
+      verified_by TEXT NOT NULL,               -- admin user id
+      verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at  TIMESTAMPTZ,
+      status      TEXT NOT NULL DEFAULT 'active'  -- active | revoked | uncertain (expired computed on read)
+    )`);
+  await p.query(`CREATE INDEX IF NOT EXISTS specialist_verifications_idx ON specialist_verifications(node_id, verified_at DESC)`);
   pool = p;
   console.log("graph-service: specialists ready (postgres)");
 }
@@ -419,6 +436,98 @@ export async function removeManager(
   }
   await pool.query(`DELETE FROM specialist_managers WHERE node_id = $1 AND user_id = $2`, [nodeId, targetUserId]);
   await appendEvent(pool, nodeId, actorId, "manager_removed", { userId: targetUserId });
+  return { ok: true };
+}
+
+/* ---------------------------- verifications ------------------------ */
+
+export interface VerificationRow extends SpecialistVerification {
+  id: string;
+  verifiedBy: string;
+}
+
+/** Public list — expired computed at read so it never displays as current. */
+export async function listVerifications(nodeId: string): Promise<VerificationRow[]> {
+  if (!pool) return [];
+  const r = await pool.query(
+    `SELECT * FROM specialist_verifications WHERE node_id = $1 ORDER BY verified_at DESC`,
+    [nodeId],
+  );
+  const now = Date.now();
+  return r.rows.map((row) => {
+    const base: VerificationRow = {
+      id: String(row.id),
+      type: row.type as SpecialistVerificationType,
+      what: String(row.what),
+      source: String(row.source),
+      verifiedBy: String(row.verified_by),
+      verifiedAt: new Date(row.verified_at).toISOString(),
+      expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+      status: row.status,
+    };
+    return { ...base, status: effectiveVerificationStatus(base, now) };
+  });
+}
+
+export async function addVerification(
+  nodeId: string,
+  adminId: string,
+  input: { type: string; what: string; source: string; expiresAt?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!pool) return { ok: false, error: "specialists disabled" };
+  if (!(SPECIALIST_VERIFICATION_TYPES as string[]).includes(input.type)) {
+    return { ok: false, error: `unknown verification type: ${input.type}` };
+  }
+  if (!input.what.trim() || !input.source.trim()) return { ok: false, error: "what and source required" };
+  const expires = input.expiresAt ? new Date(input.expiresAt) : null;
+  if (expires && Number.isNaN(expires.getTime())) return { ok: false, error: "invalid expiresAt" };
+
+  const { state } = await ensureSpecialist(nodeId);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO specialist_verifications (node_id, type, what, source, verified_by, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [nodeId, input.type, input.what.trim(), input.source.trim(), adminId, expires],
+    );
+    await appendEvent(client, nodeId, adminId, "verification_added", {
+      type: input.type, what: input.what.trim(), source: input.source.trim(),
+    });
+    // Verification lifts a claimed profile to verified; unclaimed profiles keep
+    // their state (a registry check doesn't imply management authority).
+    if (state === "claimed") await setState(client, nodeId, "verified");
+    await client.query("COMMIT");
+    return { ok: true };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function revokeVerification(
+  nodeId: string,
+  verificationId: string,
+  adminId: string,
+  reason?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!pool) return { ok: false, error: "specialists disabled" };
+  const r = await pool.query(
+    `UPDATE specialist_verifications SET status = 'revoked' WHERE id = $1 AND node_id = $2 RETURNING type`,
+    [verificationId, nodeId],
+  );
+  if (!r.rowCount) return { ok: false, error: "verification not found" };
+  await appendEvent(pool, nodeId, adminId, "verification_expired", {
+    verificationId, revoked: true, reason: reason ?? null,
+  });
+  // If nothing active remains, drop verified → claimed.
+  const active = (await listVerifications(nodeId)).some((v) => v.status === "active");
+  if (!active) {
+    const cur = await pool.query(`SELECT state FROM specialist_profiles WHERE node_id = $1`, [nodeId]);
+    if (cur.rows[0]?.state === "verified") await setState(pool, nodeId, "claimed");
+  }
   return { ok: true };
 }
 

@@ -232,11 +232,14 @@ import {
 } from "./interactionLog";
 import {
   addManager,
+  addVerification,
   getSpecialist,
   initSpecialists,
   listClaims,
+  listVerifications,
   removeManager,
   reviewClaim,
+  revokeVerification,
   specialistStates,
   specialistsEnabled,
   specialistTimeline,
@@ -2465,6 +2468,51 @@ app.post("/api/specialists/states", async (req, res) => {
     : [];
   try {
     res.json({ states: await specialistStates(ids) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Public verification badges (expired computed at read, never shown current). */
+app.get("/api/specialists/:nodeId/verifications", async (req, res) => {
+  auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  try {
+    res.json({ verifications: await listVerifications(String(req.params.nodeId)) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: grant a claim-specific verification. */
+app.post("/api/admin/specialists/:nodeId/verifications", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const b = req.body ?? {};
+  try {
+    const r = await addVerification(String(req.params.nodeId), userId, {
+      type: String(b.type ?? ""),
+      what: str(b.what, 300) ?? "",
+      source: str(b.source, 300) ?? "",
+      expiresAt: str(b.expiresAt, 40),
+    });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: revoke a verification (e.g. a license lapsed). */
+app.delete("/api/admin/specialists/:nodeId/verifications/:vid", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  try {
+    const r = await revokeVerification(String(req.params.nodeId), String(req.params.vid), userId, str(req.query.reason as unknown, 300));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
   }

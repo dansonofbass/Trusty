@@ -44,6 +44,27 @@ interface ProfileView {
   };
 }
 
+interface Verification {
+  id: string;
+  type: string;
+  what: string;
+  source: string;
+  verifiedAt: string;
+  expiresAt: string | null;
+  status: "active" | "expired" | "revoked" | "uncertain";
+}
+
+const VERIFICATION_LABEL: Record<string, string> = {
+  identity: "Identity verified",
+  professional_email: "Professional email verified",
+  organization_affiliation: "Organization verified",
+  license: "License verified",
+  office_location: "Office location verified",
+  website_ownership: "Website verified",
+  phone: "Phone verified",
+  credential: "Credential verified",
+};
+
 interface Rec {
   id: string;
   author: { id: string; name?: string };
@@ -69,6 +90,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
   const { id } = use(params);
   const [view, setView] = useState<ProfileView | null>(null);
   const [recs, setRecs] = useState<Rec[]>([]);
+  const [verifications, setVerifications] = useState<Verification[]>([]);
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [intentSent, setIntentSent] = useState(false);
@@ -85,8 +107,12 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
         setView(v);
         setStatus("ok");
         logImpressions([v.nodeId]); // funnel: profile viewed
-        const rr = await fetch(`/api/recs?target=${encodeURIComponent(id)}`, { cache: "no-store" });
+        const [rr, vr] = await Promise.all([
+          fetch(`/api/recs?target=${encodeURIComponent(id)}`, { cache: "no-store" }),
+          fetch(`/api/specialists/${encodeURIComponent(id)}/verifications`, { cache: "no-store" }),
+        ]);
         if (rr.ok && alive) setRecs(((await rr.json()) as { recommendations: Rec[] }).recommendations);
+        if (vr.ok && alive) setVerifications(((await vr.json()) as { verifications: Verification[] }).verifications);
       } catch (e) {
         if (!alive) return;
         setError(e instanceof Error ? e.message : String(e));
@@ -322,15 +348,48 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
         ))}
       </section>
 
-      {/* ---------------- credentials (Phase 5 placeholder shows honesty) -------- */}
+      {/* ---------------- credentials & verification -------- */}
       <section className="panel mt-4 rounded-2xl p-5">
-        <h2 className="text-[13px] font-extrabold uppercase tracking-wide text-faint">Credentials</h2>
-        <p className="mt-2 flex items-start gap-2 text-[13px] text-dim">
-          <Landmark size={14} className="mt-0.5 shrink-0 text-faint" />
-          {view.state === "verified"
-            ? "Specific credentials on this profile have been verified — each badge states exactly what was checked."
-            : "No credentials have been independently verified yet. Verification confirms specific claims (license, email, location) — it never implies service quality."}
-        </p>
+        <h2 className="text-[13px] font-extrabold uppercase tracking-wide text-faint">Credentials &amp; verification</h2>
+        {verifications.length === 0 ? (
+          <p className="mt-2 flex items-start gap-2 text-[13px] text-dim">
+            <Landmark size={14} className="mt-0.5 shrink-0 text-faint" />
+            No credentials have been independently verified yet. Verification confirms specific
+            claims (license, email, location) — it never implies service quality.
+          </p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {verifications.map((v) => {
+              const active = v.status === "active";
+              return (
+                <div key={v.id} className="flex items-start gap-2.5 rounded-xl border border-line p-3">
+                  <BadgeCheck size={15} className="mt-0.5 shrink-0" style={{ color: active ? "var(--color-accent)" : "var(--color-faint)" }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`text-[13px] font-semibold ${active ? "text-ink" : "text-faint line-through"}`}>
+                        {VERIFICATION_LABEL[v.type] ?? v.type}
+                      </span>
+                      {!active && (
+                        <span className="rounded-full bg-[var(--color-tint)] px-2 py-0.5 text-[10px] font-bold uppercase text-faint">
+                          {v.status}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[12px] text-dim">{v.what}</div>
+                    <div className="mt-0.5 text-[11px] text-faint">
+                      {v.source} · verified {new Date(v.verifiedAt).toLocaleDateString()}
+                      {v.expiresAt && <> · {active ? "expires" : "expired"} {new Date(v.expiresAt).toLocaleDateString()}</>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-[11px] text-faint">
+              Each badge states exactly what was checked and when. Verification never implies
+              service quality or trust.
+            </p>
+          </div>
+        )}
       </section>
 
       <footer className="mt-6 flex items-center justify-center gap-2 text-[11px] text-faint">
