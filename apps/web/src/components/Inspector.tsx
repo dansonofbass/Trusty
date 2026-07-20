@@ -582,7 +582,7 @@ export default function Inspector({
                 entity types; self-gates on profile state. */}
             {!node.isMe && (
               <div className="flex justify-center pt-1">
-                <ClaimProfileButton nodeId={node.id} nodeType={node.entityType ?? node.type} label={node.label} />
+                <ClaimProfileButton nodeId={node.id} nodeType={node.entityType ?? node.type} label={node.label} showProfileLink />
               </div>
             )}
 

@@ -9,7 +9,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { BadgeCheck, Loader2, X } from "lucide-react";
+import Link from "next/link";
+import { BadgeCheck, Loader2, X, ExternalLink } from "lucide-react";
 
 const SPECIALIST_TYPES = new Set([
   "lawyer", "broker", "immigration_consultant", "accountant", "doctor",
@@ -22,10 +23,13 @@ interface ProfileView {
   pendingClaim: boolean;
 }
 
-export default function ClaimProfileButton({ nodeId, nodeType, label }: {
+export default function ClaimProfileButton({ nodeId, nodeType, label, showProfileLink }: {
   nodeId: string;
   nodeType?: string;
   label: string;
+  /** Also render a "Full profile →" link to /s/[id] (used in Inspector/NodeSheet,
+   *  not on the profile page itself). */
+  showProfileLink?: boolean;
 }) {
   const [view, setView] = useState<ProfileView | null>(null);
   const [open, setOpen] = useState(false);
@@ -72,17 +76,32 @@ export default function ClaimProfileButton({ nodeId, nodeType, label }: {
 
   if (!qualifies || !view) return null;
 
+  const profileLink = showProfileLink ? (
+    <Link
+      href={`/s/${encodeURIComponent(nodeId)}`}
+      className="flex items-center gap-1 text-[11.5px] font-semibold text-[var(--color-accent)] hover:underline"
+    >
+      Full profile <ExternalLink size={10} />
+    </Link>
+  ) : null;
+
   if (view.isManager) {
     return (
-      <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--color-accent)]">
-        <BadgeCheck size={13} /> You manage this profile
+      <div className="flex flex-col items-center gap-1.5">
+        {profileLink}
+        <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--color-accent)]">
+          <BadgeCheck size={13} /> You manage this profile
+        </div>
       </div>
     );
   }
   if (view.pendingClaim) {
     return (
-      <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--color-faint)]">
-        <Loader2 size={12} className="animate-spin" /> Claim pending review
+      <div className="flex flex-col items-center gap-1.5">
+        {profileLink}
+        <div className="flex items-center gap-1.5 text-[11.5px] text-[var(--color-faint)]">
+          <Loader2 size={12} className="animate-spin" /> Claim pending review
+        </div>
       </div>
     );
   }
@@ -98,13 +117,16 @@ export default function ClaimProfileButton({ nodeId, nodeType, label }: {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-[11.5px] text-[var(--color-faint)] underline decoration-dotted underline-offset-2 hover:text-ink"
-      >
-        Is this your professional profile? Claim it
-      </button>
+      <div className="flex flex-col items-center gap-1.5">
+        {profileLink}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-[11.5px] text-[var(--color-faint)] underline decoration-dotted underline-offset-2 hover:text-ink"
+        >
+          Is this your professional profile? Claim it
+        </button>
+      </div>
       {open && typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" onClick={() => !busy && setOpen(false)}>

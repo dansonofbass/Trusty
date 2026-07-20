@@ -194,7 +194,7 @@ export default function NodeSheet({
                 )}
                 {!isMe && (
                   <div className="mt-3 flex justify-center">
-                    <ClaimProfileButton nodeId={node.id} nodeType={node.entityType ?? node.type} label={node.label} />
+                    <ClaimProfileButton nodeId={node.id} nodeType={node.entityType ?? node.type} label={node.label} showProfileLink />
                   </div>
                 )}
               </>
