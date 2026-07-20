@@ -234,6 +234,9 @@ import {
   addManager,
   addVerification,
   getSpecialist,
+  getSubscription,
+  setSubscription,
+  visibilityStats,
   initSpecialists,
   listClaims,
   listVerifications,
@@ -2513,6 +2516,99 @@ app.delete("/api/admin/specialists/:nodeId/verifications/:vid", async (req, res)
     const r = await revokeVerification(String(req.params.nodeId), String(req.params.vid), userId, str(req.query.reason as unknown, 300));
     if (!r.ok) return res.status(400).json({ error: r.error });
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Subscription status — managers only. Trust code never reads this. */
+app.get("/api/specialists/:nodeId/subscription", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.isManager && !isAdminReq(req)) return res.status(403).json({ error: "managers only" });
+    res.json(await getSubscription(nodeId));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: grant/change a subscription (ADMIN_GRANTED / PILOT_ACCESS path —
+ *  the billing provider plugs in behind this later). */
+app.post("/api/admin/specialists/:nodeId/subscription", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const b = req.body ?? {};
+  try {
+    const r = await setSubscription(String(req.params.nodeId), userId, {
+      plan: String(b.plan ?? "professional"),
+      state: String(b.state ?? "admin_granted"),
+      endsAt: str(b.endsAt, 40),
+    });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Decision & Trust Intelligence (#40) — entitlement-gated, k-anonymized.
+ *  viewAnalytics permission AND an analytics entitlement required. */
+app.get("/api/specialists/:nodeId/intelligence", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.permissions?.viewAnalytics && !isAdminReq(req)) {
+      return res.status(403).json({ error: "analytics access requires a manager role with analytics permission" });
+    }
+    const sub = await getSubscription(nodeId);
+    if (!sub.entitlements.includes("analytics.visibility") && !isAdminReq(req)) {
+      return res.status(402).json({ error: "analytics requires an active subscription", plan: sub.plan, state: sub.state });
+    }
+    const stats = await visibilityStats(nodeId);
+    const evidence = specialistEvidence(userId, nodeId);
+
+    // Trust drivers: the reasons contributors actually give (aggregate, ≥2 mentions).
+    const ds: Dataset = { nodes: shared.nodes, links: shared.links, meId: userId, recommendations: [] };
+    const reasonCounts = new Map<string, number>();
+    for (const rec of recommendationsForTarget(ds, nodeId)) {
+      const reasons = ((rec.properties ?? {}) as { reasons?: unknown }).reasons;
+      if (Array.isArray(reasons)) {
+        for (const x of reasons) if (typeof x === "string") reasonCounts.set(x, (reasonCounts.get(x) ?? 0) + 1);
+      }
+    }
+    const drivers = [...reasonCounts.entries()]
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([reason, count]) => ({ reason, count }));
+
+    // Trust gaps: provider-declared services/contexts with no independent evidence.
+    const evidenceTopics = new Set(evidence.topics.map((t) => t.topic.toLowerCase()));
+    const declared: string[] = [];
+    for (const key of ["services", "clientContexts"] as const) {
+      const f = view.layers.taxonomy?.[key];
+      if (f && Array.isArray(f.value)) {
+        for (const x of f.value as unknown[]) if (typeof x === "string") declared.push(x);
+      }
+    }
+    const gaps = declared.filter((d) => !evidenceTopics.has(d.toLowerCase())).slice(0, 10);
+
+    res.json({
+      visibility: stats,
+      evidence,
+      drivers,
+      gaps,
+      note:
+        stats.suppressed
+          ? "Aggregates are hidden until enough distinct users have interacted — protecting individual privacy."
+          : "All figures are 90-day aggregates. A view is not trust; a contact is not an experience.",
+    });
   } catch (e) {
     res.status(500).json(asError(e));
   }

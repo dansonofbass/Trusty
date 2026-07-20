@@ -14,7 +14,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck, Globe, Landmark, Languages, Loader2, MapPin, MessageSquareQuote,
-  Radio, Scale, ThumbsUp, ArrowLeft, ExternalLink, CalendarClock,
+  Radio, Scale, ThumbsUp, ArrowLeft, ExternalLink, CalendarClock, BarChart3,
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import RecommendButton from "@/components/RecommendButton";
@@ -233,12 +233,20 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
             </button>
           )}
           {view.isManager && (
-            <SpecialistEditor
-              nodeId={view.nodeId}
-              nodeType={view.nodeType}
-              layers={view.layers}
-              onSaved={() => setNonce((n) => n + 1)}
-            />
+            <>
+              <SpecialistEditor
+                nodeId={view.nodeId}
+                nodeType={view.nodeType}
+                layers={view.layers}
+                onSaved={() => setNonce((n) => n + 1)}
+              />
+              <Link
+                href={`/s/${encodeURIComponent(view.nodeId)}/dashboard`}
+                className="flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-[13px] font-semibold text-dim hover:text-ink"
+              >
+                <BarChart3 size={14} /> Intelligence
+              </Link>
+            </>
           )}
         </div>
         <div className="mt-3">

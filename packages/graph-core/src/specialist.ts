@@ -342,6 +342,65 @@ export function effectiveVerificationStatus(
   return "active";
 }
 
+/* ------------------- subscription & entitlements (#40) ------------- */
+
+/** Subscription lifecycle. Stored OUTSIDE the trust profile; the Trust
+ *  Engine must never consume any of this (one-directional dependency). */
+export type SubscriptionState =
+  | "none"
+  | "trial"
+  | "active"
+  | "past_due"
+  | "paused"
+  | "cancelled"
+  | "expired"
+  | "admin_granted"
+  | "pilot_access";
+
+export type SubscriptionPlan = "free" | "professional";
+
+/** Feature access goes through NAMED entitlements, never plan-name checks. */
+export type Entitlement =
+  | "profile.advanced_editing"
+  | "analytics.visibility"
+  | "analytics.decision"
+  | "analytics.trust"
+  | "ai.executive_summary"
+  | "visibility.sponsored_eligible";
+
+export const PLAN_ENTITLEMENTS: Record<SubscriptionPlan, readonly Entitlement[]> = {
+  free: [],
+  professional: [
+    "profile.advanced_editing",
+    "analytics.visibility",
+    "analytics.decision",
+    "analytics.trust",
+    "ai.executive_summary",
+    "visibility.sponsored_eligible",
+  ],
+};
+
+const ENTITLED_STATES: ReadonlySet<SubscriptionState> = new Set([
+  "trial", "active", "past_due", "admin_granted", "pilot_access",
+]);
+
+export function subscriptionEntitlements(plan: SubscriptionPlan, state: SubscriptionState): readonly Entitlement[] {
+  return ENTITLED_STATES.has(state) ? PLAN_ENTITLEMENTS[plan] : PLAN_ENTITLEMENTS.free;
+}
+
+/** Privacy threshold (#40): aggregate insights are suppressed below this
+ *  many distinct users so no individual journey is identifiable. */
+export const INTELLIGENCE_MIN_GROUP = 5;
+
+export type DataSufficiency = "insufficient" | "early_signal" | "developing" | "established";
+
+export function dataSufficiency(distinctUsers: number, events: number): DataSufficiency {
+  if (distinctUsers < INTELLIGENCE_MIN_GROUP) return "insufficient";
+  if (events < 20) return "early_signal";
+  if (events < 100) return "developing";
+  return "established";
+}
+
 /* ------------------------- domain taxonomies ----------------------- */
 
 /** Per-profession service/context vocabularies (#39). These seed the profile

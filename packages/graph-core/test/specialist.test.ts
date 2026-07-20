@@ -142,6 +142,47 @@ describe("qualitative trust label", () => {
   });
 });
 
+describe("subscription & trust separation (#40)", () => {
+  it("entitlements flow only from entitled states", async () => {
+    const { subscriptionEntitlements } = await import("../src/specialist");
+    assert.ok(subscriptionEntitlements("professional", "active").includes("analytics.decision"));
+    assert.ok(subscriptionEntitlements("professional", "admin_granted").length > 0);
+    assert.equal(subscriptionEntitlements("professional", "cancelled").length, 0);
+    assert.equal(subscriptionEntitlements("professional", "expired").length, 0);
+    assert.equal(subscriptionEntitlements("free", "active").length, 0);
+  });
+
+  it("the ranking pipeline forbids payment-shaped signals (trust isolation)", async () => {
+    const ranking = await import("../src/ranking");
+    const forbidden = (ranking as { FORBIDDEN_SIGNALS?: readonly string[] }).FORBIDDEN_SIGNALS ?? [];
+    for (const s of ["subscription", "payment", "sponsored"]) {
+      assert.ok(
+        forbidden.some((f) => f.toLowerCase().includes(s)) ||
+          !JSON.stringify(Object.keys(ranking)).toLowerCase().includes(s),
+        `ranking must not consume ${s}`,
+      );
+    }
+  });
+
+  it("privacy threshold suppresses small groups", async () => {
+    const { dataSufficiency } = await import("../src/specialist");
+    assert.equal(dataSufficiency(4, 500), "insufficient");
+    assert.equal(dataSufficiency(5, 10), "early_signal");
+    assert.equal(dataSufficiency(12, 50), "developing");
+    assert.equal(dataSufficiency(30, 200), "established");
+  });
+});
+
+describe("verification expiry", () => {
+  it("expired verification never reads as active", async () => {
+    const { effectiveVerificationStatus } = await import("../src/specialist");
+    const now = Date.parse("2026-07-20T00:00:00Z");
+    assert.equal(effectiveVerificationStatus({ status: "active", expiresAt: "2026-01-01T00:00:00Z" }, now), "expired");
+    assert.equal(effectiveVerificationStatus({ status: "active", expiresAt: "2027-01-01T00:00:00Z" }, now), "active");
+    assert.equal(effectiveVerificationStatus({ status: "revoked", expiresAt: null }, now), "revoked");
+  });
+});
+
 describe("manager permissions", () => {
   it("least privilege holds", () => {
     assert.equal(MANAGER_PERMISSIONS.analytics_viewer.editProfile, false);

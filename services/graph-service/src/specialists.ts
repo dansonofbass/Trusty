@@ -20,6 +20,9 @@ import {
   applyProviderPatch,
   validateClaimEvidence,
   effectiveVerificationStatus,
+  subscriptionEntitlements,
+  dataSufficiency,
+  INTELLIGENCE_MIN_GROUP,
   MANAGER_PERMISSIONS,
   SPECIALIST_MANAGER_ROLES,
   SPECIALIST_VERIFICATION_TYPES,
@@ -32,6 +35,9 @@ import {
   type SpecialistState,
   type SpecialistVerification,
   type SpecialistVerificationType,
+  type Entitlement,
+  type SubscriptionPlan,
+  type SubscriptionState,
 } from "@constellation/graph-core";
 
 const DATABASE_URL = process.env.DATABASE_URL?.trim();
@@ -101,6 +107,15 @@ export async function initSpecialists(): Promise<void> {
       status      TEXT NOT NULL DEFAULT 'active'  -- active | revoked | uncertain (expired computed on read)
     )`);
   await p.query(`CREATE INDEX IF NOT EXISTS specialist_verifications_idx ON specialist_verifications(node_id, verified_at DESC)`);
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS specialist_subscriptions (
+      node_id     TEXT PRIMARY KEY,
+      plan        TEXT NOT NULL DEFAULT 'free',
+      state       TEXT NOT NULL DEFAULT 'none',
+      granted_by  TEXT,
+      ends_at     TIMESTAMPTZ,
+      updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
   pool = p;
   console.log("graph-service: specialists ready (postgres)");
 }
@@ -529,6 +544,122 @@ export async function revokeVerification(
     if (cur.rows[0]?.state === "verified") await setState(pool, nodeId, "claimed");
   }
   return { ok: true };
+}
+
+/* --------------------- subscription & intelligence ----------------- */
+
+export interface SubscriptionView {
+  plan: SubscriptionPlan;
+  state: SubscriptionState;
+  endsAt: string | null;
+  entitlements: readonly Entitlement[];
+}
+
+/** Subscription lives OUTSIDE the trust profile. Nothing in trust/ranking
+ *  reads this table — the dependency is one-directional by design (#40). */
+export async function getSubscription(nodeId: string): Promise<SubscriptionView> {
+  const none: SubscriptionView = { plan: "free", state: "none", endsAt: null, entitlements: [] };
+  if (!pool) return none;
+  const r = await pool.query(`SELECT plan, state, ends_at FROM specialist_subscriptions WHERE node_id = $1`, [nodeId]);
+  if (!r.rowCount) return none;
+  let state = r.rows[0].state as SubscriptionState;
+  const endsAt = r.rows[0].ends_at ? new Date(r.rows[0].ends_at).toISOString() : null;
+  if (endsAt && Date.parse(endsAt) < Date.now() && (state === "active" || state === "trial" || state === "admin_granted" || state === "pilot_access")) {
+    state = "expired"; // computed at read; no cron
+  }
+  const plan = r.rows[0].plan as SubscriptionPlan;
+  return { plan, state, endsAt, entitlements: subscriptionEntitlements(plan, state) };
+}
+
+export async function setSubscription(
+  nodeId: string,
+  adminId: string,
+  input: { plan: string; state: string; endsAt?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!pool) return { ok: false, error: "specialists disabled" };
+  if (!["free", "professional"].includes(input.plan)) return { ok: false, error: "unknown plan" };
+  const states = ["none", "trial", "active", "past_due", "paused", "cancelled", "expired", "admin_granted", "pilot_access"];
+  if (!states.includes(input.state)) return { ok: false, error: "unknown subscription state" };
+  const ends = input.endsAt ? new Date(input.endsAt) : null;
+  if (ends && Number.isNaN(ends.getTime())) return { ok: false, error: "invalid endsAt" };
+  await ensureSpecialist(nodeId);
+  await pool.query(
+    `INSERT INTO specialist_subscriptions (node_id, plan, state, granted_by, ends_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, now())
+     ON CONFLICT (node_id) DO UPDATE SET plan = $2, state = $3, granted_by = $4, ends_at = $5, updated_at = now()`,
+    [nodeId, input.plan, input.state, adminId, ends],
+  );
+  // Logged as a provider-facing audit event; deliberately NOT a lifecycle
+  // state_changed (subscription is not part of the trust-profile lifecycle).
+  await appendEvent(pool, nodeId, adminId, "field_updated", {
+    layer: "subscription", plan: input.plan, state: input.state, endsAt: input.endsAt ?? null,
+  });
+  return { ok: true };
+}
+
+export interface VisibilityStats {
+  impressions: number;
+  clicks: number;
+  distinctUsers: number;
+  intents: number;
+  outcomesPositive: number;
+  outcomesNegative: number;
+  sufficiency: ReturnType<typeof dataSufficiency>;
+  /** true when aggregates are hidden below the privacy threshold */
+  suppressed: boolean;
+}
+
+/** Privacy-safe funnel aggregates (90 days). Below the k-anonymity minimum,
+ *  numbers are zeroed and marked suppressed — one identifiable user must
+ *  never be reconstructable from the dashboard (#40). */
+export async function visibilityStats(nodeId: string): Promise<VisibilityStats> {
+  const empty: VisibilityStats = {
+    impressions: 0, clicks: 0, distinctUsers: 0, intents: 0,
+    outcomesPositive: 0, outcomesNegative: 0, sufficiency: "insufficient", suppressed: true,
+  };
+  if (!pool) return empty;
+  const ia = await pool.query(
+    `SELECT
+       count(*) FILTER (WHERE kind = 'impression') AS impressions,
+       count(*) FILTER (WHERE kind = 'click') AS clicks,
+       count(DISTINCT user_id) AS distinct_users
+     FROM interaction_events
+     WHERE node_id = $1 AND at > now() - interval '90 days'`,
+    [nodeId],
+  ).catch(() => null);
+  // Intents = decision-intent prompts ("I'll try this" / contact actions);
+  // outcomes = the authoritative trust log targeting this entity.
+  const ip = await pool.query(
+    `SELECT count(*) AS intents FROM outcome_prompts
+     WHERE node_id = $1 AND created_at > now() - interval '90 days'`,
+    [nodeId],
+  ).catch(() => null);
+  const oc = await pool.query(
+    `SELECT
+       count(*) FILTER (WHERE value > 0) AS pos,
+       count(*) FILTER (WHERE value < 0) AS neg
+     FROM trust_outcomes
+     WHERE to_id = $1 AND at > now() - interval '90 days'`,
+    [nodeId],
+  ).catch(() => null);
+  const impressions = Number(ia?.rows[0]?.impressions ?? 0);
+  const clicks = Number(ia?.rows[0]?.clicks ?? 0);
+  const distinctUsers = Number(ia?.rows[0]?.distinct_users ?? 0);
+  const events = impressions + clicks;
+  const sufficiency = dataSufficiency(distinctUsers, events);
+  if (distinctUsers < INTELLIGENCE_MIN_GROUP) {
+    return { ...empty, distinctUsers: 0, sufficiency: "insufficient", suppressed: true };
+  }
+  return {
+    impressions,
+    clicks,
+    distinctUsers,
+    intents: Number(ip?.rows[0]?.intents ?? 0),
+    outcomesPositive: Number(oc?.rows[0]?.pos ?? 0),
+    outcomesNegative: Number(oc?.rows[0]?.neg ?? 0),
+    sufficiency,
+    suppressed: false,
+  };
 }
 
 /* ------------------------------ timeline --------------------------- */
