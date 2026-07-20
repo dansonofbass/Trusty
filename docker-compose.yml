@@ -147,7 +147,9 @@ services:
       langfuse-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/public/health || exit 1"]
+      # The langfuse image binds its Next server to the container hostname,
+      # not localhost — probe via the container's own IP.
+      test: ["CMD-SHELL", "wget -qO- http://$(hostname -i):3000/api/public/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -438,7 +440,9 @@ services:
         condition: service_healthy
     healthcheck:
       <<: *node-health
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ || exit 1"]
+      # Probe the auth-free liveness route — "/" 307s into the Keycloak public
+      # (LAN) hostname, which containers can't reach (no NAT hairpin).
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
 
 volumes:
   neo4j-data:
