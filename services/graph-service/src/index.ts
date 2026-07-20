@@ -32,6 +32,10 @@ import {
   outcomesForRecommendation,
   recommendationsForTarget,
   recommendationConsensus,
+  isSpecialistType,
+  specialistTrustLabel,
+  TRUST_LABEL_TEXT,
+  type SpecialistLayerName,
   listenCapacity,
   listenSuggestions,
   addListenEdge,
@@ -226,6 +230,19 @@ import {
   type InteractionInput,
   type InteractionKind,
 } from "./interactionLog";
+import {
+  addManager,
+  getSpecialist,
+  initSpecialists,
+  listClaims,
+  removeManager,
+  reviewClaim,
+  specialistStates,
+  specialistsEnabled,
+  specialistTimeline,
+  submitClaim,
+  updateProfileFields,
+} from "./specialists";
 import { JSONCodec, type NatsConnection } from "nats";
 import {
   initPlaceLinks, placeLinksEnabled, createPlaceLink, resolvePlaceLink, listPlaceLinks, deletePlaceLink,
@@ -2278,6 +2295,209 @@ app.get("/api/recs", (req, res) => {
   res.json({ target, recommendations: recs });
 });
 
+/* --------------- specialist platform (#38/#39) --------------- */
+/* Entity ≠ account: the graph node is the public identity; lifecycle,
+ * managers, and layered provider fields live in Postgres (specialists.ts).
+ * The independent-evidence summary is computed HERE on read from
+ * recommendations/outcomes — never stored, never provider-editable. */
+
+const isAdminReq = (req: express.Request): boolean => (req.header("x-user-admin") || "") === "1";
+
+function specialistEvidence(viewerId: string, nodeId: string) {
+  const ds: Dataset = { nodes: shared.nodes, links: shared.links, meId: viewerId, recommendations: [] };
+  const recs = recommendationsForTarget(ds, nodeId);
+  const contributors = new Set<string>();
+  let outcomeCount = 0;
+  let outcomeSum = 0;
+  const topics = new Map<string, number>();
+  for (const rec of recs) {
+    const p = (rec.properties ?? {}) as Record<string, unknown>;
+    if (p.authorId) contributors.add(String(p.authorId));
+    if (typeof p.topic === "string") topics.set(p.topic, (topics.get(p.topic) ?? 0) + 1);
+    for (const o of outcomesForRecommendation(ds, rec.id)) {
+      const op = (o.properties ?? {}) as Record<string, unknown>;
+      if (op.contributorId) contributors.add(String(op.contributorId));
+      const v = Number(op.value);
+      if (Number.isFinite(v)) {
+        outcomeCount += 1;
+        outcomeSum += v;
+      }
+    }
+  }
+  const effectiveScore = outcomeCount > 0 ? (outcomeSum / outcomeCount + 1) / 2 : null;
+  const label = specialistTrustLabel({
+    recCount: recs.length,
+    outcomeCount,
+    distinctContributors: contributors.size,
+    effectiveScore,
+  });
+  return {
+    recCount: recs.length,
+    outcomeCount,
+    distinctContributors: contributors.size,
+    topics: [...topics.entries()].map(([topic, count]) => ({ topic, count })).sort((a, b) => b.count - a.count),
+    label,
+    labelText: TRUST_LABEL_TEXT[label],
+  };
+}
+
+/** Public specialist view: profile layers + lifecycle + derived evidence. */
+app.get("/api/specialists/:nodeId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const nodeId = String(req.params.nodeId);
+  const node = shared.nodes.find((n) => n.id === nodeId);
+  if (!node) return res.status(404).json({ error: "node not found" });
+  if (!isSpecialistType(node.type)) return res.status(400).json({ error: `not a specialist entity type: ${node.type}` });
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    res.json({
+      ...view,
+      label: node.label,
+      nodeType: node.type,
+      evidence: specialistEvidence(userId, nodeId),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Claim management authority over an unclaimed profile. */
+app.post("/api/specialists/:nodeId/claim", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const nodeId = String(req.params.nodeId);
+  const node = shared.nodes.find((n) => n.id === nodeId);
+  if (!node) return res.status(404).json({ error: "node not found" });
+  if (!isSpecialistType(node.type)) return res.status(400).json({ error: `not a specialist entity type: ${node.type}` });
+  const b = req.body ?? {};
+  try {
+    const r = await submitClaim(nodeId, userId, {
+      professionalEmail: str(b.professionalEmail, 200),
+      phone: str(b.phone, 60),
+      licenseNumber: str(b.licenseNumber, 120),
+      licenseAuthority: str(b.licenseAuthority, 200),
+      website: str(b.website, 300),
+      organization: str(b.organization, 200),
+      statement: str(b.statement, 1000),
+    });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Provider-controlled profile edits (managers only; source-stamped per field). */
+app.patch("/api/specialists/:nodeId/profile", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const nodeId = String(req.params.nodeId);
+  const layer = String(req.body?.layer ?? "") as SpecialistLayerName;
+  const fields = (req.body?.fields ?? null) as Record<string, unknown> | null;
+  if (!layer || !fields || typeof fields !== "object") {
+    return res.status(400).json({ error: "layer and fields required" });
+  }
+  try {
+    const r = await updateProfileFields(nodeId, userId, layer, fields);
+    if (!r.ok) return res.status(403).json({ error: r.error });
+    res.json({ ok: true, layers: r.layers });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Audit timeline — managers and admins only. */
+app.get("/api/specialists/:nodeId/timeline", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.isManager && !isAdminReq(req)) return res.status(403).json({ error: "managers only" });
+    res.json({ events: await specialistTimeline(nodeId) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Manager administration (owner/org-admin or platform admin). */
+app.post("/api/specialists/:nodeId/managers", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const targetUserId = str(req.body?.userId, 200);
+  const role = str(req.body?.role, 40);
+  if (!targetUserId || !role) return res.status(400).json({ error: "userId and role required" });
+  try {
+    const r = await addManager(String(req.params.nodeId), userId, targetUserId, role as never, isAdminReq(req));
+    if (!r.ok) return res.status(403).json({ error: r.error });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/specialists/:nodeId/managers/:userId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  try {
+    const r = await removeManager(String(req.params.nodeId), userId, String(req.params.userId), isAdminReq(req));
+    if (!r.ok) return res.status(403).json({ error: r.error });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Bulk lifecycle states for card badges. */
+app.post("/api/specialists/states", async (req, res) => {
+  auth(req);
+  if (!specialistsEnabled()) return res.json({ states: {} });
+  const ids = Array.isArray(req.body?.ids)
+    ? (req.body.ids as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 200)
+    : [];
+  try {
+    res.json({ states: await specialistStates(ids) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin claim queue (BFF sends x-user-admin only for verified admins). */
+app.get("/api/admin/specialists/claims", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  try {
+    const status = str(req.query.status as unknown, 20);
+    const claims = await listClaims(status);
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    res.json({
+      claims: claims.map((c) => ({
+        ...c,
+        nodeLabel: labelOf.get(c.nodeId) ?? c.nodeId,
+        userLabel: labelOf.get(c.userId) ?? c.userId,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/admin/specialists/claims/:id/review", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const approve = req.body?.approve === true;
+  try {
+    const r = await reviewClaim(String(req.params.id), userId, approve, str(req.body?.reason, 500));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ ok: true, nodeId: r.nodeId });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** A single recommendation with its accumulated outcome evidence. */
 app.get("/api/recs/:id", (req, res) => {
   const { userId } = auth(req);
@@ -4133,6 +4353,9 @@ async function main() {
   );
   await initJourneys().catch((e) =>
     console.error("graph-service: journeys init failed:", e instanceof Error ? e.message : e),
+  );
+  await initSpecialists().catch((e) =>
+    console.error("graph-service: specialists init failed:", e instanceof Error ? e.message : e),
   );
   await initEmbeddings().catch((e) =>
     console.error("graph-service: embeddings init failed:", e instanceof Error ? e.message : e),
