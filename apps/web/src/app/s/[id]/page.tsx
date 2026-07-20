@@ -19,6 +19,7 @@ import {
 import Brand from "@/components/Brand";
 import RecommendButton from "@/components/RecommendButton";
 import ClaimProfileButton from "@/components/ClaimProfileButton";
+import SpecialistEditor from "@/components/SpecialistEditor";
 import { markIntent } from "@/lib/outcomeClient";
 import { logClick, logImpressions } from "@/lib/interactionClient";
 
@@ -71,6 +72,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [intentSent, setIntentSent] = useState(false);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -92,7 +94,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
       }
     })();
     return () => { alive = false; };
-  }, [id]);
+  }, [id, nonce]);
 
   const contact = useCallback(
     async (kind: "phone" | "website" | "booking", href: string) => {
@@ -203,6 +205,14 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
             >
               <Globe size={14} /> Website <ExternalLink size={11} />
             </button>
+          )}
+          {view.isManager && (
+            <SpecialistEditor
+              nodeId={view.nodeId}
+              nodeType={view.nodeType}
+              layers={view.layers}
+              onSaved={() => setNonce((n) => n + 1)}
+            />
           )}
         </div>
         <div className="mt-3">

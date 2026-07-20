@@ -293,3 +293,73 @@ export const TRUST_LABEL_TEXT: Record<SpecialistTrustLabel, string> = {
   reliable: "Reliable",
   highly_reliable: "Highly reliable",
 };
+
+/* ------------------------- domain taxonomies ----------------------- */
+
+/** Per-profession service/context vocabularies (#39). These seed the profile
+ *  editor's suggestions; provider-declared entries remain distinguishable
+ *  from evidence-supported ones at render time. Jurisdiction-specific case
+ *  types (visa categories etc.) stay configurable — Armenia-first here. */
+export interface SpecialistTaxonomy {
+  services: readonly string[];
+  caseTypes?: readonly string[];
+  clientContexts: readonly string[];
+}
+
+const IMMIGRATION_TAXONOMY: SpecialistTaxonomy = {
+  services: [
+    "Initial consultation", "Immigration strategy", "Eligibility assessment",
+    "Document preparation", "Application filing", "Appeal", "Court representation",
+    "Work authorization", "Residency", "Citizenship & naturalization",
+    "Family reunification", "Marriage-based immigration", "Business immigration",
+    "Investor immigration", "Student immigration", "Asylum & refugee matters",
+    "Previous refusal or denial",
+  ],
+  caseTypes: [
+    "Work permit", "Residence permit", "Citizenship", "Family petition",
+    "Marriage case", "Asylum", "Business registration", "Investor visa",
+    "Student visa", "Refusal appeal",
+  ],
+  clientContexts: [
+    "Students", "Researchers", "Founders", "Skilled workers", "Employers",
+    "Investors", "Families", "Couples", "Refugees", "Remote clients",
+    "First-time applicants", "Applicants with previous refusals",
+    "Urgent cases", "Russian speakers", "Persian speakers", "English speakers",
+  ],
+};
+
+const BROKER_TAXONOMY: SpecialistTaxonomy = {
+  services: [
+    "Buying", "Selling", "Renting", "Listing", "Relocation", "Investment",
+    "Commercial real estate", "Residential real estate", "Short-term rental",
+    "Property management", "New construction", "Land", "Property search",
+    "Negotiation support", "Transaction coordination", "Rental placement",
+    "International relocation",
+  ],
+  clientContexts: [
+    "First-time buyers", "International buyers", "International renters",
+    "Students", "Families", "Investors", "Sellers", "Landlords", "Tenants",
+    "Low-budget clients", "Urgent relocation", "Remote clients",
+    "Commercial clients", "New residents", "Russian speakers", "English speakers",
+  ],
+};
+
+const GENERIC_TAXONOMY: SpecialistTaxonomy = {
+  services: ["Consultation", "On-site service", "Remote service", "Emergency service", "Maintenance", "Assessment"],
+  clientContexts: ["Individuals", "Families", "Businesses", "Urgent cases", "Remote clients"],
+};
+
+export const SPECIALIST_TAXONOMIES: Record<SpecialistType, SpecialistTaxonomy> = {
+  lawyer: IMMIGRATION_TAXONOMY,
+  immigration_consultant: IMMIGRATION_TAXONOMY,
+  broker: BROKER_TAXONOMY,
+  accountant: {
+    services: ["Bookkeeping", "Tax filing", "Tax strategy", "Payroll", "Company registration", "Audit support", "Financial reporting"],
+    clientContexts: ["Individuals", "Freelancers", "Startups", "Small businesses", "Relocated professionals", "Remote clients"],
+  },
+  doctor: GENERIC_TAXONOMY,
+  dentist: GENERIC_TAXONOMY,
+  mechanic: GENERIC_TAXONOMY,
+  plumber: GENERIC_TAXONOMY,
+  electrician: GENERIC_TAXONOMY,
+};

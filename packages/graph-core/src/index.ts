@@ -272,6 +272,8 @@ export {
   validateClaimEvidence,
   specialistTrustLabel,
   TRUST_LABEL_TEXT,
+  SPECIALIST_TAXONOMIES,
+  type SpecialistTaxonomy,
   type SpecialistType,
   type SpecialistState,
   type SpecialistEvent,
