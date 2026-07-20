@@ -2303,6 +2303,11 @@ app.get("/api/recs", (req, res) => {
 
 const isAdminReq = (req: express.Request): boolean => (req.header("x-user-admin") || "") === "1";
 
+/** Professional entities render as person/location nodes; the profession
+ *  lives in entityType (ontology id). Gate on that, falling back to type. */
+const specialistTypeOf = (node: { type: string; entityType?: string }): string =>
+  node.entityType ?? node.type;
+
 function specialistEvidence(viewerId: string, nodeId: string) {
   const ds: Dataset = { nodes: shared.nodes, links: shared.links, meId: viewerId, recommendations: [] };
   const recs = recommendationsForTarget(ds, nodeId);
@@ -2348,13 +2353,14 @@ app.get("/api/specialists/:nodeId", async (req, res) => {
   const nodeId = String(req.params.nodeId);
   const node = shared.nodes.find((n) => n.id === nodeId);
   if (!node) return res.status(404).json({ error: "node not found" });
-  if (!isSpecialistType(node.type)) return res.status(400).json({ error: `not a specialist entity type: ${node.type}` });
+  if (!isSpecialistType(specialistTypeOf(node)))
+    return res.status(400).json({ error: `not a specialist entity type: ${specialistTypeOf(node)}` });
   try {
     const view = await getSpecialist(nodeId, userId, isAdminReq(req));
     res.json({
       ...view,
       label: node.label,
-      nodeType: node.type,
+      nodeType: specialistTypeOf(node),
       evidence: specialistEvidence(userId, nodeId),
     });
   } catch (e) {
@@ -2369,7 +2375,8 @@ app.post("/api/specialists/:nodeId/claim", async (req, res) => {
   const nodeId = String(req.params.nodeId);
   const node = shared.nodes.find((n) => n.id === nodeId);
   if (!node) return res.status(404).json({ error: "node not found" });
-  if (!isSpecialistType(node.type)) return res.status(400).json({ error: `not a specialist entity type: ${node.type}` });
+  if (!isSpecialistType(specialistTypeOf(node)))
+    return res.status(400).json({ error: `not a specialist entity type: ${specialistTypeOf(node)}` });
   const b = req.body ?? {};
   try {
     const r = await submitClaim(nodeId, userId, {

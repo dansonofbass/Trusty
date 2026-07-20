@@ -10,6 +10,7 @@ import SourceLinks from "./SourceLinks";
 import PlaceDetail from "./PlaceDetail";
 import ListenButton from "./ListenButton";
 import RecommendButton from "./RecommendButton";
+import ClaimProfileButton from "./ClaimProfileButton";
 
 /**
  * Mobile node details — a bottom sheet (the phone-native answer to the desktop
@@ -189,6 +190,11 @@ export default function NodeSheet({
                 {!isMe && node.type === "person" && (
                   <div className="mt-2">
                     <ListenButton targetId={node.id} targetLabel={node.label} />
+                  </div>
+                )}
+                {!isMe && (
+                  <div className="mt-3 flex justify-center">
+                    <ClaimProfileButton nodeId={node.id} nodeType={node.entityType ?? node.type} label={node.label} />
                   </div>
                 )}
               </>

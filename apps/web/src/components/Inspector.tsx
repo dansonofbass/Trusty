@@ -16,6 +16,7 @@ import AnnotatedText from "./AnnotatedText";
 import SourceLinks from "./SourceLinks";
 import ListenButton from "./ListenButton";
 import RecommendButton from "./RecommendButton";
+import ClaimProfileButton from "./ClaimProfileButton";
 import PlaceDetail from "./PlaceDetail";
 
 /** Restaurant/cafe nodes get the full trust-native detail panel, not the generic entity grid. */
@@ -576,6 +577,14 @@ export default function Inspector({
               (node.type === "person" || node.type === "location") && (
                 <RecommendButton targetId={node.id} targetLabel={node.label} nodeType={node.type} />
               )}
+
+            {/* Specialist claim entry (#39) — renders only on professional
+                entity types; self-gates on profile state. */}
+            {!node.isMe && (
+              <div className="flex justify-center pt-1">
+                <ClaimProfileButton nodeId={node.id} nodeType={node.entityType ?? node.type} label={node.label} />
+              </div>
+            )}
 
             {/* Secondary icon row */}
             <div className="flex items-start justify-center gap-3 pt-0.5">
