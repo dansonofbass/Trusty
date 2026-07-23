@@ -21,15 +21,17 @@ import PanelShell from "./dock/PanelShell";
 export default function AsksPanel({
   variant = "standalone",
 }: {
-  /** "docked": no FAB, driven by the ActionDock's rightPanel store (desktop).
-   *  "standalone": own FAB + local state (mobile /m — unchanged). */
-  variant?: "standalone" | "docked";
+  /** "docked": no FAB, driven by the rightPanel store (legacy desktop dock).
+   *  "standalone": own FAB + local state (mobile /m — unchanged).
+   *  "page": always-open full-height content (the /asks center view). */
+  variant?: "standalone" | "docked" | "page";
 }) {
   const docked = variant === "docked";
+  const isPage = variant === "page";
   const [localOpen, setLocalOpen] = useState(false);
   const rightPanel = useUI((s) => s.rightPanel);
   const setRightPanel = useUI((s) => s.setRightPanel);
-  const open = docked ? rightPanel === "asks" : localOpen;
+  const open = isPage ? true : docked ? rightPanel === "asks" : localOpen;
   const setOpen = (v: boolean) => (docked ? setRightPanel(v ? "asks" : null) : setLocalOpen(v));
   const [inbox, setInbox] = useState<InboxAsk[]>([]);
   const [mine, setMine] = useState<MyAsk[]>([]);
@@ -83,6 +85,28 @@ export default function AsksPanel({
             </Section>
     </div>
   );
+
+  if (isPage) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2 border-b border-line px-5 py-2.5">
+          <Megaphone size={13} style={{ color: "var(--color-accent)" }} />
+          <span className="text-[12.5px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
+            Ask your network
+          </span>
+          {count > 0 && (
+            <span
+              className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold text-space"
+              style={{ background: TRUST_ACCENT }}
+            >
+              {count}
+            </span>
+          )}
+        </div>
+        <div className="scroll-quiet mx-auto min-h-0 w-full max-w-[720px] flex-1 overflow-y-auto">{body}</div>
+      </div>
+    );
+  }
 
   if (docked) {
     if (!open) return null;

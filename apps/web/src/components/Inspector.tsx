@@ -240,7 +240,7 @@ export default function Inspector({
 
   return (
     <aside
-      className="fixed bottom-4 right-4 top-24 z-30 w-[340px] transition-transform duration-300 ease-out"
+      className="fixed bottom-4 right-4 top-4 z-30 w-[340px] transition-transform duration-300 ease-out"
       style={{ transform: open ? "translateX(0)" : "translateX(calc(100% + 24px))" }}
       aria-hidden={!open}
     >

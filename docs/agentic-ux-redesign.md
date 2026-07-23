@@ -63,6 +63,10 @@ toggleable. Universe/Path/Circles/Lens survive inside the Graph view.
 1. **Shell** — `AppShell` (sidebar/center/right-panel), center-view routing in
    `useUI`, GraphExplorer embedded as the Graph view, Feed/Asks/Journeys folded
    into nav, chat hero as home. Old overlays (ActionDock, floating pills) retire.
+   **✅ SHIPPED** — route group `(workspace)`, `GraphDataProvider` +
+   `useGalaxy` + `useAgentConversation` extractions, GraphView at `/graph`,
+   ChatView center stage, CommandPalette (⌘K), Discover/Asks/Decisions/Docs
+   views; browser-verified incl. `/m` regression.
 2. **Chat persistence** — tables + BFF routes, sidebar history, resume, auto-title.
 3. **Docs** — folders API + tree UI, TipTap editor (wikilink + mention nodes),
    doc CRUD in the center stage; workspace list leaves the Composer.

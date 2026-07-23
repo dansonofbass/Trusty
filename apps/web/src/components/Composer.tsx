@@ -9,25 +9,19 @@ import {
   analyzeComposerText,
   applyMention,
   parseActiveMention,
-  type AgentMessage,
-  type AgentStreamEvent,
   type ComposerIntent,
   type GNode,
   type ResolvedMention,
 } from "@constellation/graph-core";
 import { useUI } from "@/lib/store";
 import { addTrust, resolveScope, trustSearch, type TrustRec } from "@/lib/trustClient";
-import { AgentUnavailableError, streamAgentTurn } from "@/lib/agentClient";
+import { useAgentConversation } from "@/lib/chat/useAgentConversation";
 import {
   deleteWorkspaceDoc, fetchWorkspace, fetchWriting, saveDraft, updateWorkspaceDoc,
   type WritingSummary,
 } from "@/lib/writings";
 import { GOLD } from "@/lib/palette";
-import AgentChat, {
-  TOOL_LABEL,
-  type AgentChatEntry,
-  type TrustToolData,
-} from "./composer/AgentChat";
+import AgentChat, { type TrustToolData } from "./composer/AgentChat";
 import MentionPopover from "./composer/MentionPopover";
 import JourneysPanel from "./composer/JourneysPanel";
 import PanelShell from "./dock/PanelShell";
@@ -120,16 +114,6 @@ export default function Composer({
   const [q, setQ] = useState("");
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
-  // Agent conversation (#29): the transcript is server-canonical — we store what
-  // `done` returned and resend it each turn (the loop is stateless over HTTP).
-  const [agentMode, setAgentMode] = useState(true);
-  const [chat, setChat] = useState<AgentChatEntry[]>([]);
-  const [sending, setSending] = useState(false);
-  const transcriptRef = useRef<AgentMessage[]>([]);
-  const sessionIdRef = useRef<string>("");
-  if (!sessionIdRef.current && typeof crypto !== "undefined") {
-    sessionIdRef.current = crypto.randomUUID?.() ?? `s_${Date.now().toString(36)}`;
-  }
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Mentions (#29): @people / #topics / [[entities]] — caret-tracked token +
@@ -227,140 +211,23 @@ export default function Composer({
   };
 
   /* --------------------------- agent turns --------------------------- */
+  // The loop itself lives in useAgentConversation (shared with the desktop
+  // ChatView); this component keeps only the input + quick-mode surfaces.
 
-  /** Patch the last (streaming) assistant entry. */
-  const patchTail = useCallback((fn: (e: AgentChatEntry) => AgentChatEntry) => {
-    setChat((prev) => {
-      for (let i = prev.length - 1; i >= 0; i--) {
-        if (prev[i].role === "assistant") {
-          const next = [...prev];
-          next[i] = fn(next[i]);
-          return next;
-        }
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleEvent = useCallback(
-    (ev: AgentStreamEvent) => {
-      if (ev.type === "step") {
-        patchTail((e) => {
-          const trace = [...e.trace];
-          const i = trace.findIndex((t) => t.id === ev.id);
-          const item = { id: ev.id, label: ev.label, status: ev.status, summary: ev.summary };
-          if (i >= 0) trace[i] = { ...trace[i], ...item };
-          else trace.push(item);
-          return { ...e, trace };
-        });
-      } else if (ev.type === "tool_call") {
-        patchTail((e) => ({
-          ...e,
-          trace: [
-            ...e.trace,
-            { id: ev.id, label: TOOL_LABEL[ev.tool] ?? ev.tool.replace(/_/g, " "), status: "active" as const, tool: ev.tool },
-          ],
-        }));
-      } else if (ev.type === "tool_result") {
-        patchTail((e) => {
-          const trace = e.trace.map((t) =>
-            t.id === ev.id ? { ...t, status: ev.ok ? ("done" as const) : ("error" as const), summary: ev.summary } : t,
-          );
-          const trustData =
-            ev.tool === "trust_search" && ev.ok && ev.data
-              ? (ev.data as TrustToolData)
-              : e.trustData;
-          const weaveData =
-            ev.tool === "extract_entities" && ev.ok && ev.data
-              ? (ev.data as { text: string; extraction: ThoughtExtraction })
-              : e.weaveData;
-          return { ...e, trace, trustData, weaveData };
-        });
-      } else if (ev.type === "token") {
-        patchTail((e) => ({ ...e, text: e.text + ev.content }));
-      } else if (ev.type === "confirm") {
-        patchTail((e) => ({
-          ...e,
-          confirm: { id: ev.id, tool: ev.tool, args: ev.args, title: ev.title, description: ev.description },
-        }));
-      }
+  const { agentMode, chat, sending, runTurn, decide, newChat } = useAgentConversation({
+    onAfterTurn: () => {
+      void loadDocs(); // the agent may have saved a note / created an ask
+      setJourneyNonce((n) => n + 1); // …or started/refined a decision journey
     },
-    [patchTail],
-  );
-
-  // Plain function (not useCallback): it closes over the freshest mention map
-  // + graph nodes, and only event handlers call it.
-  const runTurn = async (
-    input: { text?: string; resume?: { toolCallId: string; approved: boolean; args?: unknown; reason?: string } },
-  ) => {
-      setSending(true);
-      setChat((prev) => [
-        ...prev,
-        ...(input.text ? [{ role: "user" as const, text: input.text, trace: [] }] : []),
-        { role: "assistant" as const, text: "", trace: [], streaming: true },
-      ]);
-      try {
-        const result = await streamAgentTurn(
-          {
-            transcript: transcriptRef.current,
-            ...(input.text ? { text: input.text, mentions: collectMentions(input.text) } : {}),
-            ...(input.resume ? { resume: input.resume } : {}),
-            sessionId: sessionIdRef.current,
-            geo: useUI.getState().geoScope,
-          },
-          handleEvent,
-        );
-        transcriptRef.current = result.transcript;
-        patchTail((e) => ({ ...e, streaming: false }));
-        void loadDocs(); // the agent may have saved a note / created an ask
-        setJourneyNonce((n) => n + 1); // …or started/refined a decision journey
-        return true;
-      } catch (err) {
-        if (err instanceof AgentUnavailableError) {
-          // Drop the optimistic entries and fall back to quick mode for the session.
-          setChat((prev) => prev.slice(0, input.text ? -2 : -1));
-          setAgentMode(false);
-          flash("AI agent offline — quick mode (heuristics) active.");
-        } else {
-          patchTail((e) => ({
-            ...e,
-            streaming: false,
-            trace: [
-              ...e.trace,
-              { id: `err_${Date.now()}`, label: "Agent error", status: "error" as const, summary: err instanceof Error ? err.message : String(err) },
-            ],
-          }));
-        }
-        return false;
-      } finally {
-        setSending(false);
-      }
-  };
+    onAgentUnavailable: () => flash("AI agent offline — quick mode (heuristics) active."),
+  });
 
   const sendToAgent = async () => {
     const t = text.trim();
     if (!t || sending) return;
     setText("");
     localStorage.removeItem(DRAFT_KEY);
-    await runTurn({ text: t });
-  };
-
-  const decide = async (confirmId: string, approved: boolean, args?: unknown) => {
-    if (sending) return;
-    setChat((prev) =>
-      prev.map((e) =>
-        e.confirm?.id === confirmId
-          ? { ...e, confirm: { ...e.confirm, decided: approved ? "approved" : "denied" } }
-          : e,
-      ),
-    );
-    await runTurn({ resume: { toolCallId: confirmId, approved, args } });
-  };
-
-  const newChat = () => {
-    transcriptRef.current = [];
-    sessionIdRef.current = crypto.randomUUID?.() ?? `s_${Date.now().toString(36)}`;
-    setChat([]);
+    await runTurn({ text: t, mentions: collectMentions(t) });
   };
 
   /* ---------------------- quick mode (no LLM) ------------------------ */

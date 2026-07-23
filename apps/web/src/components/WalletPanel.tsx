@@ -27,16 +27,23 @@ export default function WalletPanel({
   pending,
   onBuy,
   onClose,
+  placement = "below",
 }: {
   wallet: Wallet;
   pending: boolean;
   onBuy: () => void;
   onClose: () => void;
+  /** "below" drops from a top bar; "above" rises from the sidebar footer. */
+  placement?: "below" | "above";
 }) {
   const ledger = [...(wallet.ledger ?? [])].reverse(); // newest first
 
   return (
-    <div className="panel rise absolute right-0 top-[calc(100%+10px)] z-50 w-[300px] p-4">
+    <div
+      className={`panel rise absolute z-50 w-[300px] p-4 ${
+        placement === "below" ? "right-0 top-[calc(100%+10px)]" : "bottom-[calc(100%+10px)] left-0"
+      }`}
+    >
       <div className="mb-2 flex items-start justify-between">
         <div>
           <div className="flex items-baseline gap-1.5">

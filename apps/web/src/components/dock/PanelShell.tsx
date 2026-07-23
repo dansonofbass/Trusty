@@ -25,7 +25,7 @@ export default function PanelShell({
 }) {
   return (
     <aside
-      className="rise pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[20px] border border-line shadow-2xl"
+      className="rise pointer-events-auto fixed bottom-4 right-4 top-4 z-40 flex w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[20px] border border-line shadow-2xl"
       style={{
         background: "color-mix(in srgb, var(--color-card) 95%, transparent)",
         backdropFilter: "blur(14px)",
