@@ -245,6 +245,27 @@ export async function specialistStates(nodeIds: string[]): Promise<Record<string
   return out;
 }
 
+/** Bulk subscription lookup (admin lists). Expiry computed like getSubscription. */
+export async function subscriptionStates(
+  nodeIds: string[],
+): Promise<Record<string, { plan: SubscriptionPlan; state: SubscriptionState }>> {
+  if (!pool || nodeIds.length === 0) return {};
+  const r = await pool.query(
+    `SELECT node_id, plan, state, ends_at FROM specialist_subscriptions WHERE node_id = ANY($1)`,
+    [nodeIds],
+  );
+  const out: Record<string, { plan: SubscriptionPlan; state: SubscriptionState }> = {};
+  for (const row of r.rows) {
+    let state = row.state as SubscriptionState;
+    if (
+      row.ends_at && Date.parse(String(row.ends_at)) < Date.now() &&
+      (state === "active" || state === "trial" || state === "admin_granted" || state === "pilot_access")
+    ) state = "expired";
+    out[String(row.node_id)] = { plan: row.plan as SubscriptionPlan, state };
+  }
+  return out;
+}
+
 /* ------------------------------ claims ----------------------------- */
 
 export async function submitClaim(

@@ -236,6 +236,7 @@ import {
   getSpecialist,
   getSubscription,
   setSubscription,
+  subscriptionStates,
   visibilityStats,
   initSpecialists,
   listClaims,
@@ -2462,7 +2463,7 @@ app.delete("/api/specialists/:nodeId/managers/:userId", async (req, res) => {
   }
 });
 
-/** Bulk lifecycle states for card badges. */
+/** Bulk lifecycle states for card badges (+ subscription states for admins). */
 app.post("/api/specialists/states", async (req, res) => {
   auth(req);
   if (!specialistsEnabled()) return res.json({ states: {} });
@@ -2470,7 +2471,10 @@ app.post("/api/specialists/states", async (req, res) => {
     ? (req.body.ids as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 200)
     : [];
   try {
-    res.json({ states: await specialistStates(ids) });
+    const states = await specialistStates(ids);
+    // Subscription status is business-private — admins only.
+    const subscriptions = isAdminReq(req) ? await subscriptionStates(ids) : undefined;
+    res.json({ states, ...(subscriptions ? { subscriptions } : {}) });
   } catch (e) {
     res.status(500).json(asError(e));
   }

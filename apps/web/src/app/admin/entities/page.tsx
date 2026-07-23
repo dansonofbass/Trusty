@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, ChevronRight, ChevronLeft, Loader2, Plus, Upload, Download, X, Users, Boxes } from "lucide-react";
+import { Search, ChevronRight, ChevronLeft, Loader2, Plus, Upload, Download, X, Users, Boxes, Sprout } from "lucide-react";
 import {
   entitiesSchema, listEntities, exportEntities, importEntities, createEntityAdmin,
   type EntityRow, type EntitiesSchema, type SchemaType, type ImportRow,
@@ -9,6 +9,19 @@ import {
 import EntityEditor from "@/components/admin/EntityEditor";
 
 const input = "w-full rounded-lg border border-line bg-space/60 px-3 py-2 text-[13px] text-ink outline-none focus:border-gold/60";
+
+/** Entity types that carry a specialist profile (mirror of graph-core's list). */
+const SPECIALIST_TYPES = new Set([
+  "lawyer", "broker", "immigration_consultant", "accountant", "doctor",
+  "dentist", "mechanic", "plumber", "electrician",
+]);
+
+interface SpecialistMeta {
+  states: Record<string, string>;
+  subscriptions?: Record<string, { plan: string; state: string }>;
+}
+
+const SUB_ACTIVE = new Set(["trial", "active", "admin_granted", "pilot_access"]);
 
 function downloadJSON(name: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -28,14 +41,64 @@ export default function EntitiesPage() {
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modal, setModal] = useState<null | "new" | "import">(null);
+  const [specialistMeta, setSpecialistMeta] = useState<SpecialistMeta>({ states: {} });
+  const [subBusy, setSubBusy] = useState<string | null>(null);
+
+  const loadSpecialistMeta = useCallback(async (nodes: EntityRow[]) => {
+    const ids = nodes.filter((r) => SPECIALIST_TYPES.has(r.entityType ?? "")).map((r) => r.id);
+    if (ids.length === 0) return setSpecialistMeta({ states: {} });
+    try {
+      const r = await fetch("/api/specialists/states", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (r.ok) setSpecialistMeta((await r.json()) as SpecialistMeta);
+    } catch { /* badge-only metadata — the list still works without it */ }
+  }, []);
+
+  /** Grant pilot access (or revoke it) for a specialist entity. */
+  const togglePilot = useCallback(async (nodeId: string, currentlyActive: boolean) => {
+    setSubBusy(nodeId);
+    try {
+      const r = await fetch(`/api/admin/specialists/${encodeURIComponent(nodeId)}/subscription`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          currentlyActive
+            ? { plan: "free", state: "cancelled" }
+            : { plan: "professional", state: "pilot_access" },
+        ),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `failed (${r.status})`);
+      setSpecialistMeta((m) => ({
+        ...m,
+        subscriptions: {
+          ...(m.subscriptions ?? {}),
+          [nodeId]: currentlyActive
+            ? { plan: "free", state: "cancelled" }
+            : { plan: "professional", state: "pilot_access" },
+        },
+      }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubBusy(null);
+    }
+  }, []);
 
   const loadSchema = useCallback(async () => {
     try { setSchema(await entitiesSchema()); } catch (e) { setError(e instanceof Error ? e.message : String(e)); setStatus("error"); }
   }, []);
   const load = useCallback(async () => {
-    try { const r = await listEntities({ app, type, q }); setRows(r.nodes); setStatus("ok"); }
+    try {
+      const r = await listEntities({ app, type, q });
+      setRows(r.nodes);
+      setStatus("ok");
+      void loadSpecialistMeta(r.nodes);
+    }
     catch (e) { const m = e instanceof Error ? e.message : String(e); if (/403/.test(m)) return setStatus("error"); setError(m); setStatus("error"); }
-  }, [app, type, q]);
+  }, [app, type, q, loadSpecialistMeta]);
 
   useEffect(() => { void loadSchema(); }, [loadSchema]);
   useEffect(() => { const t = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(t); }, [load, q]);
@@ -107,19 +170,49 @@ export default function EntitiesPage() {
               <div className="mb-2 text-[12px] text-faint">{rows.length} node{rows.length === 1 ? "" : "s"}</div>
               <div className="overflow-hidden rounded-2xl border border-line bg-surface backdrop-blur-md">
                 <ul className="divide-y divide-line">
-                  {rows.map((r) => (
-                    <li key={r.id}>
-                      <button onClick={() => setSelectedId(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.03]">
+                  {rows.map((r) => {
+                    const isSpecialist = SPECIALIST_TYPES.has(r.entityType ?? "");
+                    const lifecycle = isSpecialist ? specialistMeta.states[r.id] : undefined;
+                    const sub = isSpecialist ? specialistMeta.subscriptions?.[r.id] : undefined;
+                    const subActive = !!sub && SUB_ACTIVE.has(sub.state);
+                    return (
+                    <li key={r.id} className="flex items-center transition hover:bg-white/[0.03]">
+                      <button onClick={() => setSelectedId(r.id)} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left">
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[13.5px] font-medium text-ink">{r.label}{r.isMe ? " (you)" : ""}</span>
                           {r.sub && <span className="block truncate text-[11px] text-faint">{r.sub}</span>}
                         </span>
+                        {lifecycle && lifecycle !== "unclaimed" && (
+                          <span className="shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider"
+                            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+                            {lifecycle.replace(/_/g, " ")}
+                          </span>
+                        )}
                         <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10.5px] uppercase tracking-wider text-dim">{r.entityType ?? r.type}</span>
                         {r.app && <span className="hidden shrink-0 text-[10.5px] uppercase tracking-wider text-faint sm:inline">{r.app}</span>}
-                        <ChevronRight size={16} className="shrink-0 text-faint" />
+                      </button>
+                      {isSpecialist && (
+                        <button
+                          onClick={() => void togglePilot(r.id, subActive)}
+                          disabled={subBusy === r.id}
+                          title={subActive
+                            ? `Subscription: ${sub?.plan} / ${sub?.state} — click to cancel. Never affects trust.`
+                            : "Grant a pilot professional subscription (unlocks the intelligence dashboard for its managers). Never affects trust."}
+                          className="mr-2 flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition disabled:opacity-50"
+                          style={subActive
+                            ? { borderColor: "rgba(255,140,90,0.6)", color: "var(--color-accent)", background: "var(--color-accent-soft)" }
+                            : { borderColor: "var(--color-line)", color: "var(--color-dim)" }}
+                        >
+                          {subBusy === r.id ? <Loader2 size={11} className="animate-spin" /> : <Sprout size={11} />}
+                          {subActive ? "Pilot ✓" : "Pilot"}
+                        </button>
+                      )}
+                      <button onClick={() => setSelectedId(r.id)} aria-label={`Open ${r.label}`} className="pr-4 text-faint">
+                        <ChevronRight size={16} />
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                   {rows.length === 0 && <li className="px-4 py-8 text-center text-[13px] text-faint">No matching nodes.</li>}
                 </ul>
               </div>
