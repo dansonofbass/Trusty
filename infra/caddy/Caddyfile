@@ -1,0 +1,21 @@
+# Trusty edge proxy — terminates HTTPS for the public domain and routes into
+# the compose network. Certificates come from Let's Encrypt automatically
+# (needs ports 80+443 reachable from the internet; HTTP→HTTPS redirect is
+# built in). PUBLIC_DOMAIN + ACME_EMAIL come from .env via docker-compose.
+{
+	email {$ACME_EMAIL}
+}
+
+{$PUBLIC_DOMAIN:localhost} {
+	# Keycloak lives under /auth (KC_HTTP_RELATIVE_PATH) so one domain serves
+	# both app and IdP — no path stripping: keycloak itself expects /auth/*.
+	handle /auth/* {
+		reverse_proxy keycloak:8080
+	}
+
+	# Everything else is the Next.js app (BFF included). Internal network —
+	# the web container no longer needs its host port for public traffic.
+	handle {
+		reverse_proxy web:3000
+	}
+}

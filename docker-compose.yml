@@ -62,7 +62,9 @@ services:
       POSTGRES_PASSWORD: constellation
       POSTGRES_DB: constellation
     ports:
-      - "5432:5432"
+      # Host port for dev tools (psql) only — containers use the internal
+      # network. Overridable so another project's postgres can hold 5432.
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -197,12 +199,23 @@ services:
       # Pins the browser-facing issuer + token `iss` to the public host (from
       # .env PUBLIC_HOST). The web container still reaches the back-channel via
       # the Docker DNS name because BACKCHANNEL_DYNAMIC lets it differ.
-      KC_HOSTNAME: http://${PUBLIC_HOST:-localhost}:8080
+      # Domain mode (KEYCLOAK_PUBLIC_URL set, e.g. https://mytrusty.app/auth):
+      # the browser reaches Keycloak through the Caddy edge proxy over TLS.
+      # Fallback: direct host access on :8080 as before. Keycloak always lives
+      # under /auth so one domain can serve both the app and the IdP.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://${PUBLIC_HOST:-localhost}:8080/auth}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      # Keep management (health) at the root of port 9000 regardless of the
+      # relative path, so the healthcheck below stays valid.
+      KC_HTTP_MANAGEMENT_RELATIVE_PATH: /
+      # Behind Caddy the original proto/host arrive in X-Forwarded-* headers.
+      KC_PROXY_HEADERS: xforwarded
       # Exposed to the container so the realm import can substitute ${PUBLIC_HOST}
       # into the client's redirect-URI allowlist (Keycloak only allows trailing
       # wildcards, so a host-position wildcard won't work — substitution does).
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
     ports:
@@ -417,13 +430,19 @@ services:
       # (or a domain later); everything browser-facing is derived from it here,
       # overriding the .env defaults. Back-channel stays on the Docker DNS name
       # (KEYCLOAK_INTERNAL_URL from .env = http://keycloak:8080).
-      APP_BASE_URL: http://${PUBLIC_HOST:-localhost}:3000
-      KEYCLOAK_ISSUER: http://${PUBLIC_HOST:-localhost}:8080/realms/constellation
+      # Domain mode: APP_PUBLIC_URL/KEYCLOAK_PUBLIC_URL (set in .env) override
+      # the PUBLIC_HOST-derived defaults; the session cookie turns Secure
+      # automatically when APP_BASE_URL is https.
+      APP_BASE_URL: ${APP_PUBLIC_URL:-http://${PUBLIC_HOST:-localhost}:3000}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_PUBLIC_URL:-http://${PUBLIC_HOST:-localhost}:8080/auth}/realms/constellation
       # Exposed so next.config.ts can allow this host as a dev origin (Next 15+
       # blocks cross-origin /_next dev resources from non-localhost hosts).
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "3000:3000"
+      # Host port for direct/dev access only — public traffic enters through
+      # caddy on 80/443 via the internal network. Overridable so another
+      # project can hold 3000 without blocking the stack.
+      - "${WEB_PORT:-3000}:3000"
     volumes:
       - .:/workspace
       - workspace_node_modules:/workspace/node_modules
@@ -444,7 +463,33 @@ services:
       # (LAN) hostname, which containers can't reach (no NAT hairpin).
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
 
+  # ---------------- edge proxy (public domain + TLS) ----------------
+  # Terminates HTTPS for PUBLIC_DOMAIN with automatic Let's Encrypt certs and
+  # routes /auth/* → keycloak, everything else → web, over the internal
+  # network. Prerequisites: DNS A record → this machine's public IP, router
+  # forwarding 80+443 here, firewall open. See infra/caddy/Caddyfile.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_started
+      keycloak:
+        condition: service_started
+
 volumes:
+  caddy-data:
+  caddy-config:
   neo4j-data:
   pg-data:
   ollama-data:
