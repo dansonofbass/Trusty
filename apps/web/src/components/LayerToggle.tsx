@@ -17,7 +17,7 @@ export default function LayerToggle({
   onToggle: (k: keyof Layers) => void;
 }) {
   return (
-    <div className="pointer-events-auto fixed left-1/2 top-[68px] z-30 flex -translate-x-1/2 gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-1 backdrop-blur-md">
+    <div className="pointer-events-auto absolute left-1/2 top-4 z-30 flex -translate-x-1/2 gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-1 backdrop-blur-md">
       <Pill on={layers.knowledge} color={MINT} label="Knowledge" onClick={() => onToggle("knowledge")} />
       <Pill on={layers.trust} color={TRUST_ACCENT} label="Trust" onClick={() => onToggle("trust")} />
     </div>

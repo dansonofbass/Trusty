@@ -13,8 +13,14 @@ export interface TrustSearchState {
 
 export type ViewId = "universe" | "circles" | "discover" | "path";
 
-/** The mutually-exclusive right-side workspaces, driven by the ActionDock. */
+/** The mutually-exclusive right-side workspaces.
+ *  Desktop (workspace shell) uses only "addEntity" | "invite" as overlays;
+ *  "composer" | "asks" remain for the mobile /m surfaces. */
 export type RightPanelId = "composer" | "asks" | "addEntity" | "invite";
+
+/** Content of the contextual right panel (workspace shell). P1 ships the
+ *  inspector; "local-graph" | "backlinks" arrive with the linking phase. */
+export type RightPanelMode = "inspector" | "local-graph" | "backlinks";
 
 /** A paid, ephemeral peek into a region centered on `center`. Session-only. */
 export interface Peek {
@@ -57,6 +63,13 @@ interface UIState {
   geoScope: string; // the viewer's default location (Armenia scope; "yerevan")
   placeModalId: string | null; // restaurant/cafe id shown in the full-screen detail modal
   searchOpen: boolean; // unified top search (entities + trust) — ⌘K / click
+  rightPanelMode: RightPanelMode | null; // contextual right panel (null = closed)
+  graphCenterRequest: string | null; // "center this node on /graph" — cross-route camera contract
+  chatPrefill: string | null; // seed the center chat input (Decisions → discuss, palette)
+  paletteOpen: boolean; // ⌘K command palette (workspace shell)
+  sidebarCollapsed: boolean; // workspace sidebar, persisted
+  docsNonce: number; // bump to refresh doc lists (agent saved a note, editor saved)
+  chatsNonce: number; // bump to refresh the sidebar conversation list
 
   setView: (v: ViewId) => void;
   select: (id: string | null) => void;
@@ -82,6 +95,14 @@ interface UIState {
   setSearchOpen: (v: boolean) => void;
   openPlace: (id: string) => void;
   closePlace: () => void;
+  setRightPanelMode: (m: RightPanelMode | null) => void;
+  requestGraphCenter: (id: string) => void;
+  clearGraphCenter: () => void;
+  setChatPrefill: (t: string | null) => void;
+  setPaletteOpen: (v: boolean) => void;
+  toggleSidebar: () => void;
+  bumpDocs: () => void;
+  bumpChats: () => void;
   resetAll: () => void;
 }
 
@@ -104,6 +125,14 @@ export const useUI = create<UIState>((set) => ({
     (typeof window !== "undefined" && window.localStorage.getItem("trusty:geo")) || "yerevan",
   placeModalId: null,
   searchOpen: false,
+  rightPanelMode: null,
+  graphCenterRequest: null,
+  chatPrefill: null,
+  paletteOpen: false,
+  sidebarCollapsed:
+    typeof window !== "undefined" && window.localStorage.getItem("trusty:sidebar") === "1",
+  docsNonce: 0,
+  chatsNonce: 0,
 
   setView: (view) =>
     set((s) => ({
@@ -112,8 +141,16 @@ export const useUI = create<UIState>((set) => ({
       pathPick: view === "path" ? s.pathPick : [],
       linkPickFrom: null,
     })),
-  select: (selectedId) => set({ selectedId }),
-  setFocus: (focusId) => set({ focusId, selectedId: focusId }),
+  // Selecting a node also surfaces the inspector in the workspace shell's right
+  // panel (harmless on /m — the panel host isn't mounted there).
+  select: (selectedId) =>
+    set((s) => ({ selectedId, rightPanelMode: selectedId ? "inspector" : s.rightPanelMode })),
+  setFocus: (focusId) =>
+    set((s) => ({
+      focusId,
+      selectedId: focusId,
+      rightPanelMode: focusId ? "inspector" : s.rightPanelMode,
+    })),
   toggleType: (t) =>
     set((s) => ({
       hiddenTypes: s.hiddenTypes.includes(t)
@@ -157,6 +194,23 @@ export const useUI = create<UIState>((set) => ({
   setSearchOpen: (searchOpen) => set({ searchOpen }),
   openPlace: (id) => set({ placeModalId: id }),
   closePlace: () => set({ placeModalId: null }),
+  setRightPanelMode: (rightPanelMode) => set({ rightPanelMode }),
+  requestGraphCenter: (graphCenterRequest) => set({ graphCenterRequest }),
+  clearGraphCenter: () => set({ graphCenterRequest: null }),
+  setChatPrefill: (chatPrefill) => set({ chatPrefill }),
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+  toggleSidebar: () =>
+    set((s) => {
+      const next = !s.sidebarCollapsed;
+      try {
+        window.localStorage.setItem("trusty:sidebar", next ? "1" : "0");
+      } catch {
+        /* private mode */
+      }
+      return { sidebarCollapsed: next };
+    }),
+  bumpDocs: () => set((s) => ({ docsNonce: s.docsNonce + 1 })),
+  bumpChats: () => set((s) => ({ chatsNonce: s.chatsNonce + 1 })),
   resetAll: () =>
     set({
       selectedId: null,

@@ -39,7 +39,14 @@ const STATUS_HINT: Record<string, string> = {
   rejected: "not accepted",
 };
 
-export default function ContributionPanel({ onClose }: { onClose: () => void }) {
+export default function ContributionPanel({
+  onClose,
+  placement = "below",
+}: {
+  onClose: () => void;
+  /** "below" drops from a top bar; "above" rises from the sidebar footer. */
+  placement?: "below" | "above";
+}) {
   const [data, setData] = useState<{ c: ContributionData; cr: CreditsData; l: ListenData } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [boosting, setBoosting] = useState(false);
@@ -77,7 +84,11 @@ export default function ContributionPanel({ onClose }: { onClose: () => void }) 
   };
 
   return (
-    <div className="panel rise absolute right-0 top-[calc(100%+10px)] z-50 w-[340px] p-4">
+    <div
+      className={`panel rise absolute z-50 w-[340px] p-4 ${
+        placement === "below" ? "right-0 top-[calc(100%+10px)]" : "bottom-[calc(100%+10px)] left-0"
+      }`}
+    >
       <div className="mb-2 flex items-start justify-between">
         <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-[var(--color-faint)]">
           <Sparkles size={13} /> My contribution

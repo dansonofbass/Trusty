@@ -100,6 +100,11 @@ import {
   getWriting,
   initWritings,
   listWritings,
+  listFolders,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  moveWriting,
   deleteWriting,
   listCollections,
   recordWoven,
@@ -222,6 +227,17 @@ import {
   journeysEnabled,
   listJourneys,
 } from "./journeys";
+import {
+  conversationsEnabled,
+  createConversation,
+  deleteConversation,
+  getConversation,
+  initConversations,
+  listConversations,
+  renameConversation,
+  replaceTurns,
+  type ConversationTurn,
+} from "./conversations";
 import {
   initInteractionLog,
   interactionLogEnabled,
@@ -1100,9 +1116,58 @@ app.get("/api/writings", async (req, res) => {
         q: str(req.query.q as unknown, 100),
         kind: str(req.query.kind as unknown, 40),
         collection: str(req.query.collection as unknown, 60),
+        folderId: str(req.query.folderId as unknown, 30),
       }),
       collections: await listCollections(userId),
+      folders: await listFolders(userId),
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ---- folders (agentic-ux P3) ---- */
+
+app.post("/api/writings/folders", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const f = await createFolder(userId, String(req.body?.name ?? ""), str(req.body?.parentId, 30));
+    if (!f) return res.status(400).json({ error: "valid name (and existing parent) required" });
+    res.json(f);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.patch("/api/writings/folders/:id", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await renameFolder(userId, String(req.params.id), String(req.body?.name ?? ""));
+    if (!ok) return res.status(404).json({ error: "folder not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/writings/folders/:id", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await deleteFolder(userId, String(req.params.id));
+    if (!ok) return res.status(404).json({ error: "folder not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Move a doc into a folder (null/absent = root). */
+app.patch("/api/writings/:id/move", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await moveWriting(userId, String(req.params.id), str(req.body?.folderId, 30) ?? null);
+    if (!ok) return res.status(404).json({ error: "writing or folder not found" });
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -4181,6 +4246,82 @@ const JOURNEY_EVENT_KINDS = new Set([
   "decided", "completed", "outcome", "reopened", "closed",
 ]);
 
+/* ------------- persistent agent conversations (agentic-ux P2) ------------- */
+
+app.get("/api/conversations", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    res.json({ conversations: await listConversations(userId) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/conversations", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    res.json(await createConversation(userId, str(req.body?.title, 120)));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.get("/api/conversations/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    const c = await getConversation(userId, String(req.params.id));
+    if (!c) return res.status(404).json({ error: "conversation not found" });
+    res.json(c);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Replace display turns + raw agent transcript after a completed turn. */
+app.put("/api/conversations/:id/turns", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  const turns = Array.isArray(req.body?.turns) ? (req.body.turns as ConversationTurn[]).slice(0, 200) : null;
+  const transcript = Array.isArray(req.body?.transcript) ? (req.body.transcript as unknown[]) : null;
+  if (!turns || !transcript) return res.status(400).json({ error: "turns[] and transcript[] required" });
+  try {
+    const ok = await replaceTurns(userId, String(req.params.id), turns, transcript, str(req.body?.title, 120));
+    if (!ok) return res.status(404).json({ error: "conversation not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.patch("/api/conversations/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  const title = str(req.body?.title, 120);
+  if (!title) return res.status(400).json({ error: "title required" });
+  try {
+    const ok = await renameConversation(userId, String(req.params.id), title);
+    if (!ok) return res.status(404).json({ error: "conversation not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/conversations/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    const ok = await deleteConversation(userId, String(req.params.id));
+    if (!ok) return res.status(404).json({ error: "conversation not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 app.get("/api/journeys", async (req, res) => {
   const { userId } = auth(req);
   if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
@@ -4511,6 +4652,9 @@ async function main() {
   );
   await initSpecialists().catch((e) =>
     console.error("graph-service: specialists init failed:", e instanceof Error ? e.message : e),
+  );
+  await initConversations().catch((e) =>
+    console.error("graph-service: conversations init failed:", e instanceof Error ? e.message : e),
   );
   await initEmbeddings().catch((e) =>
     console.error("graph-service: embeddings init failed:", e instanceof Error ? e.message : e),

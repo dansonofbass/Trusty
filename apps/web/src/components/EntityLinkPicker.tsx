@@ -19,7 +19,7 @@ export default function EntityLinkPicker({
   onCancel: () => void;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+    <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
       <div className="panel rise pointer-events-auto w-full max-w-lg p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
