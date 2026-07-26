@@ -1,0 +1,17 @@
+# Variant of the edge proxy that serves a PROVIDED certificate instead of
+# obtaining one via ACME — for DNS-01 issued certs (e.g. certbot manual with
+# TXT records) or certs from a provider. Select it in .env:
+#   CADDY_CONFIG=Caddyfile.customcert
+#   CERTS_DIR=/etc/letsencrypt/live/mytrusty.app   # holds fullchain.pem + privkey.pem
+# Renewal is YOUR job (manual DNS-01 can't auto-renew): re-run certbot, then
+# `docker compose restart caddy`.
+{$PUBLIC_DOMAIN} {
+	tls /certs/fullchain.pem /certs/privkey.pem
+
+	handle /auth/* {
+		reverse_proxy keycloak:8080
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}
