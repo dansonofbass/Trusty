@@ -7,7 +7,8 @@
  * entities open the Inspector).
  */
 import { useEffect, useState } from "react";
-import { FileText, Link2, Orbit, CornerDownLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FileText, Link2, Orbit, CornerDownLeft, Maximize2, X } from "lucide-react";
 import { useUI } from "@/lib/store";
 
 export interface DocLink {
@@ -32,8 +33,17 @@ export default function DocLinksPanel({ docId, refreshKey, onOpenDoc }: {
   onOpenDoc: (id: string) => void;
 }) {
   const select = useUI((s) => s.select);
+  const router = useRouter();
   const [outgoing, setOutgoing] = useState<DocLink[]>([]);
   const [backlinks, setBacklinks] = useState<DocBacklink[]>([]);
+  const [maximized, setMaximized] = useState(false);
+
+  /** Jump to the global Graph view focused on this doc's first entity link. */
+  const openInGraph = () => {
+    const entity = outgoing.find((l) => l.targetKind === "node");
+    if (entity) select(entity.targetId);
+    router.push("/graph");
+  };
 
   useEffect(() => {
     if (!docId || docId === "new") {
@@ -69,7 +79,50 @@ export default function DocLinksPanel({ docId, refreshKey, onOpenDoc }: {
       <div>
         <div className="mb-1.5 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
           <Orbit size={11} /> Local graph
+          {spokes.length > 0 && (
+            <span className="ml-auto flex items-center gap-1">
+              <button onClick={() => setMaximized(true)} title="Maximize" className="rounded p-0.5 hover:text-ink">
+                <Maximize2 size={11} />
+              </button>
+              <button onClick={openInGraph} title="Open in your global graph" className="rounded p-0.5 hover:text-ink">
+                <Orbit size={11} style={{ color: "var(--color-accent)" }} />
+              </button>
+            </span>
+          )}
         </div>
+        {maximized && (
+          <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-6" onClick={() => setMaximized(false)}>
+            <div className="panel w-full max-w-2xl rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-2 flex items-center gap-2">
+                <Orbit size={14} style={{ color: "var(--color-accent)" }} />
+                <span className="text-[13px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>Local graph</span>
+                <button onClick={openInGraph} className="ml-auto rounded-lg border border-line px-2.5 py-1 text-[11.5px] text-dim hover:text-ink">
+                  Open in global graph
+                </button>
+                <button onClick={() => setMaximized(false)} aria-label="Close" className="rounded p-1 text-faint hover:text-ink"><X size={15} /></button>
+              </div>
+              <svg viewBox="0 0 240 200" className="w-full">
+                {spokes.map((s, i) => {
+                  const angle = (i / spokes.length) * Math.PI * 2 - Math.PI / 2;
+                  const x = 120 + Math.cos(angle) * 82;
+                  const y = 100 + Math.sin(angle) * 70;
+                  const color = s.kind === "node" ? "var(--color-accent)" : s.kind === "back" ? "#7aa2ff" : "#9aa7b8";
+                  return (
+                    <g key={s.key} onClick={() => { setMaximized(false); s.onClick(); }} style={{ cursor: "pointer" }}>
+                      <line x1={120} y1={100} x2={x} y2={y} stroke="var(--color-line)" strokeWidth={0.8} />
+                      <circle cx={x} cy={y} r={4.5} fill={color} opacity={0.9} />
+                      <text x={x} y={y + (y > 100 ? 12 : -8)} textAnchor="middle" fill="var(--color-dim)" fontSize={7}>
+                        {s.label.length > 22 ? `${s.label.slice(0, 21)}…` : s.label}
+                      </text>
+                    </g>
+                  );
+                })}
+                <circle cx={120} cy={100} r={6} fill="var(--color-accent)" />
+                <circle cx={120} cy={100} r={9.5} fill="none" stroke="var(--color-accent-line)" strokeWidth={0.8} />
+              </svg>
+            </div>
+          </div>
+        )}
         {spokes.length === 0 ? (
           <p className="text-[11px] leading-snug text-[var(--color-faint)]">
             Type <span className="text-[var(--color-accent)]">[[double brackets]]</span> around a doc

@@ -77,6 +77,25 @@ toggleable. Universe/Path/Circles/Lens survive inside the Graph view.
 6. **Polish** — ⌘K unification, wallet/contribution relocation, mobile parity
    decisions.
 
+## Phase 4.5 — feedback batch (Pooyan, 26 Jul, from live server testing)
+
+1. **Chat-weave parity** — weaving from the agent chat must do what the doc
+   editor's Weave does: auto-link the saved note's text (@/#/[[…]]) and
+   surface the relations (local graph) — today chat weave leaves the doc
+   unlinked.
+2. **Local graph: maximize + open-in-global** — expand the rail graph; jump
+   to the full Graph view focused on this doc's connections. *(maximize/open
+   button shipped 26 Jul; full-screen local view pending)*
+3. **Phantom targets** — `[[New Thing]]` with no match currently stores
+   nothing. Obsidian model wanted: unresolved links create a PRIVATE entity
+   (or stub doc) owned by the user, immediately linkable.
+4. **Entities as pages** — a user's private entities open like docs (editable
+   page, not just Inspector cards). Publicity flips the contract: public
+   entities become immutable to the owner / edits go through the
+   suggest→approve moderation flow (same as places).
+5. **Obsidian-style tabs** — tab strip over the center stage: open linked doc
+   in a tab, navigate back to the original; history per tab.
+
 ## Known risks
 
 - `GraphExplorer.tsx` assumes full-screen ownership and mounts ~15 overlays —
