@@ -9,6 +9,7 @@ export interface WritingSummary {
   status: string;
   kind?: string;
   collections?: string[];
+  folderId?: string | null;
   summary: string | null;
   created_at: string;
   updated_at: string;
@@ -52,24 +53,66 @@ export async function saveDraft(d: {
   }
 }
 
+export interface FolderRow {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
 export interface WorkspaceList {
   writings: WritingSummary[];
   collections: string[];
+  folders: FolderRow[];
+}
+
+/* ---- folders (agentic-ux P3) ---- */
+
+export async function createFolder(name: string, parentId?: string): Promise<FolderRow> {
+  const r = await fetch("/api/writings/folders", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name, parentId }),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "folder create failed");
+  return (await r.json()) as FolderRow;
+}
+
+export async function renameFolder(id: string, name: string): Promise<void> {
+  await fetch(`/api/writings/folders/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  await fetch(`/api/writings/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function moveDoc(id: string, folderId: string | null): Promise<void> {
+  await fetch(`/api/writings/${encodeURIComponent(id)}/move`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ folderId }),
+  });
 }
 
 /** The viewer's private workspace — searchable and filterable (#31). */
-export async function fetchWorkspace(opts: { q?: string; kind?: string; collection?: string } = {}): Promise<WorkspaceList> {
+export async function fetchWorkspace(
+  opts: { q?: string; kind?: string; collection?: string; folderId?: string } = {},
+): Promise<WorkspaceList> {
   try {
     const p = new URLSearchParams();
     if (opts.q) p.set("q", opts.q);
     if (opts.kind) p.set("kind", opts.kind);
     if (opts.collection) p.set("collection", opts.collection);
+    if (opts.folderId) p.set("folderId", opts.folderId);
     const qs = p.toString();
     const r = await fetch(`/api/writings${qs ? `?${qs}` : ""}`, { cache: "no-store" });
-    if (!r.ok) return { writings: [], collections: [] };
+    if (!r.ok) return { writings: [], collections: [], folders: [] };
     return (await r.json()) as WorkspaceList;
   } catch {
-    return { writings: [], collections: [] };
+    return { writings: [], collections: [], folders: [] };
   }
 }
 

@@ -100,6 +100,11 @@ import {
   getWriting,
   initWritings,
   listWritings,
+  listFolders,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  moveWriting,
   deleteWriting,
   listCollections,
   recordWoven,
@@ -1111,9 +1116,58 @@ app.get("/api/writings", async (req, res) => {
         q: str(req.query.q as unknown, 100),
         kind: str(req.query.kind as unknown, 40),
         collection: str(req.query.collection as unknown, 60),
+        folderId: str(req.query.folderId as unknown, 30),
       }),
       collections: await listCollections(userId),
+      folders: await listFolders(userId),
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ---- folders (agentic-ux P3) ---- */
+
+app.post("/api/writings/folders", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const f = await createFolder(userId, String(req.body?.name ?? ""), str(req.body?.parentId, 30));
+    if (!f) return res.status(400).json({ error: "valid name (and existing parent) required" });
+    res.json(f);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.patch("/api/writings/folders/:id", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await renameFolder(userId, String(req.params.id), String(req.body?.name ?? ""));
+    if (!ok) return res.status(404).json({ error: "folder not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/writings/folders/:id", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await deleteFolder(userId, String(req.params.id));
+    if (!ok) return res.status(404).json({ error: "folder not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Move a doc into a folder (null/absent = root). */
+app.patch("/api/writings/:id/move", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ok = await moveWriting(userId, String(req.params.id), str(req.body?.folderId, 30) ?? null);
+    if (!ok) return res.status(404).json({ error: "writing or folder not found" });
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
   }

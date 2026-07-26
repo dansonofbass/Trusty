@@ -54,8 +54,128 @@ export async function initWritings(): Promise<void> {
       at          TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await p.query(`CREATE INDEX IF NOT EXISTS writing_events_idx ON writing_events(writing_id, at)`);
+  // Folders (agentic-ux P3): a real hierarchy over the workspace. Additive —
+  // `collections[]` stays for back-compat and migrates lazily per user.
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS folders (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      parent_id   BIGINT REFERENCES folders(id) ON DELETE CASCADE,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await p.query(`CREATE INDEX IF NOT EXISTS folders_user_idx ON folders(user_id, parent_id)`);
+  await p.query(`ALTER TABLE writings ADD COLUMN IF NOT EXISTS folder_id BIGINT REFERENCES folders(id) ON DELETE SET NULL`);
   pool = p;
   console.log("graph-service: writings log ready (postgres)");
+}
+
+/* ------------------------- folders (P3) ---------------------------- */
+
+export interface FolderRow {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
+/** List folders; on a user's FIRST touch, migrate legacy collections[] into
+ *  top-level folders (docs land in their first collection's folder). */
+export async function listFolders(userId: string): Promise<FolderRow[]> {
+  if (!pool) return [];
+  const existing = await pool.query(
+    `SELECT id, name, parent_id FROM folders WHERE user_id = $1 ORDER BY name`,
+    [userId],
+  );
+  if (existing.rowCount) {
+    return existing.rows.map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      parentId: r.parent_id ? String(r.parent_id) : null,
+    }));
+  }
+  // One-time migration: collections → top-level folders.
+  const cols = await pool.query(
+    `SELECT DISTINCT unnest(collections) AS c FROM writings WHERE user_id = $1 ORDER BY c LIMIT 50`,
+    [userId],
+  );
+  if (!cols.rowCount) return [];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const out: FolderRow[] = [];
+    for (const row of cols.rows) {
+      const name = String(row.c);
+      const f = await client.query(
+        `INSERT INTO folders (user_id, name) VALUES ($1, $2) RETURNING id`,
+        [userId, name],
+      );
+      const fid = String(f.rows[0].id);
+      await client.query(
+        `UPDATE writings SET folder_id = $3
+         WHERE user_id = $1 AND folder_id IS NULL AND collections[1] = $2`,
+        [userId, name, fid],
+      );
+      out.push({ id: fid, name, parentId: null });
+    }
+    await client.query("COMMIT");
+    return out;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function createFolder(
+  userId: string,
+  name: string,
+  parentId?: string,
+): Promise<FolderRow | null> {
+  if (!pool) return null;
+  const clean = name.trim().slice(0, 60);
+  if (!clean) return null;
+  if (parentId) {
+    const p = await pool.query(`SELECT 1 FROM folders WHERE id = $1 AND user_id = $2`, [parentId, userId]);
+    if (!p.rowCount) return null;
+  }
+  const r = await pool.query(
+    `INSERT INTO folders (user_id, name, parent_id) VALUES ($1, $2, $3) RETURNING id`,
+    [userId, clean, parentId ?? null],
+  );
+  return { id: String(r.rows[0].id), name: clean, parentId: parentId ?? null };
+}
+
+export async function renameFolder(userId: string, id: string, name: string): Promise<boolean> {
+  if (!pool) return false;
+  const clean = name.trim().slice(0, 60);
+  if (!clean) return false;
+  const r = await pool.query(
+    `UPDATE folders SET name = $3 WHERE id = $1 AND user_id = $2`,
+    [id, userId, clean],
+  );
+  return !!r.rowCount;
+}
+
+/** Delete a folder: child folders cascade; docs fall back to the root
+ *  (folder_id SET NULL) — deleting a folder never deletes writing. */
+export async function deleteFolder(userId: string, id: string): Promise<boolean> {
+  if (!pool) return false;
+  const r = await pool.query(`DELETE FROM folders WHERE id = $1 AND user_id = $2`, [id, userId]);
+  return !!r.rowCount;
+}
+
+export async function moveWriting(userId: string, id: string, folderId: string | null): Promise<boolean> {
+  if (!pool) return false;
+  if (folderId) {
+    const f = await pool.query(`SELECT 1 FROM folders WHERE id = $1 AND user_id = $2`, [folderId, userId]);
+    if (!f.rowCount) return false;
+  }
+  const r = await pool.query(
+    `UPDATE writings SET folder_id = $3, updated_at = now() WHERE id = $1 AND user_id = $2`,
+    [id, userId, folderId],
+  );
+  return !!r.rowCount;
 }
 
 /** Workspace knowledge kinds (#31) — one editor, many kinds; extensible. */
@@ -185,7 +305,7 @@ function diff(original: ThoughtExtraction, accepted: ThoughtExtraction) {
  *  construction — the query is always bound to the owner. */
 export async function listWritings(
   userId: string,
-  opts: { q?: string; kind?: string; collection?: string } = {},
+  opts: { q?: string; kind?: string; collection?: string; folderId?: string } = {},
 ) {
   if (!pool) return [];
   const where: string[] = ["user_id = $1"];
@@ -202,13 +322,19 @@ export async function listWritings(
     params.push(opts.collection);
     where.push(`$${params.length} = ANY(collections)`);
   }
+  if (opts.folderId === "root") {
+    where.push(`folder_id IS NULL`);
+  } else if (opts.folderId) {
+    params.push(opts.folderId);
+    where.push(`folder_id = $${params.length}`);
+  }
   const r = await pool.query(
     `SELECT id, thought_id, title, left(body, 200) AS snippet, status, kind, collections,
-            extraction->>'summary' AS summary, created_at, updated_at
+            folder_id AS "folderId", extraction->>'summary' AS summary, created_at, updated_at
        FROM writings WHERE ${where.join(" AND ")} ORDER BY updated_at DESC LIMIT 100`,
     params,
   );
-  return r.rows;
+  return r.rows.map((row) => ({ ...row, folderId: row.folderId ? String(row.folderId) : null }));
 }
 
 /** All collection names this user has used (for filter chips). */

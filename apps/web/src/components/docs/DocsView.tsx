@@ -1,18 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BookMarked, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, BookMarked, FileText, Folder, FolderPlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import {
+  createFolder,
+  deleteFolder,
   deleteWorkspaceDoc,
   fetchWorkspace,
   fetchWriting,
+  moveDoc,
   saveDraft,
   updateWorkspaceDoc,
+  type FolderRow,
   type WritingSummary,
 } from "@/lib/writings";
 import { useUI } from "@/lib/store";
 import { GOLD } from "@/lib/palette";
+
+// TipTap touches window/document — client-only island.
+const DocEditor = dynamic(() => import("./DocEditor"), { ssr: false });
 
 /**
  * The docs center view (P1): the private workspace as a first-class
@@ -26,22 +34,25 @@ export default function DocsView() {
   const docsNonce = useUI((s) => s.docsNonce);
 
   const [docs, setDocs] = useState<WritingSummary[]>([]);
-  const [collections, setCollections] = useState<string[]>([]);
+  const [folders, setFolders] = useState<FolderRow[]>([]);
   const [q, setQ] = useState("");
-  const [activeCollection, setActiveCollection] = useState<string | null>(null);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null); // null=all · "root" · folder id
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [folderName, setFolderName] = useState("");
 
   // Editor state: null = list; "new" = fresh doc; otherwise the open doc id.
   const [openId, setOpenId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [docFolderId, setDocFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const w = await fetchWorkspace({ q: q || undefined, collection: activeCollection ?? undefined });
+    const w = await fetchWorkspace({ q: q || undefined, folderId: activeFolder ?? undefined });
     setDocs(w.writings);
-    setCollections(w.collections);
-  }, [q, activeCollection]);
+    setFolders(w.folders);
+  }, [q, activeFolder]);
 
   useEffect(() => {
     void load();
@@ -67,13 +78,43 @@ export default function DocsView() {
     setOpenId(id);
     setTitle(d.title ?? "");
     setBody(d.body);
+    setDocFolderId(docs.find((x) => x.id === id)?.folderId ?? null);
   };
 
   const closeEditor = () => {
     setOpenId(null);
     setTitle("");
     setBody("");
+    setDocFolderId(null);
     router.replace("/docs");
+  };
+
+  const moveOpenDoc = async (folderId: string | null) => {
+    setDocFolderId(folderId);
+    if (openId && openId !== "new") {
+      await moveDoc(openId, folderId);
+      bumpDocs();
+    }
+  };
+
+  const addFolder = async () => {
+    const name = folderName.trim();
+    if (!name) return;
+    try {
+      const f = await createFolder(name);
+      setFolderName("");
+      setAddingFolder(false);
+      setActiveFolder(f.id);
+      await load();
+    } catch {
+      /* duplicate/invalid — leave the input open */
+    }
+  };
+
+  const removeFolder = async (id: string) => {
+    await deleteFolder(id); // docs fall back to root, never deleted
+    if (activeFolder === id) setActiveFolder(null);
+    await load();
   };
 
   const flash = (m: string) => {
@@ -98,6 +139,7 @@ export default function DocsView() {
           kind: "note",
           collections: [],
         });
+        if (docFolderId) await moveDoc(id, docFolderId);
         setOpenId(id);
       }
       bumpDocs();
@@ -132,6 +174,18 @@ export default function DocsView() {
           <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-ink">
             {title || "Untitled"}
           </span>
+          {/* move-to-folder */}
+          <select
+            value={docFolderId ?? ""}
+            onChange={(e) => void moveOpenDoc(e.target.value || null)}
+            title="Folder"
+            className="max-w-[140px] rounded-lg border border-[var(--color-line)] bg-transparent px-2 py-1 text-[11px] text-[var(--color-dim)] outline-none"
+          >
+            <option value="" className="bg-[#111827]">No folder</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id} className="bg-[#111827]">{f.name}</option>
+            ))}
+          </select>
           {toast && <span className="text-[11px] text-[#54d26e]">{toast}</span>}
           {openId !== "new" && (
             <button
@@ -162,12 +216,7 @@ export default function DocsView() {
               className="mb-3 w-full bg-transparent text-[24px] font-bold text-ink outline-none placeholder:text-[var(--color-faint)]"
               style={{ fontFamily: "var(--font-display)" }}
             />
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Write… (the TipTap editor with [[wikilinks]] lands in Phase 3)"
-              className="min-h-[50vh] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)]"
-            />
+            <DocEditor docId={openId} initialBody={body} onChange={setBody} />
           </div>
         </div>
       </div>
@@ -206,23 +255,75 @@ export default function DocsView() {
             placeholder="Search your notes…"
             className="mb-2 w-full rounded-lg border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] px-2.5 py-2 text-[12.5px] text-ink outline-none placeholder:text-[var(--color-faint)]"
           />
-          {collections.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-1">
-              {collections.map((c) => (
+          {/* folders (P3): filter chips + create; legacy collections migrated */}
+          <div className="mb-3 flex flex-wrap items-center gap-1">
+            <button
+              onClick={() => setActiveFolder(null)}
+              className="rounded-full border px-2 py-0.5 text-[10.5px]"
+              style={{
+                borderColor: activeFolder === null ? "rgba(255,140,90,0.6)" : "var(--color-line)",
+                color: activeFolder === null ? GOLD : "var(--color-faint)",
+              }}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setActiveFolder(activeFolder === "root" ? null : "root")}
+              className="rounded-full border px-2 py-0.5 text-[10.5px]"
+              style={{
+                borderColor: activeFolder === "root" ? "rgba(255,140,90,0.6)" : "var(--color-line)",
+                color: activeFolder === "root" ? GOLD : "var(--color-faint)",
+              }}
+            >
+              Unfiled
+            </button>
+            {folders.map((f) => (
+              <span key={f.id} className="group/f flex items-center">
                 <button
-                  key={c}
-                  onClick={() => setActiveCollection(activeCollection === c ? null : c)}
-                  className="rounded-full border px-2 py-0.5 text-[10.5px]"
+                  onClick={() => setActiveFolder(activeFolder === f.id ? null : f.id)}
+                  className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px]"
                   style={{
-                    borderColor: activeCollection === c ? "rgba(255,140,90,0.6)" : "var(--color-line)",
-                    color: activeCollection === c ? GOLD : "var(--color-faint)",
+                    borderColor: activeFolder === f.id ? "rgba(255,140,90,0.6)" : "var(--color-line)",
+                    color: activeFolder === f.id ? GOLD : "var(--color-faint)",
                   }}
                 >
-                  {c.replace(/_/g, " ")}
+                  <Folder size={9} /> {f.name}
                 </button>
-              ))}
-            </div>
-          )}
+                {activeFolder === f.id && (
+                  <button
+                    onClick={() => void removeFolder(f.id)}
+                    title="Delete folder (docs move to Unfiled)"
+                    className="ml-0.5 rounded p-0.5 text-[var(--color-faint)] hover:text-rose-300"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </span>
+            ))}
+            {addingFolder ? (
+              <span className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void addFolder();
+                    if (e.key === "Escape") setAddingFolder(false);
+                  }}
+                  placeholder="Folder name…"
+                  className="w-28 rounded-full border border-[var(--color-accent-line)] bg-transparent px-2 py-0.5 text-[10.5px] text-ink outline-none"
+                />
+              </span>
+            ) : (
+              <button
+                onClick={() => setAddingFolder(true)}
+                title="New folder"
+                className="rounded-full border border-dashed border-[var(--color-line)] px-2 py-0.5 text-[10.5px] text-[var(--color-faint)] hover:text-ink"
+              >
+                <FolderPlus size={10} className="inline" /> new
+              </button>
+            )}
+          </div>
 
           {docs.length === 0 ? (
             <p className="flex items-center gap-2 py-6 text-[12px] text-[var(--color-faint)]">
@@ -242,6 +343,11 @@ export default function DocsView() {
                       <span className="shrink-0 rounded-full bg-[rgba(146,166,255,0.1)] px-1.5 py-0.5 text-[9.5px] uppercase tracking-wide text-[var(--color-faint)]">
                         {(d.kind ?? "note").replace(/_/g, " ")}
                       </span>
+                      {d.folderId && (
+                        <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--color-line)] px-1.5 py-0.5 text-[9.5px] text-[var(--color-faint)]">
+                          <Folder size={8} /> {folders.find((f) => f.id === d.folderId)?.name ?? "…"}
+                        </span>
+                      )}
                       {d.status === "published" && (
                         <span className="shrink-0 rounded-full bg-[rgba(255,140,90,0.12)] px-1.5 py-0.5 text-[9.5px]" style={{ color: GOLD }}>
                           published
