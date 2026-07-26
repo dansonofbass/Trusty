@@ -52,16 +52,18 @@
       "redirectUris": [
         "http://localhost:3000/api/auth/callback",
         "http://${PUBLIC_HOST}:3000/api/auth/callback",
-        "https://${PUBLIC_HOST}/api/auth/callback"
+        "https://${PUBLIC_HOST}/api/auth/callback",
+        "${APP_PUBLIC_URL}/api/auth/callback"
       ],
       "webOrigins": [
         "http://localhost:3000",
         "http://${PUBLIC_HOST}:3000",
-        "https://${PUBLIC_HOST}"
+        "https://${PUBLIC_HOST}",
+        "${APP_PUBLIC_URL}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/*##http://${PUBLIC_HOST}:3000/*##https://${PUBLIC_HOST}/*",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://${PUBLIC_HOST}:3000/*##https://${PUBLIC_HOST}/*##${APP_PUBLIC_URL}/*",
         "backchannel.logout.session.required": "true"
       },
       "defaultClientScopes": [
