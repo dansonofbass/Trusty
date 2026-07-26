@@ -10,6 +10,12 @@ import type {
 import { AgentUnavailableError, streamAgentTurn } from "@/lib/agentClient";
 import { TOOL_LABEL, type AgentChatEntry, type TrustToolData } from "@/components/composer/AgentChat";
 import { useUI } from "@/lib/store";
+import {
+  createConversation,
+  entriesFromTurns,
+  getConversation,
+  saveTurns,
+} from "./conversationsClient";
 
 /**
  * The agent conversation loop (#29), extracted from the Composer so the
@@ -28,7 +34,11 @@ export function useAgentConversation(opts?: {
   const [agentMode, setAgentMode] = useState(true);
   const [chat, setChat] = useState<AgentChatEntry[]>([]);
   const [sending, setSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const transcriptRef = useRef<AgentMessage[]>([]);
+  const conversationIdRef = useRef<string | null>(null);
+  const chatRef = useRef<AgentChatEntry[]>([]);
+  chatRef.current = chat;
   const sessionIdRef = useRef<string>("");
   if (!sessionIdRef.current && typeof crypto !== "undefined") {
     sessionIdRef.current = crypto.randomUUID?.() ?? `s_${Date.now().toString(36)}`;
@@ -97,6 +107,40 @@ export function useAgentConversation(opts?: {
     [patchTail],
   );
 
+  /** Persist the completed turn (fire-and-forget; the chat works without a
+   *  DB — persistence failing must never break the conversation). Creates the
+   *  conversation lazily on the first turn, auto-titled from it. */
+  const persistTurn = useCallback(async (firstText?: string) => {
+    try {
+      if (!conversationIdRef.current) {
+        const title =
+          (firstText ?? chatRef.current.find((e) => e.role === "user")?.text ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 80) || undefined;
+        const { id } = await createConversation(title);
+        conversationIdRef.current = id;
+        setConversationId(id);
+      }
+      await saveTurns(conversationIdRef.current, chatRef.current, transcriptRef.current);
+      useUI.getState().bumpChats();
+    } catch {
+      /* offline/disabled persistence is non-fatal */
+    }
+  }, []);
+
+  /** Open a stored conversation as the active thread. */
+  const loadConversation = useCallback(async (id: string) => {
+    const c = await getConversation(id);
+    transcriptRef.current = c.transcript;
+    conversationIdRef.current = c.id;
+    // Deterministic per-conversation session id keeps the agent's journey
+    // memory continuous across resumes.
+    sessionIdRef.current = `conv_${c.id}`;
+    setConversationId(c.id);
+    setChat(entriesFromTurns(c.turns));
+  }, []);
+
   const runTurn = useCallback(
     async (input: {
       text?: string;
@@ -122,6 +166,7 @@ export function useAgentConversation(opts?: {
         );
         transcriptRef.current = result.transcript;
         patchTail((e) => ({ ...e, streaming: false }));
+        void persistTurn(input.text);
         optsRef.current?.onAfterTurn?.();
         return true;
       } catch (err) {
@@ -145,7 +190,7 @@ export function useAgentConversation(opts?: {
         setSending(false);
       }
     },
-    [handleEvent, patchTail],
+    [handleEvent, patchTail, persistTurn],
   );
 
   const decide = useCallback(
@@ -165,9 +210,11 @@ export function useAgentConversation(opts?: {
 
   const newChat = useCallback(() => {
     transcriptRef.current = [];
+    conversationIdRef.current = null;
     sessionIdRef.current = crypto.randomUUID?.() ?? `s_${Date.now().toString(36)}`;
+    setConversationId(null);
     setChat([]);
   }, []);
 
-  return { agentMode, chat, sending, runTurn, decide, newChat };
+  return { agentMode, chat, sending, runTurn, decide, newChat, conversationId, loadConversation };
 }

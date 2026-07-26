@@ -223,6 +223,17 @@ import {
   listJourneys,
 } from "./journeys";
 import {
+  conversationsEnabled,
+  createConversation,
+  deleteConversation,
+  getConversation,
+  initConversations,
+  listConversations,
+  renameConversation,
+  replaceTurns,
+  type ConversationTurn,
+} from "./conversations";
+import {
   initInteractionLog,
   interactionLogEnabled,
   recordInteraction,
@@ -4181,6 +4192,82 @@ const JOURNEY_EVENT_KINDS = new Set([
   "decided", "completed", "outcome", "reopened", "closed",
 ]);
 
+/* ------------- persistent agent conversations (agentic-ux P2) ------------- */
+
+app.get("/api/conversations", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    res.json({ conversations: await listConversations(userId) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/conversations", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    res.json(await createConversation(userId, str(req.body?.title, 120)));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.get("/api/conversations/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    const c = await getConversation(userId, String(req.params.id));
+    if (!c) return res.status(404).json({ error: "conversation not found" });
+    res.json(c);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Replace display turns + raw agent transcript after a completed turn. */
+app.put("/api/conversations/:id/turns", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  const turns = Array.isArray(req.body?.turns) ? (req.body.turns as ConversationTurn[]).slice(0, 200) : null;
+  const transcript = Array.isArray(req.body?.transcript) ? (req.body.transcript as unknown[]) : null;
+  if (!turns || !transcript) return res.status(400).json({ error: "turns[] and transcript[] required" });
+  try {
+    const ok = await replaceTurns(userId, String(req.params.id), turns, transcript, str(req.body?.title, 120));
+    if (!ok) return res.status(404).json({ error: "conversation not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.patch("/api/conversations/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  const title = str(req.body?.title, 120);
+  if (!title) return res.status(400).json({ error: "title required" });
+  try {
+    const ok = await renameConversation(userId, String(req.params.id), title);
+    if (!ok) return res.status(404).json({ error: "conversation not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/conversations/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
+  try {
+    const ok = await deleteConversation(userId, String(req.params.id));
+    if (!ok) return res.status(404).json({ error: "conversation not found" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 app.get("/api/journeys", async (req, res) => {
   const { userId } = auth(req);
   if (!journeysEnabled()) return res.status(503).json({ error: "journeys unavailable" });
@@ -4511,6 +4598,9 @@ async function main() {
   );
   await initSpecialists().catch((e) =>
     console.error("graph-service: specialists init failed:", e instanceof Error ? e.message : e),
+  );
+  await initConversations().catch((e) =>
+    console.error("graph-service: conversations init failed:", e instanceof Error ? e.message : e),
   );
   await initEmbeddings().catch((e) =>
     console.error("graph-service: embeddings init failed:", e instanceof Error ? e.message : e),

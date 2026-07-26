@@ -69,6 +69,7 @@ interface UIState {
   paletteOpen: boolean; // ⌘K command palette (workspace shell)
   sidebarCollapsed: boolean; // workspace sidebar, persisted
   docsNonce: number; // bump to refresh doc lists (agent saved a note, editor saved)
+  chatsNonce: number; // bump to refresh the sidebar conversation list
 
   setView: (v: ViewId) => void;
   select: (id: string | null) => void;
@@ -101,6 +102,7 @@ interface UIState {
   setPaletteOpen: (v: boolean) => void;
   toggleSidebar: () => void;
   bumpDocs: () => void;
+  bumpChats: () => void;
   resetAll: () => void;
 }
 
@@ -130,6 +132,7 @@ export const useUI = create<UIState>((set) => ({
   sidebarCollapsed:
     typeof window !== "undefined" && window.localStorage.getItem("trusty:sidebar") === "1",
   docsNonce: 0,
+  chatsNonce: 0,
 
   setView: (view) =>
     set((s) => ({
@@ -207,6 +210,7 @@ export const useUI = create<UIState>((set) => ({
       return { sidebarCollapsed: next };
     }),
   bumpDocs: () => set((s) => ({ docsNonce: s.docsNonce + 1 })),
+  bumpChats: () => set((s) => ({ chatsNonce: s.chatsNonce + 1 })),
   resetAll: () =>
     set({
       selectedId: null,

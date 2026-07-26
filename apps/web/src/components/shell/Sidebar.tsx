@@ -17,6 +17,8 @@ import Brand from "@/components/Brand";
 import { useUI } from "@/lib/store";
 import { askInbox } from "@/lib/asksClient";
 import { fetchWorkspace, type WritingSummary } from "@/lib/writings";
+import { listConversations, type ConversationSummary } from "@/lib/chat/conversationsClient";
+import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
 
 const NAV: { href: string; label: string; icon: React.ElementType }[] = [
@@ -38,8 +40,33 @@ export default function Sidebar() {
   const setRightPanel = useUI((s) => s.setRightPanel);
   const setPaletteOpen = useUI((s) => s.setPaletteOpen);
   const docsNonce = useUI((s) => s.docsNonce);
+  const chatsNonce = useUI((s) => s.chatsNonce);
   const [unreadAsks, setUnreadAsks] = useState(0);
   const [docs, setDocs] = useState<WritingSummary[]>([]);
+  const [chats, setChats] = useState<ConversationSummary[]>([]);
+  const { conversationId, loadConversation, newChat, sending } = useChat();
+
+  useEffect(() => {
+    let alive = true;
+    listConversations()
+      .then((cs) => alive && setChats(cs.slice(0, 8)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [chatsNonce]);
+
+  const openChat = (id: string) => {
+    if (sending) return; // don't yank a streaming thread out from under itself
+    void loadConversation(id).catch(() => {});
+    router.push("/");
+  };
+
+  const startNewChat = () => {
+    if (sending) return;
+    newChat();
+    router.push("/");
+  };
 
   useEffect(() => {
     let alive = true;
@@ -105,6 +132,48 @@ export default function Sidebar() {
           </Link>
         ))}
       </nav>
+
+      {/* Chats history (Phase 2 — persisted conversations) */}
+      <div className="mt-3 px-2">
+        <div className="mb-1 flex items-center justify-between px-3">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
+            <MessageCircle size={11} /> Chats
+          </span>
+          <button
+            type="button"
+            title="New chat"
+            onClick={startNewChat}
+            className="rounded p-1 text-[var(--color-faint)] transition hover:text-ink"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+        {chats.length === 0 ? (
+          <p className="px-3 py-1 text-[11px] leading-snug text-[var(--color-faint)]">
+            Conversations you start will resume from here.
+          </p>
+        ) : (
+          <ul className="max-h-[168px] overflow-y-auto scroll-quiet">
+            {chats.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => openChat(c.id)}
+                  className="block w-full truncate rounded-lg px-3 py-1.5 text-left text-[12px] transition hover:bg-[var(--color-tint)] hover:text-ink"
+                  style={
+                    conversationId === c.id && pathname === "/"
+                      ? { background: "var(--color-accent-soft)", color: "var(--color-accent)" }
+                      : { color: "var(--color-dim)" }
+                  }
+                  title={c.title}
+                >
+                  {c.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Docs directory (flat in P1; folder tree = Phase 3) */}
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto px-2 pb-2 scroll-quiet">
