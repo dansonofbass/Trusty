@@ -1086,23 +1086,29 @@ app.post("/api/thoughts", async (req, res) => {
   }
 });
 
-/** Fuzzy label match against the shared graph for [[wikilink]] resolution:
+/** Fuzzy label match against the shared graph for link resolution:
  *  exact → prefix → contains (case-insensitive), shortest label wins so
- *  "[[Tumo Center]]" hits "Tumo Center for Creative Technologies". */
-const nodeResolver = (name: string) => {
+ *  "[[Tumo Center]]" hits "Tumo Center for Creative Technologies". A kind
+ *  hint (@person / #concept) doubles a matching node's rank so people beat
+ *  places for @names and concepts beat everything for #tags. */
+const nodeResolver = (name: string, hint?: "person" | "concept") => {
   const lower = name.toLowerCase();
   if (lower.length < 2) return null;
   let best: { id: string; label: string; type: string } | null = null;
-  let bestRank = 0; // 3 exact · 2 prefix · 1 contains
+  let bestRank = 0;
   for (const x of shared.nodes) {
     const l = x.label.toLowerCase();
-    const rank = l === lower ? 3 : l.startsWith(lower) ? 2 : l.includes(lower) ? 1 : 0;
+    let rank = l === lower ? 3 : l.startsWith(lower) ? 2 : l.includes(lower) ? 1 : 0;
     if (rank === 0) continue;
+    if (hint && x.type === hint) rank *= 2;
     if (!best || rank > bestRank || (rank === bestRank && x.label.length < best.label.length)) {
       best = { id: x.id, label: x.label, type: x.type };
       bestRank = rank;
     }
   }
+  // A hinted lookup that only found the wrong kind stays unresolved for #tags
+  // (a #paris tag shouldn't bind to a person); @ tolerates non-person matches.
+  if (hint === "concept" && best && best.type !== "concept") return null;
   return best;
 };
 

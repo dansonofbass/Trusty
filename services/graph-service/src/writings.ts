@@ -90,6 +90,9 @@ export async function initWritings(): Promise<void> {
 /* ------------------------- wikilinks (P4) -------------------------- */
 
 export const WIKILINK_RE = /\[\[([^\[\]]+)\]\]/g;
+/** Composer grammar in docs too: @person and #concept (single tokens). */
+export const MENTION_RE = /(?:^|[\s(>])@([\p{L}\d][\p{L}\d_-]{1,40})/gu;
+export const TAG_RE = /(?:^|[\s(>])#([\p{L}\d][\p{L}\d_-]{1,40})/gu;
 
 export interface ResolvedNodeRef {
   id: string;
@@ -97,19 +100,38 @@ export interface ResolvedNodeRef {
   type?: string;
 }
 
+export type NodeResolver = (name: string, hint?: "person" | "concept") => ResolvedNodeRef | null;
+
 /** Re-derive a doc's confirmed user links from its body. [[Targets]] resolve
- *  first to the user's own docs (title match), then to graph nodes via the
- *  caller-supplied resolver. Unresolved targets stay plain text (phantom
- *  docs are a later nicety). AI suggestions are left untouched. */
+ *  first to the user's own docs (title match), then to graph nodes; @names
+ *  resolve to people, #tags to concepts (caller-supplied resolver applies
+ *  the kind hint). Unresolved targets stay plain text. AI suggestions are
+ *  left untouched. */
 export async function syncWikilinks(
   userId: string,
   writingId: string,
   body: string,
-  resolveNode: (name: string) => ResolvedNodeRef | null,
+  resolveNode: NodeResolver,
 ): Promise<void> {
   if (!pool) return;
   const names = [...new Set([...body.matchAll(WIKILINK_RE)].map((m) => m[1].trim()).filter((n) => n.length >= 2))];
   const links: { kind: string; id: string; alias: string }[] = [];
+  const seen = new Set<string>();
+  const push = (kind: string, id: string, alias: string) => {
+    const key = `${kind}:${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({ kind, id, alias });
+  };
+  // @people and #concepts — node links only, kind-hinted.
+  for (const m of body.matchAll(MENTION_RE)) {
+    const node = resolveNode(m[1], "person");
+    if (node) push("node", node.id, `@${m[1]}`);
+  }
+  for (const m of body.matchAll(TAG_RE)) {
+    const node = resolveNode(m[1], "concept");
+    if (node) push("node", node.id, `#${m[1]}`);
+  }
   for (const name of names) {
     // Fuzzy doc match: exact beats prefix beats contains; shortest title wins
     // ("[[Tumo Center]]" should hit "Tumo Center for Creative Technologies").
@@ -123,11 +145,11 @@ export async function syncWikilinks(
       [userId, writingId, name],
     );
     if (doc.rowCount) {
-      links.push({ kind: "writing", id: String(doc.rows[0].id), alias: name });
+      push("writing", String(doc.rows[0].id), name);
       continue;
     }
     const node = resolveNode(name);
-    if (node) links.push({ kind: "node", id: node.id, alias: name });
+    if (node) push("node", node.id, name);
   }
   const client = await pool.connect();
   try {

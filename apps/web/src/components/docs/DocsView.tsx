@@ -21,6 +21,41 @@ import {
 import { useUI } from "@/lib/store";
 import { GOLD } from "@/lib/palette";
 
+/** After weaving, link each extracted entity's first occurrence in the doc
+ *  body using the composer grammar: @person and #concept for single tokens,
+ *  [[double brackets]] otherwise (verbatim mention preferred; already-linked
+ *  spans skipped) — the doc links what it just created, and the local graph
+ *  shows it. */
+function autolinkBody(
+  body: string,
+  entities: { name: string; mention?: string; kind?: string }[],
+): string {
+  let out = body;
+  const targets = entities
+    .map((e) => ({ find: (e.mention ?? e.name).trim(), alt: e.name.trim(), kind: e.kind }))
+    .filter((t) => t.find.length >= 2)
+    .sort((a, b) => b.find.length - a.find.length);
+  for (const t of targets) {
+    const lower = out.toLowerCase();
+    const single = !/\s/.test(t.find);
+    const symbol = single && t.kind === "person" ? "@" : single && t.kind === "concept" ? "#" : null;
+    if (
+      lower.includes(`[[${t.find.toLowerCase()}]]`) ||
+      lower.includes(`[[${t.alt.toLowerCase()}]]`) ||
+      (symbol && lower.includes(`${symbol}${t.find.toLowerCase()}`))
+    ) continue;
+    const idx = lower.indexOf(t.find.toLowerCase());
+    if (idx === -1) continue;
+    const before2 = out.slice(Math.max(0, idx - 2), idx);
+    const prev = out.slice(Math.max(0, idx - 1), idx);
+    if (before2 === "[[" || prev === "@" || prev === "#" || out.slice(idx + t.find.length, idx + t.find.length + 2) === "]]") continue;
+    out = symbol
+      ? `${out.slice(0, idx)}${symbol}${out.slice(idx)}`
+      : `${out.slice(0, idx)}[[${out.slice(idx, idx + t.find.length)}]]${out.slice(idx + t.find.length)}`;
+  }
+  return out;
+}
+
 // TipTap touches window/document — client-only island.
 const DocEditor = dynamic(() => import("./DocEditor"), { ssr: false });
 const DocLinksPanel = dynamic(() => import("./DocLinksPanel"), { ssr: false });
@@ -245,8 +280,19 @@ export default function DocsView() {
                 initialBody={body}
                 onChange={setBody}
                 onWikilinkClick={(name) => {
-                  const target = docs.find((d) => (d.title ?? "") === name);
-                  if (target) void openDoc(target.id);
+                  // Docs first (exact then contains), then graph entities —
+                  // clicking @sara / #topic / [[place]] opens the Inspector.
+                  const lower = name.toLowerCase();
+                  const target =
+                    docs.find((d) => (d.title ?? "").toLowerCase() === lower) ??
+                    docs.find((d) => (d.title ?? "").toLowerCase().includes(lower));
+                  if (target) return void openDoc(target.id);
+                  const nodes = data?.nodes ?? [];
+                  const node =
+                    nodes.find((n) => n.label.toLowerCase() === lower) ??
+                    nodes.find((n) => n.label.toLowerCase().startsWith(lower)) ??
+                    nodes.find((n) => n.label.toLowerCase().includes(lower));
+                  if (node) select(node.id);
                 }}
               />
             </div>
@@ -288,6 +334,15 @@ export default function DocsView() {
                     );
                     bumpGraph();
                     bumpDocs();
+                    // Link the woven entities inside the doc itself: mentions
+                    // become [[wikilinks]], saved, and the links panel refreshes.
+                    if (openId && openId !== "new") {
+                      const linked = autolinkBody(text, extraction.entities);
+                      if (linked !== text) {
+                        setBody(linked);
+                        await updateWorkspaceDoc(openId, { body: linked });
+                      }
+                    }
                     setLinksKey((k) => k + 1);
                     const entityCount = r.dataset.links.filter(
                       (l) =>
