@@ -108,23 +108,26 @@ export async function syncWikilinks(
   resolveNode: (name: string) => ResolvedNodeRef | null,
 ): Promise<void> {
   if (!pool) return;
-  const names = [...new Set([...body.matchAll(WIKILINK_RE)].map((m) => m[1].trim()).filter(Boolean))];
+  const names = [...new Set([...body.matchAll(WIKILINK_RE)].map((m) => m[1].trim()).filter((n) => n.length >= 2))];
   const links: { kind: string; id: string; alias: string }[] = [];
-  if (names.length) {
-    const docs = await pool.query(
-      `SELECT id, title FROM writings WHERE user_id = $1 AND id <> $2 AND title = ANY($3) LIMIT 100`,
-      [userId, writingId, names],
+  for (const name of names) {
+    // Fuzzy doc match: exact beats prefix beats contains; shortest title wins
+    // ("[[Tumo Center]]" should hit "Tumo Center for Creative Technologies").
+    const doc = await pool.query(
+      `SELECT id FROM writings
+        WHERE user_id = $1 AND id <> $2 AND title ILIKE '%' || $3 || '%'
+        ORDER BY (lower(title) = lower($3)) DESC,
+                 (title ILIKE $3 || '%') DESC,
+                 length(title)
+        LIMIT 1`,
+      [userId, writingId, name],
     );
-    const docByTitle = new Map(docs.rows.map((r) => [String(r.title), String(r.id)]));
-    for (const name of names) {
-      const docId = docByTitle.get(name);
-      if (docId) {
-        links.push({ kind: "writing", id: docId, alias: name });
-        continue;
-      }
-      const node = resolveNode(name);
-      if (node) links.push({ kind: "node", id: node.id, alias: name });
+    if (doc.rowCount) {
+      links.push({ kind: "writing", id: String(doc.rows[0].id), alias: name });
+      continue;
     }
+    const node = resolveNode(name);
+    if (node) links.push({ kind: "node", id: node.id, alias: name });
   }
   const client = await pool.connect();
   try {

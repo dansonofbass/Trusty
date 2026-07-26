@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BookMarked, FileText, Folder, FolderPlus, Loader2, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, BookMarked, FileText, Folder, FolderPlus, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { useGraphData } from "@/lib/graph/GraphDataProvider";
+import { ingestExtraction, streamExtract } from "@/lib/extractClient";
 import {
   createFolder,
   deleteFolder,
@@ -22,6 +24,7 @@ import { GOLD } from "@/lib/palette";
 // TipTap touches window/document — client-only island.
 const DocEditor = dynamic(() => import("./DocEditor"), { ssr: false });
 const DocLinksPanel = dynamic(() => import("./DocLinksPanel"), { ssr: false });
+const WeaveFlow = dynamic(() => import("@/components/composer/WeaveFlow"), { ssr: false });
 
 /**
  * The docs center view (P1): the private workspace as a first-class
@@ -49,6 +52,11 @@ export default function DocsView() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [linksKey, setLinksKey] = useState(0); // bumps after save → links panel refetch
+  const [weaving, setWeaving] = useState(false);
+  const [weavePending, setWeavePending] = useState(false);
+  const { data } = useGraphData();
+  const bumpGraph = useUI((s) => s.bumpGraph);
+  const select = useUI((s) => s.select);
 
   const load = useCallback(async () => {
     const w = await fetchWorkspace({ q: q || undefined, folderId: activeFolder ?? undefined });
@@ -190,6 +198,18 @@ export default function DocsView() {
             ))}
           </select>
           {toast && <span className="text-[11px] text-[#54d26e]">{toast}</span>}
+          {/* Weave: extract entities from this doc and add them to the graph —
+              same pipeline as the composer's weave. */}
+          <button
+            type="button"
+            onClick={() => body.trim() && setWeaving(true)}
+            disabled={!body.trim() || weavePending}
+            title="Extract the people & places mentioned here into your graph"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--color-accent-line)] px-3 py-1.5 text-[12px] font-semibold disabled:opacity-40"
+            style={{ color: "var(--color-accent)" }}
+          >
+            <Sparkles size={13} /> Weave
+          </button>
           {openId !== "new" && (
             <button
               type="button"
@@ -236,6 +256,61 @@ export default function DocsView() {
             <DocLinksPanel docId={openId} refreshKey={linksKey} onOpenDoc={(id) => void openDoc(id)} />
           </aside>
         </div>
+
+        {/* Weave overlay — the composer's extraction→review→weave flow over this doc */}
+        {weaving && (
+          <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" onClick={() => !weavePending && setWeaving(false)}>
+            <div className="panel max-h-[86dvh] w-full max-w-lg overflow-y-auto rounded-2xl p-4 scroll-quiet" onClick={(e) => e.stopPropagation()}>
+              <WeaveFlow
+                text={body}
+                mode="api"
+                pending={weavePending}
+                onExtract={async (text, onEvent) => {
+                  setWeavePending(true);
+                  try {
+                    return (await streamExtract(text, { onEvent })).extraction;
+                  } catch {
+                    return null;
+                  } finally {
+                    setWeavePending(false);
+                  }
+                }}
+                onWeave={async (text, extraction, orig, writingId, trustAssertions) => {
+                  setWeavePending(true);
+                  try {
+                    const r = await ingestExtraction(
+                      data?.meId ?? "me",
+                      text,
+                      extraction,
+                      orig,
+                      writingId ?? (openId !== "new" ? openId : undefined),
+                      trustAssertions,
+                    );
+                    bumpGraph();
+                    bumpDocs();
+                    setLinksKey((k) => k + 1);
+                    const entityCount = r.dataset.links.filter(
+                      (l) =>
+                        (typeof l.source === "string" ? l.source : (l.source as { id: string }).id) === r.thoughtId &&
+                        l.type === "MENTIONS",
+                    ).length;
+                    return { entityCount, conceptIds: r.conceptIds, thoughtId: r.thoughtId };
+                  } catch {
+                    return null;
+                  } finally {
+                    setWeavePending(false);
+                  }
+                }}
+                onExplore={(thoughtId) => {
+                  setWeaving(false);
+                  select(thoughtId);
+                  router.push("/graph");
+                }}
+                onClose={() => setWeaving(false)}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }

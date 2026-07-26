@@ -1086,12 +1086,24 @@ app.post("/api/thoughts", async (req, res) => {
   }
 });
 
-/** Case-insensitive label match against the shared graph for [[wikilink]]
- *  resolution — person/place/entity names beat nothing, docs beat nodes. */
+/** Fuzzy label match against the shared graph for [[wikilink]] resolution:
+ *  exact → prefix → contains (case-insensitive), shortest label wins so
+ *  "[[Tumo Center]]" hits "Tumo Center for Creative Technologies". */
 const nodeResolver = (name: string) => {
   const lower = name.toLowerCase();
-  const n = shared.nodes.find((x) => x.label.toLowerCase() === lower);
-  return n ? { id: n.id, label: n.label, type: n.type } : null;
+  if (lower.length < 2) return null;
+  let best: { id: string; label: string; type: string } | null = null;
+  let bestRank = 0; // 3 exact · 2 prefix · 1 contains
+  for (const x of shared.nodes) {
+    const l = x.label.toLowerCase();
+    const rank = l === lower ? 3 : l.startsWith(lower) ? 2 : l.includes(lower) ? 1 : 0;
+    if (rank === 0) continue;
+    if (!best || rank > bestRank || (rank === bestRank && x.label.length < best.label.length)) {
+      best = { id: x.id, label: x.label, type: x.type };
+      bestRank = rank;
+    }
+  }
+  return best;
 };
 
 /** Save/update a draft writing (before it's accepted into the graph). */
