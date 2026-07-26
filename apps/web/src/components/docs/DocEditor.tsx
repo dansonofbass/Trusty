@@ -8,11 +8,14 @@
  * turns them into real edges + backlinks.
  */
 import { useEffect } from "react";
-import { EditorContent, useEditor, markInputRule } from "@tiptap/react";
+import { EditorContent, useEditor, markInputRule, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Mark, mergeAttributes } from "@tiptap/core";
 import { Markdown } from "tiptap-markdown";
+import {
+  Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Quote, Code, Link2,
+} from "lucide-react";
 
 /** Inline mark for [[wikilinks]]: typed as [[Target]], stored as [[Target]]. */
 const Wikilink = Mark.create({
@@ -102,5 +105,69 @@ export default function DocEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId, editor]);
 
-  return <EditorContent editor={editor} />;
+  return (
+    <div className="rounded-xl border border-[var(--color-line)] transition focus-within:border-[var(--color-accent-line)]">
+      <Toolbar editor={editor} />
+      {/* Whole surface is a click target — clicking below the text focuses. */}
+      <div
+        className="min-h-[52vh] cursor-text px-4 py-3"
+        onClick={() => editor?.chain().focus().run()}
+      >
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+
+function Toolbar({ editor }: { editor: Editor | null }) {
+  if (!editor) return null;
+  const btn = (
+    label: string,
+    icon: React.ReactNode,
+    onClick: () => void,
+    isActive: boolean,
+  ) => (
+    <button
+      key={label}
+      type="button"
+      title={label}
+      onMouseDown={(e) => {
+        e.preventDefault(); // keep editor selection/focus
+        onClick();
+      }}
+      className="rounded-md p-1.5 transition"
+      style={
+        isActive
+          ? { background: "var(--color-accent-soft)", color: "var(--color-accent)" }
+          : { color: "var(--color-faint)" }
+      }
+    >
+      {icon}
+    </button>
+  );
+  const c = () => editor.chain().focus();
+  return (
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-[var(--color-line)] px-2 py-1">
+      {btn("Bold (⌘B)", <Bold size={14} />, () => c().toggleBold().run(), editor.isActive("bold"))}
+      {btn("Italic (⌘I)", <Italic size={14} />, () => c().toggleItalic().run(), editor.isActive("italic"))}
+      {btn("Strikethrough", <Strikethrough size={14} />, () => c().toggleStrike().run(), editor.isActive("strike"))}
+      <span className="mx-1 h-4 w-px bg-[var(--color-line)]" />
+      {btn("Heading 1", <Heading1 size={14} />, () => c().toggleHeading({ level: 1 }).run(), editor.isActive("heading", { level: 1 }))}
+      {btn("Heading 2", <Heading2 size={14} />, () => c().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }))}
+      <span className="mx-1 h-4 w-px bg-[var(--color-line)]" />
+      {btn("Bullet list", <List size={14} />, () => c().toggleBulletList().run(), editor.isActive("bulletList"))}
+      {btn("Numbered list", <ListOrdered size={14} />, () => c().toggleOrderedList().run(), editor.isActive("orderedList"))}
+      {btn("Quote", <Quote size={14} />, () => c().toggleBlockquote().run(), editor.isActive("blockquote"))}
+      {btn("Code block", <Code size={14} />, () => c().toggleCodeBlock().run(), editor.isActive("codeBlock"))}
+      <span className="mx-1 h-4 w-px bg-[var(--color-line)]" />
+      {btn("Wikilink — or type [[…]]", <Link2 size={14} />, () => {
+        const sel = editor.state.selection;
+        const text = editor.state.doc.textBetween(sel.from, sel.to) || "link";
+        c().insertContent(`[[${text}]] `).run();
+      }, editor.isActive("wikilink"))}
+      <span className="ml-auto pr-1 text-[10px] text-[var(--color-faint)]">
+        markdown shortcuts &amp; [[wikilinks]] work while typing
+      </span>
+    </div>
+  );
 }

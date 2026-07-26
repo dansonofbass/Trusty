@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ChevronDown,
+  ChevronRight,
   FileText,
+  Folder,
+  FolderOpen,
   MessageCircle,
   Megaphone,
   Orbit,
@@ -16,7 +20,7 @@ import {
 import Brand from "@/components/Brand";
 import { useUI } from "@/lib/store";
 import { askInbox } from "@/lib/asksClient";
-import { fetchWorkspace, type WritingSummary } from "@/lib/writings";
+import { fetchWorkspace, type FolderRow, type WritingSummary } from "@/lib/writings";
 import { listConversations, type ConversationSummary } from "@/lib/chat/conversationsClient";
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
@@ -43,6 +47,25 @@ export default function Sidebar() {
   const chatsNonce = useUI((s) => s.chatsNonce);
   const [unreadAsks, setUnreadAsks] = useState(0);
   const [docs, setDocs] = useState<WritingSummary[]>([]);
+  const [folders, setFolders] = useState<FolderRow[]>([]);
+  // Obsidian-style tree: collapse state survives reloads.
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      return new Set(JSON.parse(localStorage.getItem("trusty-folders-open") ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleFolder = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("trusty-folders-open", JSON.stringify([...next]));
+      return next;
+    });
+  };
   const [chats, setChats] = useState<ConversationSummary[]>([]);
   const { conversationId, loadConversation, newChat, sending } = useChat();
 
@@ -81,7 +104,11 @@ export default function Sidebar() {
   useEffect(() => {
     let alive = true;
     fetchWorkspace()
-      .then((w) => alive && setDocs(w.writings.slice(0, 8)))
+      .then((w) => {
+        if (!alive) return;
+        setDocs(w.writings);
+        setFolders(w.folders);
+      })
       .catch(() => {});
     return () => {
       alive = false;
@@ -193,23 +220,67 @@ export default function Sidebar() {
             <Plus size={12} />
           </button>
         </div>
-        {docs.length === 0 ? (
+        {docs.length === 0 && folders.length === 0 ? (
           <p className="px-3 py-1 text-[11px] leading-snug text-[var(--color-faint)]">
             Your notes and drafts will appear here.
           </p>
         ) : (
           <ul>
-            {docs.map((d) => (
-              <li key={d.id}>
-                <Link
-                  href={`/docs?open=${encodeURIComponent(d.id)}`}
-                  className="block truncate rounded-lg px-3 py-1.5 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
-                  title={d.title || "Untitled"}
-                >
-                  {d.title || "Untitled"}
-                </Link>
-              </li>
-            ))}
+            {/* Obsidian-style tree: folders first (collapsible), unfiled after. */}
+            {folders
+              .filter((f) => !f.parentId)
+              .map((f) => {
+                const inFolder = docs.filter((d) => d.folderId === f.id);
+                const open = expanded.has(f.id);
+                return (
+                  <li key={`f_${f.id}`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleFolder(f.id)}
+                      className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
+                    >
+                      {open ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />}
+                      {open ? <FolderOpen size={12} className="shrink-0" /> : <Folder size={12} className="shrink-0" />}
+                      <span className="min-w-0 flex-1 truncate text-left">{f.name}</span>
+                      <span className="text-[10px] text-[var(--color-faint)]">{inFolder.length}</span>
+                    </button>
+                    {open && (
+                      <ul className="ml-4 border-l border-[var(--color-line)] pl-1.5">
+                        {inFolder.length === 0 && (
+                          <li className="px-2 py-1 text-[10.5px] text-[var(--color-faint)]">empty</li>
+                        )}
+                        {inFolder.map((d) => (
+                          <li key={d.id}>
+                            <Link
+                              href={`/docs?open=${encodeURIComponent(d.id)}`}
+                              className="flex items-center gap-1.5 truncate rounded-lg px-2 py-1 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
+                              title={d.title || "Untitled"}
+                            >
+                              <FileText size={11} className="shrink-0 text-[var(--color-faint)]" />
+                              <span className="min-w-0 truncate">{d.title || "Untitled"}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            {docs
+              .filter((d) => !d.folderId)
+              .slice(0, 12)
+              .map((d) => (
+                <li key={d.id}>
+                  <Link
+                    href={`/docs?open=${encodeURIComponent(d.id)}`}
+                    className="flex items-center gap-1.5 truncate rounded-lg px-2 py-1.5 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
+                    title={d.title || "Untitled"}
+                  >
+                    <FileText size={11} className="shrink-0 text-[var(--color-faint)]" />
+                    <span className="min-w-0 truncate">{d.title || "Untitled"}</span>
+                  </Link>
+                </li>
+              ))}
           </ul>
         )}
         <button
