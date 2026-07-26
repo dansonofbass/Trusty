@@ -112,6 +112,9 @@ export async function syncWikilinks(
   writingId: string,
   body: string,
   resolveNode: NodeResolver,
+  /** Phantom targets (P4.5): create a private entity for an unresolved
+   *  [[name]] so every wikilink lands somewhere (Obsidian model). */
+  createNode?: (name: string) => Promise<ResolvedNodeRef | null>,
 ): Promise<void> {
   if (!pool) return;
   const names = [...new Set([...body.matchAll(WIKILINK_RE)].map((m) => m[1].trim()).filter((n) => n.length >= 2))];
@@ -149,7 +152,14 @@ export async function syncWikilinks(
       continue;
     }
     const node = resolveNode(name);
-    if (node) push("node", node.id, name);
+    if (node) {
+      push("node", node.id, name);
+      continue;
+    }
+    if (createNode) {
+      const created = await createNode(name).catch(() => null);
+      if (created) push("node", created.id, name);
+    }
   }
   const client = await pool.connect();
   try {

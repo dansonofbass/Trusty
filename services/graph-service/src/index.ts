@@ -1112,6 +1112,28 @@ const nodeResolver = (name: string, hint?: "person" | "concept") => {
   return best;
 };
 
+/** Phantom [[targets]] (P4.5): an unresolved wikilink creates a private
+ *  concept node in the author's graph so every link lands somewhere. */
+const mkPhantomCreator = (userId: string, meta: { name?: string; email?: string }) =>
+  async (name: string) => {
+    try {
+      const id = `c_ph_${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36)}`;
+      await serialize(() => {
+        const ws = workingSet(userId, meta);
+        return commitGraph(userId, {
+          ...ws,
+          nodes: [
+            ...ws.nodes,
+            { id, type: "concept", label: name.trim(), clusters: [], val: 6 } as (typeof ws.nodes)[number],
+          ],
+        });
+      });
+      return { id, label: name.trim(), type: "concept" };
+    } catch {
+      return null;
+    }
+  };
+
 /** Save/update a draft writing (before it's accepted into the graph). */
 app.post("/api/writings/draft", async (req, res) => {
   const { userId } = auth(req);
@@ -1130,7 +1152,7 @@ app.post("/api/writings/draft", async (req, res) => {
         : undefined,
     });
     // Re-derive [[wikilinks]] → writing_links (docs by title, then graph nodes).
-    void syncWikilinks(userId, String(id), body, nodeResolver).catch(() => {});
+    void syncWikilinks(userId, String(id), body, nodeResolver, mkPhantomCreator(userId, auth(req).meta)).catch(() => {});
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -1250,7 +1272,7 @@ app.patch("/api/writings/:id", async (req, res) => {
     });
     if (!ok) return res.status(404).json({ error: "not found" });
     if (typeof b.body === "string") {
-      void syncWikilinks(userId, String(req.params.id), b.body, nodeResolver).catch(() => {});
+      void syncWikilinks(userId, String(req.params.id), b.body, nodeResolver, mkPhantomCreator(userId, auth(req).meta)).catch(() => {});
     }
     res.json({ ok: true });
   } catch (e) {
