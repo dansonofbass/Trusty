@@ -21,6 +21,7 @@ import { GOLD } from "@/lib/palette";
 
 // TipTap touches window/document — client-only island.
 const DocEditor = dynamic(() => import("./DocEditor"), { ssr: false });
+const DocLinksPanel = dynamic(() => import("./DocLinksPanel"), { ssr: false });
 
 /**
  * The docs center view (P1): the private workspace as a first-class
@@ -47,6 +48,7 @@ export default function DocsView() {
   const [docFolderId, setDocFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [linksKey, setLinksKey] = useState(0); // bumps after save → links panel refetch
 
   const load = useCallback(async () => {
     const w = await fetchWorkspace({ q: q || undefined, folderId: activeFolder ?? undefined });
@@ -144,6 +146,7 @@ export default function DocsView() {
       }
       bumpDocs();
       await load();
+      setLinksKey((k) => k + 1);
       flash("Saved 🔒");
     } finally {
       setBusy(false);
@@ -207,17 +210,31 @@ export default function DocsView() {
             {busy ? <Loader2 className="animate-spin" size={13} /> : null} Save
           </button>
         </div>
-        <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <div className="mx-auto w-full max-w-[760px]">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Untitled"
-              className="mb-3 w-full bg-transparent text-[24px] font-bold text-ink outline-none placeholder:text-[var(--color-faint)]"
-              style={{ fontFamily: "var(--font-display)" }}
-            />
-            <DocEditor docId={openId} initialBody={body} onChange={setBody} />
+        <div className="flex min-h-0 flex-1">
+          <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className="mx-auto w-full max-w-[760px]">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Untitled"
+                className="mb-3 w-full bg-transparent text-[24px] font-bold text-ink outline-none placeholder:text-[var(--color-faint)]"
+                style={{ fontFamily: "var(--font-display)" }}
+              />
+              <DocEditor
+                docId={openId}
+                initialBody={body}
+                onChange={setBody}
+                onWikilinkClick={(name) => {
+                  const target = docs.find((d) => (d.title ?? "") === name);
+                  if (target) void openDoc(target.id);
+                }}
+              />
+            </div>
           </div>
+          {/* contextual links rail (P4) */}
+          <aside className="hidden w-[248px] shrink-0 border-l border-line px-3 py-4 lg:block">
+            <DocLinksPanel docId={openId} refreshKey={linksKey} onOpenDoc={(id) => void openDoc(id)} />
+          </aside>
         </div>
       </div>
     );

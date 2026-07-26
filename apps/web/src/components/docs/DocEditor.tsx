@@ -67,6 +67,7 @@ export default function DocEditor({
   docId,
   initialBody,
   onChange,
+  onWikilinkClick,
   placeholder,
 }: {
   /** Remount key — the editor re-seeds content when the doc changes. */
@@ -74,6 +75,8 @@ export default function DocEditor({
   initialBody: string;
   /** Debounced by the caller; receives the markdown serialization. */
   onChange: (markdown: string) => void;
+  /** Clicking a [[wikilink]] span passes its text (navigation is the caller's). */
+  onWikilinkClick?: (name: string) => void;
   placeholder?: string;
 }) {
   const editor = useEditor({
@@ -90,6 +93,15 @@ export default function DocEditor({
     editorProps: {
       attributes: {
         class: "doc-editor min-h-[300px] outline-none text-[14px] leading-relaxed text-ink",
+      },
+      // Click a wikilink span → navigate to its target (caller resolves).
+      handleClickOn: (_view, _pos, node, _nodePos, event) => {
+        const el = event.target as HTMLElement | null;
+        if (el?.closest?.("[data-wikilink]") && onWikilinkClick) {
+          onWikilinkClick(node.text ?? el.textContent ?? "");
+          return true;
+        }
+        return false;
       },
     },
     onUpdate: ({ editor: e }) => {

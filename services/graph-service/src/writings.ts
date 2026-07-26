@@ -66,8 +66,141 @@ export async function initWritings(): Promise<void> {
     )`);
   await p.query(`CREATE INDEX IF NOT EXISTS folders_user_idx ON folders(user_id, parent_id)`);
   await p.query(`ALTER TABLE writings ADD COLUMN IF NOT EXISTS folder_id BIGINT REFERENCES folders(id) ON DELETE SET NULL`);
+  // Wikilinks (agentic-ux P4): [[targets]] parsed from doc bodies, resolved
+  // to sibling docs or graph nodes. AI-suggested links (P5) reuse the table
+  // with created_by='ai' + status='suggested'.
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS writing_links (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      writing_id  TEXT NOT NULL REFERENCES writings(id) ON DELETE CASCADE,
+      target_kind TEXT NOT NULL,        -- writing | node
+      target_id   TEXT NOT NULL,
+      alias       TEXT NOT NULL,        -- the [[text]] as typed
+      created_by  TEXT NOT NULL DEFAULT 'user',   -- user | ai
+      status      TEXT NOT NULL DEFAULT 'confirmed', -- confirmed | suggested
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await p.query(`CREATE INDEX IF NOT EXISTS writing_links_writing_idx ON writing_links(writing_id)`);
+  await p.query(`CREATE INDEX IF NOT EXISTS writing_links_target_idx ON writing_links(user_id, target_kind, target_id)`);
   pool = p;
   console.log("graph-service: writings log ready (postgres)");
+}
+
+/* ------------------------- wikilinks (P4) -------------------------- */
+
+export const WIKILINK_RE = /\[\[([^\[\]]+)\]\]/g;
+
+export interface ResolvedNodeRef {
+  id: string;
+  label: string;
+  type?: string;
+}
+
+/** Re-derive a doc's confirmed user links from its body. [[Targets]] resolve
+ *  first to the user's own docs (title match), then to graph nodes via the
+ *  caller-supplied resolver. Unresolved targets stay plain text (phantom
+ *  docs are a later nicety). AI suggestions are left untouched. */
+export async function syncWikilinks(
+  userId: string,
+  writingId: string,
+  body: string,
+  resolveNode: (name: string) => ResolvedNodeRef | null,
+): Promise<void> {
+  if (!pool) return;
+  const names = [...new Set([...body.matchAll(WIKILINK_RE)].map((m) => m[1].trim()).filter(Boolean))];
+  const links: { kind: string; id: string; alias: string }[] = [];
+  if (names.length) {
+    const docs = await pool.query(
+      `SELECT id, title FROM writings WHERE user_id = $1 AND id <> $2 AND title = ANY($3) LIMIT 100`,
+      [userId, writingId, names],
+    );
+    const docByTitle = new Map(docs.rows.map((r) => [String(r.title), String(r.id)]));
+    for (const name of names) {
+      const docId = docByTitle.get(name);
+      if (docId) {
+        links.push({ kind: "writing", id: docId, alias: name });
+        continue;
+      }
+      const node = resolveNode(name);
+      if (node) links.push({ kind: "node", id: node.id, alias: name });
+    }
+  }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `DELETE FROM writing_links WHERE writing_id = $1 AND created_by = 'user'`,
+      [writingId],
+    );
+    for (const l of links) {
+      await client.query(
+        `INSERT INTO writing_links (user_id, writing_id, target_kind, target_id, alias) VALUES ($1, $2, $3, $4, $5)`,
+        [userId, writingId, l.kind, l.id, l.alias],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export interface WritingLink {
+  targetKind: "writing" | "node";
+  targetId: string;
+  alias: string;
+  createdBy: string;
+  status: string;
+  /** resolved display title (docs only; node labels resolve in the route) */
+  title?: string | null;
+}
+
+export interface Backlink {
+  writingId: string;
+  title: string | null;
+  alias: string;
+}
+
+/** Outgoing links + incoming backlinks for a doc (all owner-scoped). */
+export async function linksFor(
+  userId: string,
+  writingId: string,
+): Promise<{ outgoing: WritingLink[]; backlinks: Backlink[] }> {
+  if (!pool) return { outgoing: [], backlinks: [] };
+  const out = await pool.query(
+    `SELECT l.target_kind, l.target_id, l.alias, l.created_by, l.status, w.title
+       FROM writing_links l
+       LEFT JOIN writings w ON w.id = l.target_id AND l.target_kind = 'writing'
+      WHERE l.writing_id = $1 AND l.user_id = $2
+      ORDER BY l.id`,
+    [writingId, userId],
+  );
+  const back = await pool.query(
+    `SELECT l.writing_id, l.alias, w.title
+       FROM writing_links l
+       JOIN writings w ON w.id = l.writing_id
+      WHERE l.user_id = $1 AND l.target_kind = 'writing' AND l.target_id = $2 AND l.status = 'confirmed'
+      ORDER BY l.id DESC LIMIT 50`,
+    [userId, writingId],
+  );
+  return {
+    outgoing: out.rows.map((r) => ({
+      targetKind: r.target_kind,
+      targetId: String(r.target_id),
+      alias: String(r.alias),
+      createdBy: String(r.created_by),
+      status: String(r.status),
+      title: r.title ?? null,
+    })),
+    backlinks: back.rows.map((r) => ({
+      writingId: String(r.writing_id),
+      title: r.title ?? null,
+      alias: String(r.alias),
+    })),
+  };
 }
 
 /* ------------------------- folders (P3) ---------------------------- */

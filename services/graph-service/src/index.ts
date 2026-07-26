@@ -105,6 +105,8 @@ import {
   renameFolder,
   deleteFolder,
   moveWriting,
+  syncWikilinks,
+  linksFor,
   deleteWriting,
   listCollections,
   recordWoven,
@@ -1084,6 +1086,14 @@ app.post("/api/thoughts", async (req, res) => {
   }
 });
 
+/** Case-insensitive label match against the shared graph for [[wikilink]]
+ *  resolution — person/place/entity names beat nothing, docs beat nodes. */
+const nodeResolver = (name: string) => {
+  const lower = name.toLowerCase();
+  const n = shared.nodes.find((x) => x.label.toLowerCase() === lower);
+  return n ? { id: n.id, label: n.label, type: n.type } : null;
+};
+
 /** Save/update a draft writing (before it's accepted into the graph). */
 app.post("/api/writings/draft", async (req, res) => {
   const { userId } = auth(req);
@@ -1101,6 +1111,8 @@ app.post("/api/writings/draft", async (req, res) => {
         ? (collections as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 12)
         : undefined,
     });
+    // Re-derive [[wikilinks]] → writing_links (docs by title, then graph nodes).
+    void syncWikilinks(userId, String(id), body, nodeResolver).catch(() => {});
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -1173,6 +1185,25 @@ app.patch("/api/writings/:id/move", async (req, res) => {
   }
 });
 
+/** Links + backlinks for a doc (P4): node targets get labels resolved here. */
+app.get("/api/writings/:id/links", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const { outgoing, backlinks } = await linksFor(userId, String(req.params.id));
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, { label: n.label, type: n.type, entityType: (n as { entityType?: string }).entityType }] as const));
+    res.json({
+      outgoing: outgoing.map((l) =>
+        l.targetKind === "node"
+          ? { ...l, title: labelOf.get(l.targetId)?.label ?? l.alias, nodeType: labelOf.get(l.targetId)?.entityType ?? labelOf.get(l.targetId)?.type }
+          : l,
+      ),
+      backlinks,
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** One writing with its full content + event log (edits, weaves, …). */
 app.get("/api/writings/:id", async (req, res) => {
   const { userId } = auth(req);
@@ -1200,6 +1231,9 @@ app.patch("/api/writings/:id", async (req, res) => {
       status: b.status === "draft" || b.status === "published" ? b.status : undefined,
     });
     if (!ok) return res.status(404).json({ error: "not found" });
+    if (typeof b.body === "string") {
+      void syncWikilinks(userId, String(req.params.id), b.body, nodeResolver).catch(() => {});
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
