@@ -12,10 +12,17 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 const PUBLIC_ISSUER = (
   process.env.KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/constellation"
 ).replace(/\/$/, "");
-const INTERNAL_BASE = (process.env.KEYCLOAK_INTERNAL_URL ?? "http://keycloak:8080").replace(
-  /\/$/,
-  "",
-);
+// Origin ONLY — the realm path (incl. Keycloak's /auth relative path) comes
+// from the issuer below, so any path on this var would double up
+// (http://keycloak:8080/auth + /auth/realms/… → 404 at the token endpoint).
+const INTERNAL_BASE = (() => {
+  const raw = process.env.KEYCLOAK_INTERNAL_URL ?? "http://keycloak:8080";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+})();
 const APP_BASE_URL = (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 const REALM_PATH = new URL(PUBLIC_ISSUER).pathname; // e.g. /realms/constellation
 
