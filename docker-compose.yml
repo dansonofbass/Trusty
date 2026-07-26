@@ -478,7 +478,11 @@ services:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # CADDY_CONFIG=Caddyfile.customcert + CERTS_DIR=<dir with fullchain.pem/
+      # privkey.pem> switches from automatic ACME to a provided certificate
+      # (DNS-01 / external issuance). Defaults: automatic Let's Encrypt.
+      - ./infra/caddy/${CADDY_CONFIG:-Caddyfile}:/etc/caddy/Caddyfile:ro
+      - ${CERTS_DIR:-./infra/caddy}:/certs:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
