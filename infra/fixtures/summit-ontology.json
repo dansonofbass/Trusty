@@ -1,0 +1,138 @@
+{
+  "app": {
+    "slug": "summit",
+    "label": "Seaside Startup Summit",
+    "order": 10,
+    "config": { "accent": "#ff8c5a", "tagline": "Sevan 2026 — meet the right people" }
+  },
+  "entityTypes": [
+    {
+      "id": "mentor",
+      "label": "Mentor",
+      "baseType": "person",
+      "topic": "mentoring",
+      "category": "people",
+      "order": 1,
+      "fields": [
+        { "key": "organization", "label": "Organization", "type": "text" },
+        { "key": "title", "label": "Title / role", "type": "text" },
+        { "key": "photo", "label": "Photo URL", "type": "text" },
+        { "key": "streams", "label": "Programme streams", "type": "multiselect", "options": ["Starter", "Booster", "Talent", "FireCode", "Side Events"] },
+        { "key": "expertise", "label": "Expertise", "type": "multiselect", "options": ["product", "fundraising", "marketing", "sales", "legal", "tech", "design", "hr", "strategy"] }
+      ]
+    },
+    {
+      "id": "speaker",
+      "label": "Speaker",
+      "baseType": "person",
+      "topic": "speaking",
+      "category": "people",
+      "order": 2,
+      "fields": [
+        { "key": "organization", "label": "Organization", "type": "text" },
+        { "key": "photo", "label": "Photo URL", "type": "text" }
+      ]
+    },
+    {
+      "id": "investor",
+      "label": "Investor",
+      "baseType": "person",
+      "topic": "investment",
+      "category": "people",
+      "order": 3,
+      "fields": [
+        { "key": "organization", "label": "Fund / organization", "type": "text" },
+        { "key": "stages", "label": "Stages", "type": "multiselect", "options": ["pre-seed", "seed", "series-a", "growth"] }
+      ]
+    },
+    {
+      "id": "founder",
+      "label": "Founder",
+      "baseType": "person",
+      "topic": "startups",
+      "category": "people",
+      "order": 4,
+      "fields": [
+        { "key": "startup", "label": "Startup", "type": "text" },
+        { "key": "stage", "label": "Stage", "type": "select", "options": ["idea", "mvp", "revenue", "scaling"] }
+      ]
+    },
+    {
+      "id": "startup",
+      "label": "Startup",
+      "baseType": "location",
+      "topic": "startups",
+      "category": "orgs",
+      "order": 5,
+      "fields": [
+        { "key": "sector", "label": "Sector", "type": "text" },
+        { "key": "stage", "label": "Stage", "type": "select", "options": ["idea", "mvp", "revenue", "scaling"] },
+        { "key": "website", "label": "Website", "type": "text" }
+      ]
+    },
+    {
+      "id": "session",
+      "label": "Session",
+      "baseType": "location",
+      "topic": "agenda",
+      "category": "agenda",
+      "order": 6,
+      "fields": [
+        { "key": "day", "label": "Day", "type": "select", "options": ["Jul 28", "Jul 29", "Jul 30", "Jul 31", "Aug 1"] },
+        { "key": "time", "label": "Time", "type": "text" },
+        { "key": "stream", "label": "Stream", "type": "select", "options": ["Starter", "Booster", "Talent", "FireCode", "Side Events", "Leisure"] },
+        { "key": "venue", "label": "Venue", "type": "text" },
+        { "key": "mentor", "label": "Mentor / host", "type": "text" }
+      ]
+    },
+    {
+      "id": "squad",
+      "label": "Squad",
+      "baseType": "location",
+      "topic": "squads",
+      "category": "community",
+      "order": 7,
+      "fields": [
+        { "key": "number", "label": "Squad number", "type": "number" }
+      ]
+    },
+    {
+      "id": "organizer",
+      "label": "Organizer",
+      "baseType": "location",
+      "topic": "events",
+      "category": "orgs",
+      "order": 8,
+      "fields": [
+        { "key": "website", "label": "Website", "type": "text" }
+      ]
+    }
+  ],
+  "relations": [
+    { "id": "MENTORS_AT", "label": "mentors at", "from": ["mentor"], "to": ["organizer"] },
+    { "id": "HOSTS", "label": "hosts", "from": ["mentor", "speaker"], "to": ["session"] }
+  ],
+  "entities": [
+    {
+      "entityType": "organizer",
+      "label": "Seaside Startup Summit",
+      "properties": { "website": "https://seasidestartupsummit.com" }
+    },
+    { "entityType": "squad", "label": "Squad 1", "properties": { "number": 1 } },
+    { "entityType": "squad", "label": "Squad 2", "properties": { "number": 2 } },
+    { "entityType": "squad", "label": "Squad 3", "properties": { "number": 3 } },
+    { "entityType": "squad", "label": "Squad 4", "properties": { "number": 4 } },
+    { "entityType": "squad", "label": "Squad 5", "properties": { "number": 5 } },
+    { "entityType": "squad", "label": "Squad 6", "properties": { "number": 6 } },
+    { "entityType": "squad", "label": "Squad 7", "properties": { "number": 7 } },
+    { "entityType": "squad", "label": "Squad 8", "properties": { "number": 8 } },
+    { "entityType": "squad", "label": "Squad 9", "properties": { "number": 9 } },
+    { "entityType": "squad", "label": "Squad 10", "properties": { "number": 10 } },
+    { "entityType": "squad", "label": "Squad 11", "properties": { "number": 11 } },
+    { "entityType": "squad", "label": "Squad 12", "properties": { "number": 12 } },
+    { "entityType": "squad", "label": "Squad 13", "properties": { "number": 13 } },
+    { "entityType": "squad", "label": "Squad 14", "properties": { "number": 14 } },
+    { "entityType": "squad", "label": "Squad 15", "properties": { "number": 15 } },
+    { "entityType": "squad", "label": "Squad 16", "properties": { "number": 16 } }
+  ]
+}

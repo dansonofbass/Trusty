@@ -83,6 +83,17 @@ function attending(links: GLink[], id: string): Set<string> {
   return out;
 }
 
+/** The squad node a person is MEMBER_OF (Seaside squads demo), if any. */
+function squadOf(nodes: GNode[], links: GLink[], id: string): string | null {
+  const squads = new Set(nodes.filter((n) => n.entityType === "squad").map((n) => n.id));
+  for (const l of links) {
+    if (l.type === "MEMBER_OF" && endId(l.source) === id && squads.has(endId(l.target))) {
+      return endId(l.target);
+    }
+  }
+  return null;
+}
+
 /* ------------------------------ the engine ------------------------------ */
 
 export function whoToMeet(
@@ -118,6 +129,7 @@ export function whoToMeet(
   const fof = new Set<string>();
   for (const f of myFriends) for (const n of neighborsOf(links, f)) if (n !== meId) fof.add(n);
   const myWorkshops = attending(links, meId);
+  const mySquad = squadOf(nodes, links, meId);
 
   const wantSkill = opts.skill ? opts.skill.trim().toLowerCase().replace(/\s+/g, "_") : "";
 
@@ -213,6 +225,12 @@ export function whoToMeet(
       } else if (myStage && theirStage && myStage === theirStage && !hasRole(n, "investor")) {
         score += 1;
         reasons.push("compatible stage");
+      }
+
+      // — same squad (Seaside demo): a strong, explicit tie —
+      if (mySquad && n.type === "person" && squadOf(nodes, links, n.id) === mySquad) {
+        score += 3;
+        reasons.push("same squad");
       }
 
       // — shared workshops/sessions —

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Utensils, ShieldCheck, Link2, Cpu, ArrowLeft, Menu, X, Loader2, Boxes, Users, Hourglass, Gauge, BadgeCheck,
+  LayoutDashboard, Utensils, ShieldCheck, Link2, Cpu, ArrowLeft, Menu, X, Loader2, Boxes, Users, Hourglass, Gauge, BadgeCheck, MessageCircle,
 } from "lucide-react";
 
 interface NavItem { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }
@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
   { href: "/admin/apps", label: "Apps & Entities", icon: Boxes },
   { href: "/admin/entities", label: "Directory", icon: Users },
   { href: "/admin/specialists", label: "Specialists", icon: BadgeCheck },
+  { href: "/admin/feedback", label: "Feedback", icon: MessageCircle },
   { href: "/admin/waitlist", label: "Waitlist", icon: Hourglass },
   { href: "/admin/contribution", label: "Contribution", icon: Gauge },
   { href: "/admin/places", label: "Places", icon: Utensils },

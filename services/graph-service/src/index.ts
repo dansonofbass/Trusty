@@ -229,6 +229,8 @@ import {
   journeysEnabled,
   listJourneys,
 } from "./journeys";
+import { confirmationCounts, confirmedBy, confirmSquadmate, initSquads } from "./squads";
+import { addFeedback, feedbackEnabled, initFeedback, listFeedback } from "./feedback";
 import {
   conversationsEnabled,
   createConversation,
@@ -535,7 +537,10 @@ async function ensureUser(
       meta = { meId: userId, dismissed: [], wallet: defaultWallet() };
       await store.persistUserMeta(userId, meta);
     }
-    await ensureAccess(userId, brandNew ? "waitlisted" : "active");
+    // OPEN_ACCESS=1 (event/demo mode): every brand-new login is active
+    // immediately — no waitlist, no onboarding gate (Seaside Summit demo).
+    const openAccess = process.env.OPEN_ACCESS === "1";
+    await ensureAccess(userId, brandNew && !openAccess ? "waitlisted" : "active");
     userMeta.set(userId, meta);
     return meta;
   });
@@ -1566,6 +1571,156 @@ const LIFECYCLE_STAGES = [
 ] as const;
 
 /** Save a contact (a one-directional SAVED edge) with an optional label + stage. */
+/* ---------------- feedback (action button → admin inbox) ---------------- */
+
+app.post("/api/feedback", async (req, res) => {
+  const { userId } = auth(req);
+  if (!feedbackEnabled()) return res.status(503).json({ error: "feedback unavailable" });
+  try {
+    const ok = await addFeedback(userId, String(req.body?.text ?? ""), str(req.body?.screen, 120), str(req.body?.app, 40));
+    if (!ok) return res.status(400).json({ error: "text required" });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.get("/api/admin/feedback", async (req, res) => {
+  auth(req);
+  if ((req.header("x-user-admin") || "") !== "1") return res.status(403).json({ error: "admin only" });
+  if (!feedbackEnabled()) return res.status(503).json({ error: "feedback unavailable" });
+  try {
+    const rows = await listFeedback();
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    res.json({ feedback: rows.map((r) => ({ ...r, userLabel: labelOf.get(r.userId) ?? r.userId })) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ---------------- squads (Seaside Summit demo) ---------------- */
+/* Self-serve squads 1–16: joining creates a global MEMBER_OF edge to the
+ * squad node AND auto-saves every existing squadmate as a contact in BOTH
+ * directions (mutual SAVED, stage "met"). Peer confirmations (squads.ts)
+ * are the trust demo: squadmates attest each other's membership. */
+
+const linkSourceId = (l: GLink): string => (typeof l.source === "string" ? l.source : l.source.id);
+const linkTargetId = (l: GLink): string => (typeof l.target === "string" ? l.target : l.target.id);
+const squadNodes = () =>
+  shared.nodes.filter((n) => ((n as { entityType?: string }).entityType ?? n.type) === "squad");
+const squadMembers = (squadId: string) =>
+  shared.links
+    .filter((l) => l.type === "MEMBER_OF" && linkTargetId(l) === squadId)
+    .map((l) => linkSourceId(l));
+const mySquadOf = (userId: string) => {
+  const squads = new Set(squadNodes().map((n) => n.id));
+  const edge = shared.links.find(
+    (l) => l.type === "MEMBER_OF" && linkSourceId(l) === userId && squads.has(linkTargetId(l)),
+  );
+  return edge ? linkTargetId(edge) : null;
+};
+
+app.get("/api/squads", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const mine = mySquadOf(userId);
+    res.json({
+      mySquadId: mine,
+      squads: squadNodes()
+        .map((n) => ({
+          id: n.id,
+          label: n.label,
+          number: Number((n.properties as { number?: unknown } | undefined)?.number ?? 0),
+          memberCount: squadMembers(n.id).length,
+        }))
+        .sort((a, b) => a.number - b.number),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/squads/join", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const squadId = str(req.body?.squadId, 100);
+  const squad = squadId ? squadNodes().find((n) => n.id === squadId) : undefined;
+  if (!squad) return res.status(404).json({ error: "squad not found" });
+  try {
+    const members = squadMembers(squad.id).filter((m) => m !== userId);
+    await serialize(async () => {
+      const ws = workingSet(userId, meta);
+      const squadIds = new Set(squadNodes().map((n) => n.id));
+      // switching squads: drop any previous membership edge
+      let links = ws.links.filter(
+        (l) => !(l.type === "MEMBER_OF" && linkSourceId(l) === userId && squadIds.has(linkTargetId(l))),
+      );
+      links = [
+        ...links,
+        { id: `member_${userId}_${squad.id}`, source: userId, target: squad.id, type: "MEMBER_OF" as const, weight: 1 },
+      ];
+      // mutual auto-contacts with every existing squadmate
+      for (const m of members) {
+        for (const [a, b] of [[userId, m], [m, userId]] as const) {
+          const edgeId = `saved_${a}_${b}`;
+          if (!links.some((l) => l.id === edgeId)) {
+            links.push({
+              id: edgeId, source: a, target: b, type: "SAVED" as const,
+              scope: "user" as const, userId: a, weight: 1,
+              label: "squadmate", labels: ["squadmate"], stage: "met",
+            });
+          }
+        }
+      }
+      return commitGraph(userId, refreshDerived({ ...ws, links }));
+    });
+    res.json({ ok: true, squadId: squad.id, autoConnected: members.length });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.get("/api/squads/mine", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const mine = mySquadOf(userId);
+    if (!mine) return res.json({ squad: null, members: [] });
+    const squad = shared.nodes.find((n) => n.id === mine);
+    const counts = await confirmationCounts(mine);
+    const byMe = await confirmedBy(mine, userId);
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    res.json({
+      squad: { id: mine, label: squad?.label ?? mine },
+      members: squadMembers(mine).map((id) => ({
+        id,
+        label: labelOf.get(id) ?? id,
+        me: id === userId,
+        confirmations: counts[id] ?? 0,
+        confirmedByMe: byMe.has(id),
+      })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/squads/confirm", async (req, res) => {
+  const { userId } = auth(req);
+  const memberId = str(req.body?.memberId, 200);
+  if (!memberId) return res.status(400).json({ error: "memberId required" });
+  try {
+    const mine = mySquadOf(userId);
+    if (!mine) return res.status(400).json({ error: "join a squad first" });
+    if (!squadMembers(mine).includes(memberId)) {
+      return res.status(400).json({ error: "that person isn't in your squad" });
+    }
+    const r = await confirmSquadmate(mine, memberId, userId);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 app.post("/api/contacts", async (req, res) => {
   const { userId, meta } = auth(req);
   const body = req.body ?? {};
@@ -3342,6 +3497,11 @@ app.get("/api/access", async (req, res) => {
       await setStatus(userId, "active");
       access = await getAccess(userId);
     }
+    // OPEN_ACCESS also lifts users who were waitlisted BEFORE the flag went on.
+    if (process.env.OPEN_ACCESS === "1" && access && access.status === "waitlisted") {
+      await setStatus(userId, "active");
+      access = await getAccess(userId);
+    }
     const status = access?.status ?? (accessEnabled() ? "waitlisted" : "active");
     const waitlist = status === "waitlisted" ? await getWaitlistByUser(userId) : null;
     const onboarding = await getOnboarding(userId);
@@ -4717,6 +4877,12 @@ async function main() {
   );
   await initOutcomePrompts().catch((e) =>
     console.error("graph-service: outcome prompts init failed:", e instanceof Error ? e.message : e),
+  );
+  await initSquads().catch((e) =>
+    console.error("graph-service: squads init failed:", e instanceof Error ? e.message : e),
+  );
+  await initFeedback().catch((e) =>
+    console.error("graph-service: feedback init failed:", e instanceof Error ? e.message : e),
   );
   await initAsks().catch((e) =>
     console.error("graph-service: asks init failed:", e instanceof Error ? e.message : e),

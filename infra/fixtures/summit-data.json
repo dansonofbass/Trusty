@@ -1,0 +1,2165 @@
+{
+  "rows": [
+    {
+      "entityType": "mentor",
+      "label": "Chris Burry",
+      "properties": {
+        "title": "Co-Founder Global Innovation Dojo | Global Ambassador, UC Berkeley Sutardja Center for Entrepreneurship and Technology | co-CEO US Market Access Center Inc.",
+        "organization": "Co-Founder Global Innovation Dojo",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/chris-burry.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Steve Adelman",
+      "properties": {
+        "title": "Co-Founder, Global Innovation Dojo | Director, The Wharton School San Francisco startup accelerator | Managing Director, Nexus Partners",
+        "organization": "Co-Founder, Global Innovation Dojo",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/steve-adelman.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Bob Upham",
+      "properties": {
+        "title": "Managing Partner, Asesoria Partners",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/bob-upham.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Karina Lapina",
+      "properties": {
+        "title": "Co-founder of Enablers School",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/karina-lapina.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Zane Bojāre",
+      "properties": {
+        "title": "Co-founder of Enablers School",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/zane-bojare.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Baris Efe",
+      "properties": {
+        "title": "Co-founder and Head of Vali - Entrepreneurship Hub at ESMT",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/baris-efe.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Anahit Hakobyan",
+      "properties": {
+        "title": "Singer, Artist",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785072412/mentorloop/mentors/anahit-hakobyan-1785072412.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Cosmin Pirvu",
+      "properties": {
+        "title": "Startup ecosystem builder",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/cosmin-pirvu.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Billy Lyell",
+      "properties": {
+        "title": "Strategic operator with experience at Startup Wise Guys",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/billy-lyell.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Gor Grigoryan",
+      "properties": {
+        "title": "Staff Software Engineer at ServiceTitan",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784792123/mentorloop/mentors/gor-grigoryan-1784792123.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Helmut Kranzmaier",
+      "properties": {
+        "title": "Senior Advisor, Corporate Innovation at Vali-Entrepreneurship Hub at ESMT",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/helmut-kranzmaier.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Grace Williams",
+      "properties": {
+        "title": "Marketing & Communications lead at Silicon Allee",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/grace-williams.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Juanita Corredor",
+      "properties": {
+        "title": "Program Manager and Venture Builder at Vali Berlin – the Entrepreneurship Hub at ESMT",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/juanita-corredor.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Jan Zawadzki",
+      "properties": {
+        "title": "CEO of AHEAD Automotive",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/jan-zawadzki.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Rem Darbinyan",
+      "properties": {
+        "title": "Founder and CEO of SmartClick and ViralMango, UATE Board Member",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784445758/mentorloop/mentors/rem-darbinyan-1784445757.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Steve Mackie",
+      "properties": {
+        "title": "Founder and Managing Director of Shourouk Media",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/steve-mackie.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Samson Avetian",
+      "properties": {
+        "title": "CEO of eqwefy / Co-founder AICA",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784444442/mentorloop/mentors/samson-avetian-1784444442.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hrant Davtyan",
+      "properties": {
+        "title": "Founder & CEO of Metric AI Lab",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784444602/mentorloop/mentors/hrant-davtyan-1784444602.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Vladimir Khoetsyan",
+      "properties": {
+        "title": "Co-Founder & CTO at Wirestock",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784444849/mentorloop/mentors/vladimir-khoetsyan-1784444849.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "David Grigoryan",
+      "properties": {
+        "title": "Co-founder of PROMPT AI Generated Wine, General Manager of DevSoft Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784444929/mentorloop/mentors/david-grigoryan-1784444929.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Abdulla Al-Naimi",
+      "properties": {
+        "title": "Managing Director of Doha Business Consulting DBC",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784445285/mentorloop/mentors/abdulla-al-naimi-1784445285.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hayk Grigoryan",
+      "properties": {
+        "title": "Co-founder and CTO at Zoomerang",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784445392/mentorloop/mentors/hayk-grigoryan-1784445392.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Bella Vasilyan",
+      "properties": {
+        "title": "Head of Tumo Labs",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/bella-vasilyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Harut Martirosyan",
+      "properties": {
+        "title": "CTO of Firebird AI",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784445504/mentorloop/mentors/harut-martirosyan-1784445504.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Armen Fljyan",
+      "properties": {
+        "title": "Co-founding General Partner at Orion VC",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/armen-fljyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Diana Oganesian",
+      "properties": {
+        "title": "Co-Founder and CEO of New Nörm",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784445930/mentorloop/mentors/diana-oganesian-1784445930.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Levon Hovhannisyan",
+      "properties": {
+        "title": "Co-Founder and CTO of New Nörm",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784446108/mentorloop/mentors/levon-hovhannisyan-1784446108.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Karen Mkoyan",
+      "properties": {
+        "title": "CEO at imID",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784446264/mentorloop/mentors/karen-mkoyan-1784446264.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Narek Aghekyan",
+      "properties": {
+        "title": "Founder & CEO at Noor Games",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784446409/mentorloop/mentors/narek-aghekyan-1784446408.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Temurbek Sadinov",
+      "properties": {
+        "title": "Chief manager in Startup ecosystem member's support division",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/temurbek-sadinov.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Suresh Jain",
+      "properties": {
+        "title": "Entrepreneur | Investor | Mentor | Creator of The One Page",
+        "organization": "Entrepreneur",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/suresh-jain.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hess Adnani",
+      "properties": {
+        "title": "Serial entrepreneur, innovation ecosystem architect, and keynote speaker",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/hess-adnani.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Nejdeh Hovanessian",
+      "properties": {
+        "title": "Country Coordinator - Armenia, EU4Innovation East Project, Expertise France",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784446726/mentorloop/mentors/nejdeh-hovanessian-1784446725.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hakob Sharabkhanyan",
+      "properties": {
+        "title": "Partner at Civitta",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/hakob-sharabkhanyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Meroujan Minassian",
+      "properties": {
+        "title": "Co-founder and CEO of Storaket Architectural studio",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784446905/mentorloop/mentors/merujan-minassian-1784446905.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Mariam Chtchyan",
+      "properties": {
+        "title": "Associate Partner at Civitta",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/mariam-chtchyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Artem Torosyan",
+      "properties": {
+        "title": "Founder & CEO, inOne",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784447838/mentorloop/mentors/artem-torosyan-1784447838.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Taron Parsamyan",
+      "properties": {
+        "title": "CEO and Co-founder at 0gaps and Email Marketing Room",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784448110/mentorloop/mentors/taron-parsamyan-1784448110.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Kristina Stuhrmann",
+      "properties": {
+        "title": "Startup Mentor | Leadership Coach | Team & Organizational Development",
+        "organization": "Startup Mentor",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/kristina-stuhrmann.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Artak Seyranyan",
+      "properties": {
+        "title": "Head of Growth at Mindo AI",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784448547/mentorloop/mentors/artak-seyranyan-1784448547.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Khachatur Grigoryan",
+      "properties": {
+        "title": "Founder at gg",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784448731/mentorloop/mentors/khachatur-grigoryan-1784448731.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Mariam Hambardzumyan",
+      "properties": {
+        "title": "Co-founder of TCF, PreLaunch.com, Gadget Flow and 2mindS",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784447637/mentorloop/mentors/mariam-hambardzumyan-1784447637.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Talar Kazanjian",
+      "properties": {
+        "title": "Non-Profit Management, Project Management and Development Analyst",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784536497/mentorloop/mentors/talar-kazanjian-1784536497.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hraztan Kalinian",
+      "properties": {
+        "title": "Chief of Staff at F6 Ventures",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784623598/mentorloop/mentors/hraztan-kalinian-1784623598.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Vazgen Badalyan",
+      "properties": {
+        "title": "Co-founder & CEO @ Evidenso",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784623729/mentorloop/mentors/vazgen-badalyan-1784623729.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Lilit Avetikyan",
+      "properties": {
+        "title": "Founder & CEO of VOYEX",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784716240/mentorloop/mentors/lilit-avetikyan-1784716240.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Rafael Karapetyan",
+      "properties": {
+        "title": "Senior Associate, Raw Ventures",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784719989/mentorloop/mentors/rafael-karapetyan-1784719989.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Shant Estepan",
+      "properties": {
+        "title": "Coordinator of the Division of Mathematical Sciences (Computer Science and Mathematics) and Lecturer in Computer Science at Haigazian University",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784749643/mentorloop/mentors/shant-estepan-1784749643.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Yervand Sarkisyan",
+      "properties": {
+        "title": "Co-founder and partner at Granatus Ventures",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784881647/mentorloop/mentors/yervand-sarkisyan-1784881647.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Armen Kherlopian",
+      "properties": {
+        "title": "CEO & Partner, Covenant Venture Capital",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784916426/mentorloop/mentors/armen-kherlopian-1784916426.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Nehha Mishra",
+      "properties": {
+        "title": "Founder of Epinomi Training Consulting",
+        "organization": "India",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784458542/mentorloop/mentors/nehha-mishra-1784458542.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Lusine Gevorgyan",
+      "properties": {
+        "title": "Chairperosn of the Tourism Committee of the Ministry of Economy of the Republic of Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784751449/mentorloop/mentors/lusine-gevorgyan-1784751449.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Sona Sargsyan",
+      "properties": {
+        "title": "Business Development manager/creator",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784751642/mentorloop/mentors/sona-sargsyan-1784751642.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Narek Manukyan",
+      "properties": {
+        "title": "Moby co-founder",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784751714/mentorloop/mentors/narek-manukyan-1784751713.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Vladimir Gevorgyan",
+      "properties": {
+        "title": "Founder of &quot;Gevorgian Concern&quot; LLC",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784751799/mentorloop/mentors/vladimir-gevorgyan-1784751799.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hmayak Avanesyan",
+      "properties": {
+        "title": "Head of Commercial Department of Rate.Trading  at IDBank",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785134617/mentorloop/mentors/hmayak-avanesyan-1785134617.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Garegin Gevorgyan",
+      "properties": {
+        "title": "Member of the Management Board, Chief Financial Officer of Ardshinbank OJSC",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784639383/mentorloop/mentors/garegin-gevorgyan-1784639383.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Paruyr Shahbazyan",
+      "properties": {
+        "title": "Founder Bookmaker-Ratings.com, Core contributor to Azuro.org",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785164413/mentorloop/mentors/paruyr-shahbazyan-1785164413.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Sargis Kirakosyan",
+      "properties": {
+        "title": "Founder of AllSell",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785165183/mentorloop/mentors/sargis-kirakosyan-1785165183.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Elizaveta Rovkah",
+      "properties": {
+        "title": "Director, Account Management at Mastercard",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784817439/mentorloop/mentors/elizaveta-rovkah-1784817439.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Armen Rostamian",
+      "properties": {
+        "title": "CTO of Eleveight AI",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784817260/mentorloop/mentors/armen-rostamian-1784817260.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Amalya Yeghoyan",
+      "properties": {
+        "title": "Founder and Executive Director of ACT College",
+        "organization": "ACT College",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784740009/mentorloop/mentors/amalya-yeghoyan-1784740009.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Gevorg Gasparyan",
+      "properties": {
+        "title": "Mountaineer, founder of Arevi hotels",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784638638/mentorloop/mentors/gevorg-gasparyan-1784638638.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "DJ Jokey",
+      "properties": {
+        "title": "DJ, Artist",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785072486/mentorloop/mentors/dj-jokey-1785072486.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Arthur Zargaryan",
+      "properties": {
+        "title": "Co-founder and CEO of Parcel Tracker",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/arthur-zargaryan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Tigran Mkrtchyan",
+      "properties": {
+        "title": "Head of Marketing at CoinStats",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784450749/mentorloop/mentors/tigran-mkrtchyan-1784450749.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Alina Yeghiazaryan",
+      "properties": {
+        "title": "Chief Development & Partnerships Officer at the Yerevan Urban Development Project Implementation Unit of Yerevan Municipality",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/alina-yeghiazaryan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Narek Aslikyan",
+      "properties": {
+        "title": "Co-founder, CEO at Armenian Code Academy",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784451100/mentorloop/mentors/narek-aslikyan-1784451100.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Muhannad Taslaq",
+      "properties": {
+        "title": "Director of Investments at Alchemist Doha",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/muhannad-taslaq.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Albert Manukyan",
+      "properties": {
+        "title": "Founder of UnderSelf, ANIV, and YerevanRide",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/albert-manukyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Mihran Papazian",
+      "properties": {
+        "title": "CEO at ChinAr Tech",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784749949/mentorloop/mentors/mihran-papazian-1784749949.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Manuk Hergnyan",
+      "properties": {
+        "title": "Co-founder, Managing Partner at Granatus Ventures",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784451708/mentorloop/mentors/manuk-hergnyan-1784451708.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Arevik Anapiosyan",
+      "properties": {
+        "title": "Partnerships and Development Finance Advisor at the United Nations in Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784451822/mentorloop/mentors/arevik-anapiosyan-1784451822.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Eduard Piliposyan",
+      "properties": {
+        "title": "Co-Founder & CTO of Modelence",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/eduard-piliposyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Aram Pakhchanian",
+      "properties": {
+        "title": "Co-founder and Chairman of the Board at Ayb Educational Foundation",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784451917/mentorloop/mentors/aram-pakhchanian-1784451917.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Stefan Papp",
+      "properties": {
+        "title": "Serial entrepreneur, Data Professional and Strategy Consultant at Sophron Engineering",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784452158/mentorloop/mentors/stefan-papp-1784452158.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Ashot Khudgaryan",
+      "properties": {
+        "title": "Co-founder at Rite",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784452282/mentorloop/mentors/ashot-khudgaryan-1784452282.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hayk Daveyan",
+      "properties": {
+        "title": "Chief Product Officer at Claim Leader",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784452387/mentorloop/mentors/hayk-daveyan-1784452387.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hovhannes Ispiryan",
+      "properties": {
+        "title": "Business Incubation Coach",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784448264/mentorloop/mentors/hovhannes-ispiryan-1784448264.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Arsen Baghdasaryan",
+      "properties": {
+        "title": "Founder of DataArt Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784458222/mentorloop/mentors/arsen-baghdasaryan-1784458222.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Aram Orbelyan",
+      "properties": {
+        "title": "Managing Partner at Concern Dialog",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784458438/mentorloop/mentors/aram-orbelyan-1784458438.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Karen Tonoyan",
+      "properties": {
+        "title": "Founder, Tono Law Group | IP & Startup Lawyer | Investor, Advisor & Mentor",
+        "organization": "Founder, Tono Law Group",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784898684/mentorloop/mentors/karen-tonoyan-1784898684.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Emil Maghakian",
+      "properties": {
+        "title": "Principal, E. MAGH Consulting",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785001916/mentorloop/mentors/emil-maghakian-1785001916.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Tigran Hakobyan",
+      "properties": {
+        "title": "CMO at Cloudchipr (YC W23)",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785071082/mentorloop/mentors/tigran-hakobyan-1785071082.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Lilit Hakobyan",
+      "properties": {
+        "title": "Founder of Proservicel HR Solutions Consultancy",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784750912/mentorloop/mentors/lilit-hakobyan-1784750912.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Mary Mazmanyan",
+      "properties": {
+        "title": "Head of HR Department at Fast Bank",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784751041/mentorloop/mentors/mary-mazmanyan-1784751041.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Anna Hovsepyan",
+      "properties": {
+        "title": "Head of HR, Team Group",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784810605/mentorloop/mentors/anna-hovsepyan-1784810605.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hovhannes Margaryan",
+      "properties": {
+        "title": "Creative Director",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785002655/mentorloop/mentors/hovhannes-margaryan-1785002654.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hayk Shekyan",
+      "properties": {
+        "title": "Founder and CEO at Shtigen Group of Companies",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785165780/mentorloop/mentors/hayk-shekyan-1785165779.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "By The Way Band",
+      "properties": {
+        "title": "Band, Artist",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785072543/mentorloop/mentors/by-the-way-band-1785072543.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Dario Iulianella",
+      "properties": {
+        "title": "Project Manager at the National Board of Trade Sweden",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/dario-iulianella.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Ani Oganesyan",
+      "properties": {
+        "title": "Senior Ventures Associate at Plug and Play",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784451245/mentorloop/mentors/ani-oganesyan-1784451245.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Gor Vardanyan",
+      "properties": {
+        "title": "CEO, Founder at Chessify",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460511/mentorloop/mentors/gor-vardanyan-1784460510.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Luiza Avetisyan",
+      "properties": {
+        "title": "Co-Founder at Staff.am and Hirebee",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/luiza-avetisyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Rouben Meschian",
+      "properties": {
+        "title": "Engineer | Educator",
+        "organization": "Engineer",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/rouben-meschian.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Yerem Khalatyan",
+      "properties": {
+        "title": "Co-founder & CEO at InConcept Labs, Co-founder at Liveboard",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460666/mentorloop/mentors/yerem-khalatyan-1784460666.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Narine Kotikyan",
+      "properties": {
+        "title": "Co-founder of Spacetab",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460779/mentorloop/mentors/narine-kotikyan-1784460779.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hovhannes Kuloghlyan",
+      "properties": {
+        "title": "CTO at Wirestock",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460857/mentorloop/mentors/hovhannes-kuloghlyan-1784460857.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Artak Melkonyan",
+      "properties": {
+        "title": "Global Lead, UNDP Impact Venture Accelerators",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460915/mentorloop/mentors/artak-melkonyan-1784460915.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hayk Muradyan",
+      "properties": {
+        "title": "Founding Partner at AKTIV Legal Advisors, Founder and CEO of Arzek Capital, Vice President of Productive Sectors at the Guadalajara Chamber of Commerce",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/hayk-muradyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Naré Gevorgyan",
+      "properties": {
+        "title": "CEO at Angel Investor Club of Armenia (AICA) and Founding Member at Cifora",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460985/mentorloop/mentors/nar-gevorgyan-1784460985.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Sargis Karapetyan",
+      "properties": {
+        "title": "Tech Entrepreneur",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784461136/mentorloop/mentors/sargis-karapetyan-1784461136.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Levon Hovsepyan",
+      "properties": {
+        "title": "Executive Vice President and CBO",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784461245/mentorloop/mentors/levon-hovsepyan-1784461245.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Bagrat Dabaghyan",
+      "properties": {
+        "title": "CTO at Triada Studios",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784461450/mentorloop/mentors/bagrat-dabaghyan-1784461450.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Armen Sargsyan",
+      "properties": {
+        "title": "Founder & Growth Architect, 405ads",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784461671/mentorloop/mentors/armen-sargsyan-1784461671.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Harut Muradyan",
+      "properties": {
+        "title": "Founder and CEO of Simply Technologies",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784452054/mentorloop/mentors/harut-muradyan-1784452054.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hmayak Tigranyan",
+      "properties": {
+        "title": "Founder & CEO, Buildern",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784565256/mentorloop/mentors/hmayak-tigranyan-1784565256.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Hrant Khachatrian",
+      "properties": {
+        "title": "Director at YerevaNN, Research Group Lead at YSU",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785089128/mentorloop/mentors/hrant-khachatrian-1785089128.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Ruben Osipyan",
+      "properties": {
+        "title": "CEO of the STAN angel network",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784462051/mentorloop/mentors/ruben-osipyan-1784462051.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Shogher Atanesyan",
+      "properties": {
+        "title": "Founder & CEO of Ardook and Ardook Data",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784470168/mentorloop/mentors/shogher-atanesyan-1784470168.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Levon Kasparov",
+      "properties": {
+        "title": "Chief Operating Officer at Renshin Urban Investments",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784900264/mentorloop/mentors/levon-kasparov-1784900264.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Tako Kheladze",
+      "properties": {
+        "title": "Monitoring Evaluation Accountability and Learning (MEAL) Manager at EU4Innovation East Project",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784462363/mentorloop/mentors/tako-kheladze-1784462363.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Yuki Ellias",
+      "properties": {
+        "title": "High impact executive leadership coach",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/yuki-ellias.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Raffi Kassarjian",
+      "properties": {
+        "title": "Founder at Sensyan",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784462773/mentorloop/mentors/raffi-kassarjian-1784462773.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Artavazd Mehrabyan",
+      "properties": {
+        "title": "Co-founder, CTO at Picsart",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/artavazd-mehrabyan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Arman Atoyan",
+      "properties": {
+        "title": "Co-founder, Chief Wizard at ARloopa",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784462864/mentorloop/mentors/arman-atoyan-1784462864.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Magda Markosyan",
+      "properties": {
+        "title": "MAROG Branding & Marketing Communications",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784462931/mentorloop/mentors/magda-markosyan-1784462931.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Larisa Hovannisian",
+      "properties": {
+        "title": "CEO at Teach for Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784462985/mentorloop/mentors/larisa-hovannisian-1784462985.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Gevorg Safaryan",
+      "properties": {
+        "title": "CEO & Founder at EarlyOne",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784460604/mentorloop/mentors/gevorg-safaryan-1784460604.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Tigran Shahverdyan",
+      "properties": {
+        "title": "Co-founder & CTO at Robomart | Co-founder & Member of BoT | Bazoomq Active Member | Gituzh",
+        "organization": "Co-founder & CTO at Robomart",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784463078/mentorloop/mentors/tigran-shahverdyan-1784463078.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Sona Grigoryan",
+      "properties": {
+        "title": "Director at Plug and Play Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/sona-grigoryan.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Narek Safaryan",
+      "properties": {
+        "title": "CEO, Founder at Renderforest",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784470038/mentorloop/mentors/narek-safaryan-1784470038.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Ashot Arzumanyan",
+      "properties": {
+        "title": "Partner at SmartGate VC",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784463421/mentorloop/mentors/ashot-arzumanyan-1784463421.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Garik Petrosyan",
+      "properties": {
+        "title": "Founder & CEO of Essential | CTO and Technology Entrepreneur",
+        "organization": "Founder & CEO of Essential",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784548178/mentorloop/mentors/garik-petrosyan-1784548178.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Melik Karapetyan",
+      "properties": {
+        "title": "Engineering Director at Krisp.ai",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784463521/mentorloop/mentors/melik-karapetyan-1784463521.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Shushanik Ghaltakhchyan",
+      "properties": {
+        "title": "Founder, CEO - Whitebone Experience Management | Founder, CEO - Whitemind Psychological Center",
+        "organization": "Founder, CEO - Whitebone Experience Management",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784463844/mentorloop/mentors/shushanik-ghaltakhchyan-1784463844.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Gevorg Karapetyan",
+      "properties": {
+        "title": "Serial Entrepreneur; Stealth AI Startup; Co-founder Hercules AI",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784470801/mentorloop/mentors/gevorg-karapetyan-1784470801.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Vahagn Sarksyan",
+      "properties": {
+        "title": "Founder & CEO at Seneqa AI",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784463931/mentorloop/mentors/vahagn-sarksyan-1784463931.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Robin Vicken Ohannessian",
+      "properties": {
+        "title": "CEO at Vickino",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784463745/mentorloop/mentors/robin-vicken-ohannessian-1784463745.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Andranik Yeritsyan",
+      "properties": {
+        "title": "CEO at DMS - Decision Making Software and LexAI",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784654320/mentorloop/mentors/andranik-yeritsyan-1784654320.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Avetik Grigoryan",
+      "properties": {
+        "title": "Founder and CEO of Chessmood.com.",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784750127/mentorloop/mentors/avetik-grigoryan-1784750127.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Mkhitar Hayrapetyan",
+      "properties": {
+        "title": "Minister of High-tech Industry",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784825768/mentorloop/mentors/mkhitar-hayrapetyan-1784825767.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Sirarpi Sahakyan",
+      "properties": {
+        "title": "Product Owner for Corporate Digital Banking at Ardshinbank",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784800713/mentorloop/mentors/sirarpi-sahakyan-1784800713.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Davit Baghdasaryan",
+      "properties": {
+        "title": "Co-Founder & CEO of Krisp, Founding partner at BigStory VC.",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785001620/mentorloop/mentors/davit-baghdasaryan-1785001620.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Tigran Frangyan",
+      "properties": {
+        "title": "Commercial Director, Team Telecom Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1784959264/mentorloop/mentors/tigran-frangyan-1784959264.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Tigran Harutyunyan",
+      "properties": {
+        "title": "Founder of Myler Mountain Resort",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785004002/mentorloop/mentors/tigran-harutyunyan-1785004002.png"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "Josip Juric",
+      "properties": {
+        "title": "Programme Manager, Delegation of the EU to Armenia",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/mentorloop/mentors/josip-juric.jpg"
+      }
+    },
+    {
+      "entityType": "mentor",
+      "label": "⁠DJ Twins",
+      "properties": {
+        "title": "DJ, Artist",
+        "photo": "https://res.cloudinary.com/di8iypeft/image/upload/v1785073502/mentorloop/mentors/dj-twins-1785073502.jpg"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Intro Session",
+      "properties": {
+        "day": "Jul 26",
+        "time": "14:00–15:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Intro Sessions & Icebreakers For Booster Program",
+      "properties": {
+        "day": "Jul 26",
+        "time": "15:00–16:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Intro Sessions & Icebreakers For Talent Generation Program",
+      "properties": {
+        "day": "Jul 26",
+        "time": "16:00–17:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Intro Sessions & Icebreakers For Starter Program",
+      "properties": {
+        "day": "Jul 26",
+        "time": "17:00–18:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Opening Ceremony",
+      "properties": {
+        "day": "Jul 26",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Entertainment & Party",
+      "properties": {
+        "day": "Jul 26",
+        "time": "21:30–23:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "10:00–12:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "10:00–12:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "10:00–12:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "10:00–12:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "1-on-1 Mentoring Session",
+      "properties": {
+        "day": "Jul 27",
+        "time": "12:00–15:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "13:00–15:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "13:00–15:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "One on One Mentoring",
+      "properties": {
+        "day": "Jul 27",
+        "time": "17:00–19:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "17:00–19:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Emotions and reflection as key for success",
+      "properties": {
+        "day": "Jul 27",
+        "time": "17:00–17:40",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 27",
+        "time": "17:00–19:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Tourism Innovation and Digitalization",
+      "properties": {
+        "day": "Jul 27",
+        "time": "17:40–18:20"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Rate.Trading – An Online Foreign Currency Exchange Platform",
+      "properties": {
+        "day": "Jul 27",
+        "time": "18:20–19:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Existentialism, singularity, strategy and what to  eat for breakfast",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "AI freed my time, took away my anxiety and gave me a feeling of incredible freedom.",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Campfire Talk with Sargis Kirakosyan",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "What Your Metrics Aren’t Telling You",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Pros and Cons building Startup with AI",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How a Global Payments Network Works with Startups: The Mastercard Approach",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "You Can't A/B Test a Data Center",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "AI Can’t Weld: The Future-Proof Professions",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Everest: Life and Ascent",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How start-ups work with larger corporates / what are the pitfalls and challenges",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Growing Your Startup Without Losing Yourself",
+      "properties": {
+        "day": "Jul 27",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Entertainment & Party",
+      "properties": {
+        "day": "Jul 27",
+        "time": "22:00–23:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "10:00–12:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "10:00–12:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "10:00–12:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "10:00–12:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "1-on-1 Mentoring Session",
+      "properties": {
+        "day": "Jul 28",
+        "time": "12:30–15:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "13:00–15:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "13:00–15:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "One on One Mentoring",
+      "properties": {
+        "day": "Jul 28",
+        "time": "17:00–19:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "17:00–19:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 28",
+        "time": "17:00–19:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Alchemist Doha - Gateway to Qatar and the world",
+      "properties": {
+        "day": "Jul 28",
+        "time": "17:00–17:40",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "From Digitization to AI: HR’s Role in Building Trust, Skills and Culture for the Future of Work",
+      "properties": {
+        "day": "Jul 28",
+        "time": "17:40–18:20"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How AI reshaping the education: the good, the bad and the ugly.",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Transforming your business with AI - AI adoption",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Legal Essentials for Startups: Protecting Your Business from Day One",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Can AI tell good stories?",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How to reach your market",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How I Ranked an All-New Product in LLMs Among Crypto's Biggest Players",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "From competitive programming to a YC-backed startup",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How to build a marketing team at your startup",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Bridging generations in startup teams",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Demystifying investments - an engineers guide to financial freedom and funding your startup",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Energy transition in Armenia - institutionalizing on achievements and building new frontiers.",
+      "properties": {
+        "day": "Jul 28",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Beyond Silicon Valley: Why Startup Ecosystems Succeed — Lessons from Silicon Valley, Europe, Asia, and Africa",
+      "properties": {
+        "day": "Jul 28",
+        "time": "21:00–22:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Entertainment & Party",
+      "properties": {
+        "day": "Jul 28",
+        "time": "22:00–23:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "10:00–12:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "10:00–12:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "10:00–12:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "10:00–12:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "1-on-1 Mentoring Session",
+      "properties": {
+        "day": "Jul 29",
+        "time": "12:00–15:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "13:00–15:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "13:00–15:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "17:00–19:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 29",
+        "time": "17:00–19:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "One on One Mentoring",
+      "properties": {
+        "day": "Jul 29",
+        "time": "17:00–19:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Ready for Sweden? Navigating One of Europe's Most Innovative Tech Markets",
+      "properties": {
+        "day": "Jul 29",
+        "time": "17:00–17:40",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Organic Technology: The Neuroscience Behind How Great Founders Operate",
+      "properties": {
+        "day": "Jul 29",
+        "time": "17:40–18:20",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Network Smarter: How to Build Relationships That Move Your Startup Forward",
+      "properties": {
+        "day": "Jul 29",
+        "time": "18:20–19:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Why this is the BEST and the HARDEST time to be a founder",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Is Your Problem Real?",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Build What Changes Lives",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How to Build a Profitable SaaS Company That Investors Want to Back",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Large scale project as a startup",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Building Venture-Backed Startups: Insights from the Founder and Investor Side",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "The Trust Gap: Why Traditional Money Still Avoids Startups (and what could change that)",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Data Collection during Startup Community Events and Why it Matters",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How opportunities are really created?",
+      "properties": {
+        "day": "Jul 29",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Human Dignity in the Age of AI: What is a Human Being Beyond Biology and Algorithms?",
+      "properties": {
+        "day": "Jul 29",
+        "time": "21:00–22:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Entertainment & Party",
+      "properties": {
+        "day": "Jul 29",
+        "time": "22:00–23:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "10:00–12:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "10:00–12:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "10:00–12:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "10:00–12:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "1-on-1 Mentoring Session",
+      "properties": {
+        "day": "Jul 30",
+        "time": "12:00–15:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Talent — Pre-Incubation Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "13:00–15:00",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "FireCode: Main Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "13:00–15:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Welcome Remarks",
+      "properties": {
+        "day": "Jul 30",
+        "time": "15:00–15:10"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "One on One Mentoring",
+      "properties": {
+        "day": "Jul 30",
+        "time": "17:00–19:00",
+        "stream": "FireCode"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Fail Better. Learn Faster. Build Better Startups.",
+      "properties": {
+        "day": "Jul 30",
+        "time": "17:00–17:40",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter — Incubation Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "17:00–19:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster — Micro Acceleration Program",
+      "properties": {
+        "day": "Jul 30",
+        "time": "17:00–19:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Global opportunities with Plug and Play",
+      "properties": {
+        "day": "Jul 30",
+        "time": "17:40–18:20",
+        "stream": "Talent"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Building the Next Generation of Corporate Banking",
+      "properties": {
+        "day": "Jul 30",
+        "time": "18:20–19:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Open Q&A on Challenges, Successes, and Insights",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Startup or Traditional Business? The Decision That Changes Everything",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Armenia's leapfrog moment, and why education is the test case",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Founder Mistakes: Sharing Stories Off the Record",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Beyond AI Tools: Our Journey Toward an AI-Native Company",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Fundable, Defensible, Scalable: How IP and Legal Strategy Drive Valuation and Global Growth for Founders and Investors",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "From a Communications Startup to a Regional Telecom Giant",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "From Startup to Ecosystem. Creating Value Beyond Business",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "What Makes Businesses Grow Faster: Lessons, Mistakes, and Real Examples",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Wellbeing and Good-life: Practical Insights",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Building and Scaling in the AI Era: Lessons from Tech and Entrepreneurship",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "AI Is Redefining Marketing and Sales: How Startups Can Adapt and Win",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "How to Build a Company That Actually Matters in the Age of AI",
+      "properties": {
+        "day": "Jul 30",
+        "time": "20:00–21:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Big Campfire",
+      "properties": {
+        "day": "Jul 30",
+        "time": "21:00–22:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Entertainment & Party",
+      "properties": {
+        "day": "Jul 30",
+        "time": "22:00–23:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster Semifinal — Group 1",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster Semifinal — Group 2",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter Semifinal — Group 3",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter Semifinal — Group 1",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter Semifinal — Group 5",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter Semifinal — Group 2",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter Semifinal — Group 4",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:00–13:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Green Tech Academy  info session",
+      "properties": {
+        "day": "Jul 31",
+        "time": "10:30–12:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "UATE Meetup",
+      "properties": {
+        "day": "Jul 31",
+        "time": "12:00–15:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Presentation",
+      "properties": {
+        "day": "Jul 31",
+        "time": "17:00–17:20"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Entertainment & Party",
+      "properties": {
+        "day": "Jul 31",
+        "time": "21:00–22:00"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Starter Big Battle — Final",
+      "properties": {
+        "day": "Aug 1",
+        "time": "10:00–13:00",
+        "stream": "Starter"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Booster Big Battle — Final",
+      "properties": {
+        "day": "Aug 1",
+        "time": "15:00–18:00",
+        "stream": "Booster"
+      }
+    },
+    {
+      "entityType": "session",
+      "label": "Closing Party",
+      "properties": {
+        "day": "Aug 1",
+        "time": "19:00–01:10"
+      }
+    }
+  ]
+}

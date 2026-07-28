@@ -78,6 +78,7 @@ import { gatewayChat, litellmConfigured, type GatewayCallMeta } from "./llmGatew
 import { agentConfigured } from "./agent/gateway";
 import { runAgentLoop, type AgentTool } from "./agent/loop";
 import { buildComposerRegistry } from "./agent/registry";
+import { SUMMIT_PROMPT_ADDENDUM, summitContextActive, summitTools } from "./agent/summitTools";
 import { AGENT_SYSTEM_PROMPT, buildContextBlock } from "./agent/prompt";
 
 const PORT = Number(process.env.PORT ?? 4003);
@@ -999,6 +1000,8 @@ const extractEntitiesTool: AgentTool = {
 };
 
 const composerRegistry = buildComposerRegistry([extractEntitiesTool]);
+// Summit mode (@seasidestartupsummit): the same agent plus the event toolset.
+const summitRegistry = buildComposerRegistry([extractEntitiesTool, ...summitTools]);
 
 app.post("/agent/stream", async (req, res) => {
   if (!agentConfigured()) {
@@ -1077,11 +1080,12 @@ app.post("/agent/stream", async (req, res) => {
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
   };
 
+  const summitMode = summitContextActive(text, mentions, prior);
   try {
     const result = await runAgentLoop({
       transcript,
-      system: AGENT_SYSTEM_PROMPT,
-      registry: composerRegistry,
+      system: summitMode ? AGENT_SYSTEM_PROMPT + SUMMIT_PROMPT_ADDENDUM : AGENT_SYSTEM_PROMPT,
+      registry: summitMode ? summitRegistry : composerRegistry,
       ctx: { userId, graphUrl: GRAPH, emit: emit as (ev: AgentStreamEvent) => void },
       model,
       meta: {

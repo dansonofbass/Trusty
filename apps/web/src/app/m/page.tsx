@@ -1,5 +1,6 @@
 "use client";
 
+import FeedbackButton from "@/components/FeedbackButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -224,6 +225,7 @@ export default function MobileSearch() {
           className="flex min-w-0 items-center gap-1 rounded-full border border-line bg-nebula/50 px-2.5 py-1.5 text-[12px] font-medium text-ink"
         />
         <div className="ml-auto flex shrink-0 items-center gap-1">
+          <FeedbackButton compact />
           <button
             type="button"
             onClick={shareInvite}
