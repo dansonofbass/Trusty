@@ -40,7 +40,14 @@ export default function MentionPopover({
         .slice(0, 8)
         .map((t) => ({ key: t, label: t.replace(/_/g, " "), topic: t }));
     }
-    const pool = active.trigger === "@" ? nodes.filter((n) => n.type === "person" && !n.isMe) : nodes;
+    // @ suggests people AND named organizations/organizers (e.g.
+    // @seasidestartupsummit activates the summit agent).
+    const pool =
+      active.trigger === "@"
+        ? nodes.filter(
+            (n) => (n.type === "person" || (n as { entityType?: string }).entityType === "organizer") && !n.isMe,
+          )
+        : nodes;
     return pool
       .filter((n) => !needle || n.label.toLowerCase().includes(needle) || (n.sub ?? "").toLowerCase().includes(needle))
       .slice(0, 8)

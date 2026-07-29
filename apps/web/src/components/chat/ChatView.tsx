@@ -162,6 +162,26 @@ export default function ChatView() {
           </p>
           {input}
           {heroChips}
+          {/* Try-asking guide: one tap runs the prompt — doubles as the
+              "what can I do here" discovery surface. */}
+          <div className="mx-auto mt-4 flex max-w-[620px] flex-wrap items-center justify-center gap-1.5">
+            {[
+              "@seasidestartupsummit set me up",
+              "@seasidestartupsummit who should I meet?",
+              "@seasidestartupsummit what's on the agenda today?",
+              "Find a trusted dentist in Yerevan",
+              "What can you do?",
+            ].map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => void runTurn({ text: p })}
+                className="rounded-full border border-dashed border-[var(--color-line)] px-3 py-1.5 text-[11.5px] text-[var(--color-faint)] transition hover:border-[var(--color-accent-line)] hover:text-ink"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
           {!agentMode && (
             <p className="mt-3 text-center text-[11px] text-[var(--color-faint)]">
               AI agent offline — quick mode (heuristics) active.
