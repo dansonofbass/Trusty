@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import GuideSheet from "./GuideSheet";
 import { Megaphone, Plus, RotateCcw, Sparkles, UserPlus } from "lucide-react";
 import { analyzeComposerText, type ThoughtExtraction } from "@constellation/graph-core";
 import AgentChat, { type TrustToolData } from "@/components/composer/AgentChat";
@@ -58,6 +59,7 @@ export default function ChatView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectParam]);
 
+  const [guideOpen, setGuideOpen] = useState(false);
   const hero = chat.length === 0 && !weave;
 
   // Keep the thread pinned to the newest turn.
@@ -173,29 +175,37 @@ export default function ChatView() {
           </p>
           {input}
           {heroChips}
-          {/* Try-asking guide: one tap runs the prompt — doubles as the
-              "what can I do here" discovery surface. */}
-          <div className="mx-auto mt-5 max-w-[620px] text-center text-[10.5px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--color-accent)" }}>
-            Try asking
-          </div>
-          <div className="mx-auto mt-2 flex max-w-[620px] flex-wrap items-center justify-center gap-1.5">
+          {/* Try-asking guide: real suggestion cards (what + example), one tap
+              runs it; "everything" opens the full command catalog. */}
+          <div className="mx-auto mt-6 grid w-full max-w-[620px] grid-cols-1 gap-2 sm:grid-cols-2">
             {[
-              "@seasidestartupsummit set me up",
-              "@seasidestartupsummit who should I meet?",
-              "@seasidestartupsummit what's on the agenda today?",
-              "Find a trusted dentist in Yerevan",
-              "What can you do?",
-            ].map((p) => (
+              { title: "🎪 Get set up for the Summit", prompt: "@seasidestartupsummit set me up", sub: "Profile, program, squad — 1 minute" },
+              { title: "🤝 Who should I meet?", prompt: "@seasidestartupsummit who should I meet?", sub: "Mentor & founder matches, with reasons" },
+              { title: "🗓 What's on today?", prompt: "@seasidestartupsummit what's on the agenda today?", sub: "Today's sessions, by program" },
+              { title: "🔍 Find someone trusted", prompt: "Find a trusted dentist in Yerevan", sub: "Search your network's real experience" },
+            ].map((c) => (
               <button
-                key={p}
+                key={c.prompt}
                 type="button"
-                onClick={() => void runTurn({ text: p })}
-                className="rounded-full border border-dashed border-[var(--color-line)] px-3 py-1.5 text-[11.5px] text-[var(--color-faint)] transition hover:border-[var(--color-accent-line)] hover:text-ink"
+                onClick={() => void runTurn({ text: c.prompt })}
+                className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-2.5 text-left backdrop-blur-md transition hover:border-[var(--color-accent-line)]"
               >
-                {p}
+                <div className="text-[12.5px] font-semibold text-ink">{c.title}</div>
+                <div className="mt-0.5 text-[11px] text-[var(--color-faint)]">{c.sub}</div>
               </button>
             ))}
           </div>
+          <div className="mt-2.5 text-center">
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              className="text-[11.5px] font-semibold underline decoration-dotted underline-offset-4 transition hover:text-ink"
+              style={{ color: "var(--color-accent)" }}
+            >
+              Everything you can ask →
+            </button>
+          </div>
+          {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
           {!agentMode && (
             <p className="mt-3 text-center text-[11px] text-[var(--color-faint)]">
               AI agent offline — quick mode (heuristics) active.
