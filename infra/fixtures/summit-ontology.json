@@ -54,7 +54,12 @@
       "order": 4,
       "fields": [
         { "key": "startup", "label": "Startup", "type": "text" },
-        { "key": "stage", "label": "Stage", "type": "select", "options": ["idea", "mvp", "revenue", "scaling"] }
+        { "key": "stage", "label": "Stage", "type": "select", "options": ["idea", "mvp", "revenue", "scaling"] },
+        { "key": "program", "label": "Summit program", "type": "select", "options": ["Starter", "Booster", "Talent", "FireCode"] },
+        { "key": "skills_offered", "label": "Skills offered", "type": "multiselect" },
+        { "key": "skills_needed", "label": "Skills needed", "type": "multiselect" },
+        { "key": "sectors", "label": "Sectors", "type": "multiselect" },
+        { "key": "looking_for", "label": "Looking for", "type": "multiselect" }
       ]
     },
     {

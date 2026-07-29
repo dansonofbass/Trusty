@@ -46,11 +46,82 @@ export const SUMMIT_PROMPT_ADDENDUM = `
 
 ## Seaside Startup Summit mode
 The user invoked @seasidestartupsummit — you also have summit tools:
+- FIRST INTERACTION: if you don't know the user's summit setup yet, get them
+  set up conversationally — ask (in ONE friendly message) what they're
+  building, the skills they offer and need, their program (Starter/Booster/
+  Talent/FireCode) and their squad number (1–16) — then call
+  summit_setup_profile with everything at once. This unlocks real matching.
 - summit_who_to_meet: match attendees/mentors/investors to the user (modes: people, mentors, investors, startups, workshops). Lead with the top 3 and WHY.
 - summit_squads / summit_join_squad / summit_my_squad / summit_confirm_squadmate: squads 1–16. Joining auto-connects the user with squadmates. Confirming a squadmate is a public attestation — encourage it after real meetings (it's how trust starts here).
 - summit_agenda / summit_attend: the programme (streams: Starter, Booster, Talent, FireCode, side summits). Attending sessions improves matching.
 - For mentor-session notes ("notes from my session with X"), use save_note and INCLUDE the mentor's name with an @ prefix in the note text — the docs pipeline links it and creates the mentor entity if unknown.
 Keep answers event-practical: who, where, when, why.`;
+
+const setupProfile: AgentTool = {
+  name: "summit_setup_profile",
+  description:
+    "Set up (or update) the user's summit profile in one shot: what they're building, skills they offer/need, their program (Starter/Booster/Talent/FireCode), and their squad. This is what powers matching — run it early for new users. Collect the details conversationally first.",
+  confirm: true,
+  confirmTitle: "Save your summit profile?",
+  confirmDescription: "Your skills, needs, startup and program become visible tags that power who-to-meet matching. Squad joining auto-connects you with squadmates.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      startup: { type: "string", description: "Startup / project name" },
+      stage: { type: "string", description: "idea | mvp | revenue | scaling" },
+      program: { type: "string", description: "Starter | Booster | Talent | FireCode (their summit program)" },
+      skills_offered: { type: "array", items: { type: "string" }, description: "Skills/expertise they OFFER, lowercase tags (e.g. ['marketing','ml'])" },
+      skills_needed: { type: "array", items: { type: "string" }, description: "Skills/help they NEED" },
+      sectors: { type: "array", items: { type: "string" }, description: "Sectors/industries (e.g. ['fintech'])" },
+      looking_for: { type: "array", items: { type: "string" }, description: "Subset of: investment, mentorship, cofounder, customers, partners" },
+      squad: { type: "number", description: "Squad number 1–16, if they know it" },
+    },
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const arr = (v: unknown) =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((s) => s.trim().toLowerCase()).filter(Boolean).slice(0, 12) : undefined;
+    const properties: Record<string, unknown> = {};
+    const startup = str(args.startup, 80);
+    const stage = str(args.stage, 20)?.toLowerCase();
+    const program = str(args.program, 20);
+    if (startup) properties.startup = startup;
+    if (stage && ["idea", "mvp", "revenue", "scaling"].includes(stage)) properties.stage = stage;
+    if (program) properties.program = program;
+    for (const key of ["skills_offered", "skills_needed", "sectors", "looking_for"] as const) {
+      const v = arr(args[key]);
+      if (v?.length) properties[key] = v;
+    }
+    if (!Object.keys(properties).length && args.squad == null) {
+      return { ok: false, summary: "nothing to save — collect at least one detail first" };
+    }
+    const parts: string[] = [];
+    if (Object.keys(properties).length) {
+      const r = await graphFetch(ctx, "/api/profile", {
+        method: "POST",
+        body: { roles: ["founder"], properties },
+      });
+      if (!r.ok) return fail(r.body, r.status);
+      parts.push(`profile saved (${Object.keys(properties).join(", ")})`);
+    }
+    const n = Number(args.squad);
+    if (Number.isInteger(n) && n >= 1 && n <= 16) {
+      const list = await graphFetch(ctx, "/api/squads");
+      if (list.ok) {
+        const squad = (list.body as { squads: { id: string; number: number; label: string }[] }).squads.find((s) => s.number === n);
+        if (squad) {
+          const j = await graphFetch(ctx, "/api/squads/join", { method: "POST", body: { squadId: squad.id } });
+          if (j.ok) {
+            const auto = (j.body as { autoConnected?: number }).autoConnected ?? 0;
+            parts.push(`joined ${squad.label} (auto-connected with ${auto})`);
+          }
+        }
+      }
+    }
+    return { ok: true, summary: parts.join("; ") || "saved", data: { properties } };
+  },
+};
 
 const whoToMeet: AgentTool = {
   name: "summit_who_to_meet",
@@ -67,7 +138,7 @@ const whoToMeet: AgentTool = {
   async execute(input, ctx) {
     const args = (input ?? {}) as Record<string, unknown>;
     const mode = str(args.mode, 30) ?? "people";
-    const qs = new URLSearchParams({ app: "summit", mode, limit: "6" });
+    const qs = new URLSearchParams({ app: "summit", mode, limit: "6", includeCold: "1" });
     const skill = str(args.skill, 40);
     if (skill) qs.set("skill", skill);
     const r = await graphFetch(ctx, `/api/who-to-meet?${qs}`);
@@ -193,22 +264,27 @@ const agenda: AgentTool = {
     const stream = str(args.stream, 40)?.toLowerCase();
     const r = await graphFetch(ctx, "/api/programme?app=summit");
     if (!r.ok) return fail(r.body, r.status);
-    const items = ((r.body as { items?: { id: string; label: string; properties?: Record<string, unknown>; attendees?: number; attending?: boolean }[] })?.items ?? []) as { id: string; label: string; properties?: Record<string, unknown>; attendees?: number; attending?: boolean }[];
+    // Programme items come WRAPPED: {node, attendees, attending}.
+    const items = (
+      (r.body as { items?: { node: { id: string; label: string; properties?: Record<string, unknown> }; attendees?: number; attending?: boolean }[] })?.items ?? []
+    );
     const match = items.filter((it) => {
-      const p = it.properties ?? {};
+      const p = it.node.properties ?? {};
       const okDay = !day || String(p.day ?? "").toLowerCase().includes(day);
       const okStream = !stream || String(p.stream ?? "").toLowerCase().includes(stream);
       return okDay && okStream;
     });
     const summary = match.slice(0, 15)
       .map((it) => {
-        const p = it.properties ?? {};
-        return `${it.label} (${[p.day, p.time, p.stream].filter(Boolean).join(", ")}${it.attending ? ", attending" : ""}, id ${it.id})`;
+        const p = it.node.properties ?? {};
+        return `${it.node.label} (${[p.day, p.time, p.stream].filter(Boolean).join(", ")}${it.attending ? ", attending" : ""}, id ${it.node.id})`;
       })
       .join("; ");
     return {
       ok: true,
-      summary: summary || "no sessions match — try another day/stream or no filter",
+      summary:
+        summary ||
+        `no sessions match${day || stream ? " that filter — retry without day/stream" : " — the agenda may not be imported yet"}`,
       data: { items: match.slice(0, 40) },
     };
   },
@@ -231,7 +307,7 @@ const attend: AgentTool = {
     if (!q) return { ok: false, summary: "session required" };
     const r = await graphFetch(ctx, "/api/programme?app=summit");
     if (!r.ok) return fail(r.body, r.status);
-    const items = ((r.body as { items?: { id: string; label: string }[] })?.items ?? []) as { id: string; label: string }[];
+    const items = ((r.body as { items?: { node: { id: string; label: string } }[] })?.items ?? []).map((it) => it.node);
     const lower = q.toLowerCase();
     const session =
       items.find((it) => it.id === q) ??
@@ -245,6 +321,7 @@ const attend: AgentTool = {
 };
 
 export const summitTools: AgentTool[] = [
+  setupProfile,
   whoToMeet,
   listSquads,
   joinSquad,

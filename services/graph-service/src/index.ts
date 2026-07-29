@@ -1500,10 +1500,23 @@ app.get("/api/who-to-meet", (req, res) => {
     limit: Number(req.query.limit ?? 24),
   });
   const byId = new Map(shared.nodes.map((n) => [n.id, n]));
-  res.json({
-    app,
-    suggestions: suggestions.map((s) => ({ ...s, node: byId.get(s.nodeId) })).filter((s) => s.node),
-  });
+  let out = suggestions.map((s) => ({ ...s, node: byId.get(s.nodeId) })).filter((s) => s.node);
+  // Cold-start fallback (?includeCold=1): a fresh profile scores 0 against
+  // everyone and whoToMeet drops zero scores — for browse-style modes return
+  // the role-matching people anyway so "show me mentors" is never empty.
+  if (!out.length && req.query.includeCold === "1") {
+    const mode = String(req.query.mode ?? "people");
+    const roleOf: Record<string, string[]> = { mentors: ["mentor", "expert"], investors: ["investor"], startups: ["startup"] };
+    const roles = roleOf[mode];
+    if (roles) {
+      const limit = Number(req.query.limit ?? 24);
+      out = shared.nodes
+        .filter((n) => n.id !== userId && roles.some((r) => hasRole(n, r)))
+        .slice(0, limit)
+        .map((n) => ({ nodeId: n.id, score: 0, matchPct: 0, reasons: ["at the summit"], node: n }));
+    }
+  }
+  res.json({ app, suggestions: out });
 });
 
 /** The Trusty Sevan Home feed — every discovery section in one round-trip. */

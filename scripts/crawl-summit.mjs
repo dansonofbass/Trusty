@@ -30,6 +30,26 @@ const flight = chunks
 
 const clean = (v) => (typeof v === "string" && !v.startsWith("$") ? v.trim() : "");
 
+/** Expertise tags inferred from a mentor's title/affiliation — these are what
+ *  the match engine scores against attendees' skills_needed. */
+const EXPERTISE_RULES = [
+  [/invest|venture|capital|vc\b|fund|angel/i, "fundraising"],
+  [/market|growth|brand|commun/i, "marketing"],
+  [/product|cpo|pm\b/i, "product"],
+  [/tech|cto|engineer|developer|ai\b|ml\b|data/i, "tech"],
+  [/law|legal|attorney|ip\b|patent/i, "legal"],
+  [/sales|revenue|business development|bd\b/i, "sales"],
+  [/design|ux|ui\b|creative/i, "design"],
+  [/hr\b|people|talent|recruit/i, "hr"],
+  [/strateg|ceo|founder|entrepreneur|innovation|accelerat|incubat/i, "strategy"],
+  [/financ|cfo|account|tax/i, "finance"],
+];
+const inferExpertise = (text) => {
+  const tags = new Set();
+  for (const [re, tag] of EXPERTISE_RULES) if (re.test(text)) tags.add(tag);
+  return [...tags].slice(0, 4);
+};
+
 // ---- tracks (stream names) ----
 const tracks = new Map();
 for (const m of flight.matchAll(/\{"id":"(\w+)","eventId":"\w+","name":"([^"]{2,60})","kind":"\w+","color/g)) {
@@ -46,6 +66,7 @@ for (const m of flight.matchAll(
   const title = titleRaw === "null" ? "" : clean(JSON.parse(titleRaw));
   const company = companyRaw === "null" ? "" : clean(JSON.parse(companyRaw));
   const photo = photoRaw === "null" ? "" : clean(JSON.parse(photoRaw));
+  const expertise = inferExpertise(`${title} ${company}`);
   mentors.set(id, {
     entityType: "mentor",
     label: name.trim(),
@@ -53,6 +74,7 @@ for (const m of flight.matchAll(
       ...(title ? { title } : {}),
       ...(company || title.includes("|") ? { organization: company || title.split("|")[0].trim() } : {}),
       ...(photo ? { photo } : {}),
+      ...(expertise.length ? { expertise, skills_offered: expertise } : {}),
     },
   });
 }

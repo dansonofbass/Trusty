@@ -63,15 +63,29 @@ for (const e of fixture.entities ?? []) {
 console.log(`fixture entities — ${created} created, ${skipped} already present.`);
 
 // Crawled agenda data (mentors + sessions) — produced by crawl-summit.mjs.
+// New rows import; EXISTING rows get their properties refreshed (merge) so a
+// re-crawl can enrich earlier imports (e.g. expertise tags added later).
 try {
   const data = JSON.parse(readFileSync(join(here, "..", "infra", "fixtures", "summit-data.json"), "utf8"));
-  const fresh = data.rows.filter((r) => !existing.has(r.label.toLowerCase()));
+  const byLabel = new Map(graph.nodes.map((n) => [n.label.toLowerCase(), n]));
+  const fresh = data.rows.filter((r) => !byLabel.has(r.label.toLowerCase()));
   if (fresh.length) {
     const r = await call("POST", "/api/admin/summit/import", { rows: fresh });
-    console.log(`agenda import — ${r.created ?? fresh.length} created, ${(r.errors ?? []).length} errors, ${data.rows.length - fresh.length} already present.`);
-  } else {
-    console.log("agenda import — everything already present.");
+    console.log(`agenda import — ${r.created ?? fresh.length} created, ${(r.errors ?? []).length} errors.`);
   }
+  let updated = 0;
+  for (const row of data.rows) {
+    const node = byLabel.get(row.label.toLowerCase());
+    if (!node) continue;
+    const merged = { ...(node.properties ?? {}), ...row.properties };
+    if (JSON.stringify(merged) === JSON.stringify(node.properties ?? {})) continue;
+    await call("PUT", `/api/admin/entities/${encodeURIComponent(node.id)}`, {
+      label: node.label,
+      properties: merged,
+    });
+    updated++;
+  }
+  console.log(`agenda refresh — ${updated} existing entities updated, ${fresh.length} new.`);
 } catch (e) {
   if (e.code === "ENOENT") console.log("no summit-data.json — run scripts/crawl-summit.mjs first for mentors+agenda.");
   else throw e;
