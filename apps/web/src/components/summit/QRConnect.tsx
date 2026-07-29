@@ -12,9 +12,16 @@ import { X, ScanLine, QrCode as QrIcon } from "lucide-react";
  * camera at all (share/NFC/tap) — camera needs HTTPS or localhost.
  */
 
-export function QRShare({ nodeId, label, onClose }: { nodeId: string; label: string; onClose: () => void }) {
+export function QRShare({ nodeId, label, onClose, path = "/summit", brand = "Trusty Sevan" }: {
+  nodeId: string;
+  label: string;
+  onClose: () => void;
+  /** Deep-link path the QR encodes — the workspace shell passes "/". */
+  path?: string;
+  brand?: string;
+}) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const link = typeof window !== "undefined" ? `${window.location.origin}/summit?connect=${encodeURIComponent(nodeId)}` : "";
+  const link = typeof window !== "undefined" ? `${window.location.origin}${path}?connect=${encodeURIComponent(nodeId)}` : "";
 
   useEffect(() => {
     if (!link) return;
@@ -32,7 +39,7 @@ export function QRShare({ nodeId, label, onClose }: { nodeId: string; label: str
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#070b18f2] p-6 backdrop-blur-md" onClick={onClose}>
       <button type="button" onClick={onClose} className="absolute right-5 top-5 text-dim hover:text-ink"><X size={22} /></button>
       <div className="text-center" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ff8c5a]">Trusty Sevan</div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ff8c5a]">{brand}</div>
         <h2 className="mb-5 text-lg font-bold text-ink" style={{ fontFamily: "var(--font-display)" }}>{label}</h2>
         {dataUrl ? (
           <img src={dataUrl} alt="Your connect QR" className="mx-auto w-64 rounded-2xl border border-line" />

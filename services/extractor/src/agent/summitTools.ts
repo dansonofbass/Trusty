@@ -42,9 +42,15 @@ export function summitContextActive(
   return transcript.some((m) => typeof m.content === "string" && re.test(m.content));
 }
 
-export const SUMMIT_PROMPT_ADDENDUM = `
+/** Today in summit-local time — the model has no clock; without this it
+ *  guesses dates and mislabels agenda days. */
+export const yerevanToday = (): string =>
+  new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "Asia/Yerevan" }).format(new Date());
+
+export const summitPromptAddendum = (): string => `
 
 ## Seaside Startup Summit mode
+TODAY IS ${yerevanToday()} (Yerevan time) — use this for "today/tomorrow" agenda questions; never guess the date.
 The user invoked @seasidestartupsummit — you also have summit tools:
 - FIRST INTERACTION: if you don't know the user's summit setup yet, get them
   set up conversationally — ask (in ONE friendly message) what they're
@@ -268,12 +274,25 @@ const agenda: AgentTool = {
     const items = (
       (r.body as { items?: { node: { id: string; label: string; properties?: Record<string, unknown> }; attendees?: number; attending?: boolean }[] })?.items ?? []
     );
-    const match = items.filter((it) => {
+    // Dated (crawled) sessions outrank legacy demo workshops without a day;
+    // no day filter → default to TODAY so "what's on?" is never last week.
+    const effectiveDay = day ?? yerevanToday().toLowerCase();
+    let match = items.filter((it) => {
       const p = it.node.properties ?? {};
-      const okDay = !day || String(p.day ?? "").toLowerCase().includes(day);
+      const okDay = String(p.day ?? "").toLowerCase().includes(effectiveDay);
       const okStream = !stream || String(p.stream ?? "").toLowerCase().includes(stream);
       return okDay && okStream;
     });
+    if (!match.length) {
+      // explicit day/stream with no hits, or an off-agenda day: fall back to
+      // everything (dated first, sorted by day+time).
+      match = items
+        .filter((it) => !stream || String((it.node.properties ?? {}).stream ?? "").toLowerCase().includes(stream))
+        .sort((a, b) => {
+          const pa = a.node.properties ?? {}, pb = b.node.properties ?? {};
+          return String(pa.day ? `1${pa.day}${pa.time}` : `2`).localeCompare(String(pb.day ? `1${pb.day}${pb.time}` : `2`));
+        });
+    }
     const summary = match.slice(0, 15)
       .map((it) => {
         const p = it.node.properties ?? {};
@@ -282,9 +301,9 @@ const agenda: AgentTool = {
       .join("; ");
     return {
       ok: true,
-      summary:
-        summary ||
-        `no sessions match${day || stream ? " that filter — retry without day/stream" : " — the agenda may not be imported yet"}`,
+      summary: summary
+        ? `${day ? "" : `today (${yerevanToday()}): `}${summary}`
+        : `no sessions match${day || stream ? " that filter — retry without day/stream" : " — the agenda may not be imported yet"}`,
       data: { items: match.slice(0, 40) },
     };
   },

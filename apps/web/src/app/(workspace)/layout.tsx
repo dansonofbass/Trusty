@@ -98,7 +98,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       params.get("desktop") === "1" || sessionStorage.getItem("prefer-desktop") === "1";
     if (forceDesktop) sessionStorage.setItem("prefer-desktop", "1");
     if (!forceDesktop && window.matchMedia("(max-width: 720px)").matches) {
-      router.replace("/m");
+      router.replace(`/m${window.location.search}`);
       return;
     }
     setReady(true);

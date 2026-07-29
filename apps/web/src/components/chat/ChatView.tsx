@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Megaphone, Plus, RotateCcw, Sparkles, UserPlus } from "lucide-react";
 import { analyzeComposerText, type ThoughtExtraction } from "@constellation/graph-core";
 import AgentChat, { type TrustToolData } from "@/components/composer/AgentChat";
@@ -33,6 +33,7 @@ export default function ChatView() {
   const { dataset, mode, pending, handleExtract, handleWeave } = useGraphData();
   const { chat, sending, agentMode, runTurn, decide, newChat } = useChat();
 
+  const select = useUI((s) => s.select);
   const setTrustSearch = useUI((s) => s.setTrustSearch);
   const requestGraphCenter = useUI((s) => s.requestGraphCenter);
   const setFocus = useUI((s) => s.setFocus);
@@ -46,6 +47,16 @@ export default function ChatView() {
   const [toast, setToast] = useState<string | null>(null);
   const [weave, setWeave] = useState<{ text: string; precomputed?: ThoughtExtraction } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // QR deep link: /?connect=<nodeId> opens that person in the Inspector.
+  const searchParams = useSearchParams();
+  const connectParam = searchParams.get("connect");
+  useEffect(() => {
+    if (!connectParam) return;
+    select(connectParam);
+    router.replace("/");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectParam]);
 
   const hero = chat.length === 0 && !weave;
 
@@ -164,7 +175,10 @@ export default function ChatView() {
           {heroChips}
           {/* Try-asking guide: one tap runs the prompt — doubles as the
               "what can I do here" discovery surface. */}
-          <div className="mx-auto mt-4 flex max-w-[620px] flex-wrap items-center justify-center gap-1.5">
+          <div className="mx-auto mt-5 max-w-[620px] text-center text-[10.5px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--color-accent)" }}>
+            Try asking
+          </div>
+          <div className="mx-auto mt-2 flex max-w-[620px] flex-wrap items-center justify-center gap-1.5">
             {[
               "@seasidestartupsummit set me up",
               "@seasidestartupsummit who should I meet?",

@@ -78,7 +78,7 @@ import { gatewayChat, litellmConfigured, type GatewayCallMeta } from "./llmGatew
 import { agentConfigured } from "./agent/gateway";
 import { runAgentLoop, type AgentTool } from "./agent/loop";
 import { buildComposerRegistry } from "./agent/registry";
-import { SUMMIT_PROMPT_ADDENDUM, summitContextActive, summitTools } from "./agent/summitTools";
+import { summitPromptAddendum, summitContextActive, summitTools } from "./agent/summitTools";
 import { AGENT_SYSTEM_PROMPT, buildContextBlock } from "./agent/prompt";
 
 const PORT = Number(process.env.PORT ?? 4003);
@@ -1084,7 +1084,7 @@ app.post("/agent/stream", async (req, res) => {
   try {
     const result = await runAgentLoop({
       transcript,
-      system: summitMode ? AGENT_SYSTEM_PROMPT + SUMMIT_PROMPT_ADDENDUM : AGENT_SYSTEM_PROMPT,
+      system: summitMode ? AGENT_SYSTEM_PROMPT + summitPromptAddendum() : AGENT_SYSTEM_PROMPT,
       registry: summitMode ? summitRegistry : composerRegistry,
       ctx: { userId, graphUrl: GRAPH, emit: emit as (ev: AgentStreamEvent) => void },
       model,

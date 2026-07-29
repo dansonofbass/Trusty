@@ -1,6 +1,8 @@
 "use client";
 
 import FeedbackButton from "@/components/FeedbackButton";
+import { QRShare, QRScan } from "@/components/summit/QRConnect";
+import { QrCode as QrIcon, ScanLine } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -52,6 +54,19 @@ type MobileTab = "feed" | "search" | "compose" | "decisions" | "graph";
 export default function MobileSearch() {
   const router = useRouter();
   const [tab, setTab] = useState<MobileTab>("feed");
+  const [qrMode, setQrMode] = useState<null | "share" | "scan">(null);
+  const [meSub, setMeSub] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => (r.ok ? r.json() : null)).then((u) => u?.sub && setMeSub(u.sub)).catch(() => {});
+    // QR deep link (/m?connect=<id>): open that person in the graph sheet.
+    const cid = new URLSearchParams(window.location.search).get("connect");
+    if (cid) {
+      select(cid);
+      setTab("graph");
+      window.history.replaceState(null, "", "/m");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const clearSelection = useUI((s) => s.select);
   const select = useUI((s) => s.select);
   const bumpGraph = useUI((s) => s.bumpGraph);
@@ -226,6 +241,8 @@ export default function MobileSearch() {
         />
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <FeedbackButton compact />
+          <button type="button" onClick={() => setQrMode("share")} aria-label="My QR" className="rounded-lg border border-line p-1.5 text-[var(--color-faint)] hover:text-ink"><QrIcon size={14} /></button>
+          <button type="button" onClick={() => setQrMode("scan")} aria-label="Scan QR" className="rounded-lg border border-line p-1.5 text-[var(--color-faint)] hover:text-ink"><ScanLine size={14} /></button>
           <button
             type="button"
             onClick={shareInvite}
@@ -448,6 +465,19 @@ export default function MobileSearch() {
       <OutcomePrompts />
       <AsksPanel />
       <ImportPlaces open={importOpen} onClose={() => setImportOpen(false)} />
+      {qrMode === "share" && meSub && (
+        <QRShare nodeId={meSub} label={me ?? "You"} brand="Trusty" path="/" onClose={() => setQrMode(null)} />
+      )}
+      {qrMode === "scan" && (
+        <QRScan
+          onFound={(nodeId) => {
+            setQrMode(null);
+            select(nodeId);
+            setTab("graph");
+          }}
+          onClose={() => setQrMode(null)}
+        />
+      )}
     </div>
   );
 }

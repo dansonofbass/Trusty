@@ -1,6 +1,7 @@
 "use client";
 
 import FeedbackButton from "@/components/FeedbackButton";
+import QRConnectHost from "@/components/shell/QRConnectHost";
 import { useState } from "react";
 import { LogOut, MapPin, Sparkles, UserPlus } from "lucide-react";
 import GeoSelect from "@/components/GeoSelect";
@@ -33,6 +34,7 @@ export default function SidebarFooter() {
         icon={<MapPin size={13} className="shrink-0" style={{ color: "var(--color-accent)" }} />}
         className="mb-2 flex w-full shrink-0 items-center gap-1.5 rounded-xl border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2.5 py-2 text-[12px] font-medium text-ink transition hover:border-[var(--color-accent-line)]"
       />
+      <QRConnectHost />
       <div className="mb-2"><FeedbackButton /></div>
 
       <div className="flex items-center gap-1.5">

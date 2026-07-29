@@ -444,7 +444,32 @@ function viewFor(userId: string, meta: UserMeta, app?: string): Dataset {
     userId,
   );
   // App layering: keep the shared person layer + only this app's entities.
-  return app ? scopeToApp(view, app) : view;
+  if (!app) return view;
+  const scoped = scopeToApp(view, app);
+  // Squads + organizers are community structure, not app content — they stay
+  // visible in EVERY app scope (like the person layer) so "find my squad in
+  // the graph" works from the general workspace too.
+  const crossApp = new Set(
+    view.nodes
+      .filter((n) => {
+        const et = (n as { entityType?: string }).entityType;
+        return et === "squad" || et === "organizer";
+      })
+      .map((n) => n.id),
+  );
+  if (!crossApp.size) return scoped;
+  const have = new Set(scoped.nodes.map((n) => n.id));
+  const nodes = [...scoped.nodes, ...view.nodes.filter((n) => crossApp.has(n.id) && !have.has(n.id))];
+  const haveLinks = new Set(scoped.links.map((l) => l.id));
+  const links = [
+    ...scoped.links,
+    ...view.links.filter((l) => {
+      if (haveLinks.has(l.id)) return false;
+      const t = typeof l.target === "string" ? l.target : l.target.id;
+      return l.type === "MEMBER_OF" && crossApp.has(t);
+    }),
+  ];
+  return { ...scoped, nodes, links };
 }
 
 /** The App (Space) a read is scoped to — from ?app= or x-app header, default general. */
