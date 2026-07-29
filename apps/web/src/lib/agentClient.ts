@@ -30,6 +30,7 @@ export interface AgentTurnInput {
   resume?: AgentResume;
   /** Stable conversation id for Langfuse session grouping. */
   sessionId?: string;
+  skill?: string;
   /** The viewer's app-wide location scope (Armenia; default yerevan). */
   geo?: string;
 }
@@ -54,6 +55,7 @@ export async function streamAgentTurn(
       ...(input.mentions?.length ? { mentions: input.mentions } : {}),
       ...(input.resume ? { resume: input.resume } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      ...(input.skill ? { skill: input.skill } : {}),
       ...(input.geo ? { geo: input.geo } : {}),
     }),
   });

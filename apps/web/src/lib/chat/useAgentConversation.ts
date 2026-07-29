@@ -145,6 +145,7 @@ export function useAgentConversation(opts?: {
     async (input: {
       text?: string;
       mentions?: ResolvedMention[];
+      skill?: string;
       resume?: { toolCallId: string; approved: boolean; args?: unknown; reason?: string };
     }) => {
       setSending(true);
@@ -158,6 +159,7 @@ export function useAgentConversation(opts?: {
           {
             transcript: transcriptRef.current,
             ...(input.text ? { text: input.text, mentions: input.mentions ?? [] } : {}),
+            ...(input.skill ? { skill: input.skill } : {}),
             ...(input.resume ? { resume: input.resume } : {}),
             sessionId: sessionIdRef.current,
             geo: useUI.getState().geoScope,

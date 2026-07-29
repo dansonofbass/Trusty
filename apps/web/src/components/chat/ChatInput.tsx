@@ -13,6 +13,8 @@ import {
   type ResolvedMention,
 } from "@constellation/graph-core";
 import MentionPopover from "@/components/composer/MentionPopover";
+import { SKILLS, parseSlashToken, skillBySlug, type Skill } from "@/lib/skills";
+import { X } from "lucide-react";
 import { GOLD } from "@/lib/palette";
 
 /** Same key as the mobile Composer — one private draft, every surface. */
@@ -52,7 +54,7 @@ export default function ChatInput({
   busy: string | null;
   prefill?: string | null;
   onPrefillConsumed?: () => void;
-  onSend: (text: string, mentions: ResolvedMention[]) => void;
+  onSend: (text: string, mentions: ResolvedMention[], skill?: string) => void;
   onQuickSearch: (text: string) => void;
   onQuickSave: (text: string) => Promise<boolean>;
   onWeave: (text: string) => void;
@@ -61,6 +63,8 @@ export default function ChatInput({
 }) {
   const [text, setText] = useState("");
   const [caret, setCaret] = useState(0);
+  const [skill, setSkill] = useState<Skill | null>(null);
+  const [slashIdx, setSlashIdx] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
   const mentionMapRef = useRef<Map<string, ResolvedMention>>(new Map());
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -90,6 +94,19 @@ export default function ChatInput({
     () => (mentionDismissed ? null : parseActiveMention(text, caret)),
     [text, caret, mentionDismissed],
   );
+
+  // "/" skill picker — first token only; static registry, never empty.
+  const slash = useMemo(() => parseSlashToken(text, caret), [text, caret]);
+  const slashMatches = useMemo(
+    () => (slash ? SKILLS.filter((k) => k.slug.startsWith(slash.query) || k.name.toLowerCase().includes(slash.query)) : []),
+    [slash],
+  );
+  const pickSkill = (k: Skill) => {
+    setSkill(k);
+    setText(text.replace(/^\s*\/[\w-]*/, "").trimStart());
+    setSlashIdx(0);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   const pickMention = (replacement: string, resolved: ResolvedMention) => {
     if (!activeMention) return;
@@ -132,7 +149,7 @@ export default function ChatInput({
     if (!t || sending) return;
     setText("");
     localStorage.removeItem(DRAFT_KEY);
-    onSend(t, collectMentions(t));
+    onSend(t, collectMentions(t), skill?.slug);
   };
 
   const primary = INTENT_META[analysis.primary];
@@ -155,6 +172,12 @@ export default function ChatInput({
           onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
           onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
           onKeyDown={(e) => {
+            if (slash && slashMatches.length) {
+              if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx((i) => (i + 1) % slashMatches.length); return; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length); return; }
+              if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSkill(slashMatches[slashIdx]); return; }
+              if (e.key === "Escape") { e.preventDefault(); setText(text.replace(/^\s*\//, "")); return; }
+            }
             // While the mention popover is open its capture-phase handler owns
             // Enter/arrows — this only fires for plain typing.
             if (agentMode && e.key === "Enter" && !e.shiftKey && !activeMention) {
@@ -172,6 +195,18 @@ export default function ChatInput({
         />
 
         <div className="mt-1 flex flex-wrap items-center gap-2">
+          {skill && (
+            <span
+              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+              title={skill.description}
+            >
+              {skill.icon} {skill.name}
+              <button type="button" onClick={() => setSkill(null)} aria-label="Leave skill" className="ml-0.5 opacity-70 hover:opacity-100">
+                <X size={11} />
+              </button>
+            </span>
+          )}
           {text.trim() && (
             <>
               <span
@@ -243,6 +278,27 @@ export default function ChatInput({
           </div>
         </div>
       </div>
+
+      {/* "/" skill picker — static registry, never empty */}
+      {slash && slashMatches.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-card)] shadow-xl">
+          {slashMatches.map((k, i) => (
+            <button
+              key={k.slug}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); pickSkill(k); }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition"
+              style={i === slashIdx ? { background: "var(--color-accent-soft)" } : undefined}
+            >
+              <span className="text-[15px]">{k.icon}</span>
+              <span className="min-w-0">
+                <span className="block text-[12.5px] font-semibold text-ink">/{k.slug} <span className="font-normal text-[var(--color-faint)]">— {k.name}</span></span>
+                <span className="block truncate text-[11px] text-[var(--color-faint)]">{k.description} e.g. “{k.examples[0]}”</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* mention autocomplete: @people · #topics · [[entities]] */}
       {activeMention && (

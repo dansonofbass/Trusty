@@ -83,6 +83,10 @@ export default function GuideSheet({ onRun, onClose }: {
           </button>
         </div>
         <div className="scroll-quiet min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <p className="rounded-lg bg-[var(--color-tint)] px-3 py-2 text-[11.5px] leading-snug text-[var(--color-dim)]">
+            Tip: type <b className="text-ink">/</b> in the message box to switch skills — <b className="text-ink">/summit</b>,{" "}
+            <b className="text-ink">/find</b>, <b className="text-ink">/note</b>, <b className="text-ink">/decide</b>, <b className="text-ink">/ask</b>.
+          </p>
           {SECTIONS.map((s) => (
             <div key={s.title}>
               <div className="flex items-center gap-1.5 text-[12.5px] font-bold text-ink">

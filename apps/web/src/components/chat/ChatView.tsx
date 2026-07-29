@@ -152,7 +152,7 @@ export default function ChatView() {
       busy={busy}
       prefill={chatPrefill}
       onPrefillConsumed={() => setChatPrefill(null)}
-      onSend={(text, mentions) => void runTurn({ text, mentions })}
+      onSend={(text, mentions, skill) => void runTurn({ text, mentions, skill })}
       onQuickSearch={(t) => void quickSearch(t)}
       onQuickSave={quickSave}
       onWeave={(t) => setWeave({ text: t })}

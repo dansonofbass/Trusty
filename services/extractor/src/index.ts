@@ -1028,6 +1028,8 @@ app.post("/agent/stream", async (req, res) => {
   const model =
     variant.source === "override" && variant.provider === "claude" ? variant.model : AGENT_MODEL;
 
+  // Explicit /skill beats detection; plain-text summit mentions still work.
+  const skill = typeof b.skill === "string" ? b.skill.trim().toLowerCase() : "";
   const transcript: AgentMessage[] = [...prior];
   if (text) {
     // Active decision journeys (#35) = the conversation's working memory — the
@@ -1080,7 +1082,7 @@ app.post("/agent/stream", async (req, res) => {
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
   };
 
-  const summitMode = summitContextActive(text, mentions, prior);
+  const summitMode = skill === "summit" || summitContextActive(text, mentions, prior);
   try {
     const result = await runAgentLoop({
       transcript,
