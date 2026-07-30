@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Check, Crosshair, Eye, Link2, Plus, Route, Sparkles, Trash2, UserMinus, UserPlus, X } from "lucide-react";
 import type { UndirectedGraph } from "graphology";
 import type { GLink, GNode, NodeType, Recommendation } from "@constellation/graph-core";
@@ -86,7 +86,30 @@ function NodeChip({
 }
 
 /** Ontology entity details — typed properties rendered from the type's schema. */
-function EntityDetails({ node }: { node: GNode }) {
+/** Phones get the Inspector as an opaque bottom sheet instead of a floating
+ *  side panel. */
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia("(max-width: 767px)");
+    const sync = () => setMobile(q.matches);
+    sync();
+    q.addEventListener("change", sync);
+    return () => q.removeEventListener("change", sync);
+  }, []);
+  return mobile;
+}
+
+function EntityDetails({
+  node,
+  findByLabel,
+  onJump,
+}: {
+  node: GNode;
+  /** Resolve a property value to a graph node (e.g. startup → its entity). */
+  findByLabel?: (value: string) => GNode | null;
+  onJump?: (id: string) => void;
+}) {
   const def = node.entityType ? entityTypeById(node.entityType) : undefined;
   const props = node.properties ?? {};
   const has = (v: unknown) =>
@@ -99,7 +122,9 @@ function EntityDetails({ node }: { node: GNode }) {
       ? v.map((x) => String(x).replace(/_/g, " ")).join(", ")
       : typeof v === "boolean"
         ? v ? "Yes" : "No"
-        : String(v).replace(/_/g, " ");
+        : typeof v === "number" && v > 1e12
+          ? new Date(v).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+          : String(v).replace(/_/g, " ");
 
   return (
     <section className="card mb-3" style={{ borderColor: "var(--color-accent-line)", background: "rgba(255,140,90,0.04)" }}>
@@ -113,8 +138,30 @@ function EntityDetails({ node }: { node: GNode }) {
           {entries.map((e, i) => (
             <Fragment key={i}>
               <dt className="text-[var(--color-faint)]">{e.label}</dt>
-              <dd className="text-ink">
-                {fmt(e.value)}
+              <dd className="min-w-0 text-ink">
+                {(() => {
+                  // Property value that IS a node in your graph (startup, city,
+                  // organizer…) → tappable chip that opens that node.
+                  const linked =
+                    typeof e.value === "string" && onJump ? findByLabel?.(e.value) : null;
+                  if (linked && linked.id !== node.id) {
+                    return <NodeChip node={linked} onClick={onJump!} />;
+                  }
+                  if (typeof e.value === "string" && /^https?:\/\//.test(e.value)) {
+                    return (
+                      <a
+                        href={e.value}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all underline decoration-dotted underline-offset-2"
+                        style={{ color: "var(--color-accent)" }}
+                      >
+                        {e.value.replace(/^https?:\/\/(www\.)?/, "").slice(0, 44)}
+                      </a>
+                    );
+                  }
+                  return fmt(e.value);
+                })()}
                 {e.unit ? <span className="text-[var(--color-faint)]"> {e.unit}</span> : null}
               </dd>
             </Fragment>
@@ -237,15 +284,61 @@ export default function Inspector({
   }
 
   const open = !!node;
+  const mobile = useIsMobile();
+
+  // label → node index (case-insensitive) so property values that name a graph
+  // node (startup, squad, city…) render as tappable chips.
+  const labelIndex = useMemo(() => {
+    const m = new Map<string, GNode>();
+    for (const n of nodeById.values()) {
+      if (n.label && n.label.length >= 3) m.set(n.label.toLowerCase(), n);
+    }
+    return m;
+  }, [nodeById]);
+  const findByLabel = (v: string) => labelIndex.get(v.trim().toLowerCase()) ?? null;
 
   return (
+    <>
+      {mobile && open && (
+        <div
+          className="fixed inset-0 z-[29] bg-black/45"
+          onClick={onClose}
+          aria-hidden
+        />
+      )}
     <aside
-      className="fixed bottom-4 right-4 top-4 z-30 w-[340px] transition-transform duration-300 ease-out"
-      style={{ transform: open ? "translateX(0)" : "translateX(calc(100% + 24px))" }}
+      className={
+        mobile
+          ? "fixed inset-x-0 bottom-0 z-30 h-[82dvh] transition-transform duration-300 ease-out"
+          : "fixed bottom-4 right-4 top-4 z-30 w-[340px] transition-transform duration-300 ease-out"
+      }
+      style={{
+        transform: open
+          ? "translate(0, 0)"
+          : mobile
+            ? "translateY(110%)"
+            : "translateX(calc(100% + 24px))",
+      }}
       aria-hidden={!open}
     >
       {node && (
-        <div className="panel flex h-full flex-col overflow-hidden">
+        <div
+          className="panel flex h-full flex-col overflow-hidden"
+          style={
+            mobile
+              ? {
+                  background: "var(--color-card)",
+                  backdropFilter: "none",
+                  WebkitBackdropFilter: "none",
+                  borderRadius: "20px 20px 0 0",
+                  borderBottom: "none",
+                }
+              : undefined
+          }
+        >
+          {mobile && (
+            <div className="mx-auto mb-0.5 mt-2 h-1 w-9 shrink-0 rounded-full bg-[rgba(146,166,255,0.28)]" />
+          )}
           {/* Header */}
           <div className="flex items-start gap-3 border-b border-[var(--color-line)] p-4">
             <div
@@ -315,7 +408,9 @@ export default function Inspector({
                 <PlaceDetail node={node} onJump={onJump} />
               </div>
             ) : (
-              node.entityType && <EntityDetails node={node} />
+              node.entityType && (
+                <EntityDetails node={node} findByLabel={findByLabel} onJump={onJump} />
+              )
             )}
             {node.type === "thought" && node.body && (
               <section
@@ -628,5 +723,6 @@ export default function Inspector({
         </div>
       )}
     </aside>
+    </>
   );
 }
