@@ -47,10 +47,36 @@ export function summitContextActive(
 export const yerevanToday = (): string =>
   new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "Asia/Yerevan" }).format(new Date());
 
-export const summitPromptAddendum = (): string => `
+/** Fetch the user's SAVED summit state so the agent never re-asks. */
+export async function summitProfileSummary(graphUrl: string, userId: string): Promise<string> {
+  try {
+    const h = { "x-user-id": userId };
+    const [pr, sq] = await Promise.all([
+      fetch(`${graphUrl}/api/profile`, { headers: h }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${graphUrl}/api/squads/mine`, { headers: h }).then((r) => (r.ok ? r.json() : null)),
+    ]);
+    const props = ((pr as { node?: { properties?: Record<string, unknown> } })?.node?.properties ?? {}) as Record<string, unknown>;
+    const bits: string[] = [];
+    if (props.startup) bits.push(`startup: ${String(props.startup)}`);
+    if (props.f6s_url) bits.push(`f6s: ${String(props.f6s_url)}`);
+    if (props.program) bits.push(`program: ${String(props.program)}`);
+    const squad = (sq as { squad?: { label?: string } })?.squad?.label;
+    if (squad) bits.push(`squad: ${squad}`);
+    for (const k of ["skills_offered", "skills_needed", "looking_for"]) {
+      const v = props[k];
+      if (Array.isArray(v) && v.length) bits.push(`${k.replace("_", " ")}: ${v.slice(0, 6).join(", ")}`);
+    }
+    return bits.length ? bits.join(" · ") : "";
+  } catch {
+    return "";
+  }
+}
+
+export const summitPromptAddendum = (profile?: string): string => `
 
 ## Seaside Startup Summit mode
 TODAY IS ${yerevanToday()} (Yerevan time) — use this for "today/tomorrow" agenda questions; never guess the date.
+${profile ? `SAVED SUMMIT PROFILE (already persisted — do NOT re-ask or re-run setup/lookup for these; only update if the user asks to change something): ${profile}` : "No summit profile saved yet — run the setup flow below."}
 The user invoked @seasidestartupsummit — you also have summit tools:
 - STARTUP LOOKUP: when the user names their startup, call summit_lookup_startup
   FIRST and show them what F6S has (company + team) — ask "is this yours /
@@ -169,6 +195,13 @@ const setupProfile: AgentTool = {
       });
       if (!r.ok) return fail(r.body, r.status);
       parts.push(`profile saved (${Object.keys(properties).join(", ")})`);
+      if (startup) {
+        const link = await graphFetch(ctx, "/api/startups/link", { method: "POST", body: { name: startup, f6s_url: f6s } });
+        if (link.ok) {
+          const b = link.body as { label: string; created: boolean; cofounders: string[] };
+          parts.push(`linked to ${b.label}${b.created ? " (new)" : ""}${b.cofounders.length ? ` — co-founders here: ${b.cofounders.join(", ")}` : ""}`);
+        }
+      }
     }
     const n = Number(args.squad);
     if (Number.isInteger(n) && n >= 1 && n <= 16) {

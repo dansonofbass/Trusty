@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Map as MapIcon, Sparkles } from "lucide-react";
 import type { ThoughtExtraction } from "@constellation/graph-core";
 import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge/AgentTrace";
@@ -53,6 +55,43 @@ export const TOOL_LABEL: Record<string, string> = {
   extract_entities: "Extracting entities",
 };
 
+/** Claude/ChatGPT-style reasoning presentation: while the agent works, an
+ *  animated "Thinking…" header with the live step list; once the turn
+ *  finishes it collapses to a one-line receipt ("Thought · used N tools")
+ *  that expands on click. */
+function ThinkingBlock({ steps, active }: { steps: ThinkStep[]; active: boolean }) {
+  const [open, setOpen] = useState(false);
+  const tools = steps.filter((t) => t.status === "done" || t.status === "error").length;
+  const hasError = steps.some((t) => t.status === "error");
+  if (active) {
+    return (
+      <div className="mb-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2.5 py-2">
+        <div className="thinking-shimmer mb-1 text-[11.5px] font-semibold">Thinking…</div>
+        <AgentTrace steps={steps} accent={GOLD} />
+      </div>
+    );
+  }
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11.5px] text-[var(--color-faint)] transition hover:text-ink"
+      >
+        <span style={{ color: hasError ? "#fda4af" : GOLD }}>✻</span>
+        {hasError ? "Worked with some hiccups" : "Thought"}
+        {tools > 0 && <span>· used {tools} tool{tools === 1 ? "" : "s"}</span>}
+        <span className={`transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2.5 py-2">
+          <AgentTrace steps={steps} accent={GOLD} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 const toSteps = (trace: AgentTraceItem[]): ThinkStep[] =>
   trace.map((t) => ({ id: t.id, label: t.label, status: t.status, summary: t.summary }));
 
@@ -82,7 +121,7 @@ export default function AgentChat({
             <span className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
               <Sparkles size={11} /> Agent
             </span>
-            {e.trace.length > 0 && <AgentTrace steps={toSteps(e.trace)} accent={GOLD} />}
+            {e.trace.length > 0 && <ThinkingBlock steps={toSteps(e.trace)} active={!!e.streaming} />}
             {(e.text || e.streaming) && (
               <div className="mt-1.5 text-[12.5px] leading-relaxed text-ink">
                 <MarkdownLite text={e.text} />

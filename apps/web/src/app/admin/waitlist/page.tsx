@@ -19,6 +19,23 @@ export default function WaitlistAdminPage() {
   const [users, setUsers] = useState<WaitlistUser[]>([]);
   const [threshold, setThreshold] = useState(3);
   const [busy, setBusy] = useState<string | null>(null);
+  const [openAccess, setOpenAccess] = useState<boolean | null>(null);
+  const [envForced, setEnvForced] = useState(false);
+  useEffect(() => {
+    fetch("/api/admin/settings", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) { setOpenAccess(d.openAccess); setEnvForced(d.envForced); } })
+      .catch(() => {});
+  }, []);
+  const toggleOpenAccess = async () => {
+    const next = !openAccess;
+    setOpenAccess(next);
+    await fetch("/api/admin/settings/open-access", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ on: next }),
+    }).catch(() => {});
+  };
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +74,25 @@ export default function WaitlistAdminPage() {
           (threshold: {threshold} referrals). It never creates trust or graph connections.
         </p>
       </header>
+
+      {openAccess !== null && (
+        <button
+          type="button"
+          onClick={() => !envForced && void toggleOpenAccess()}
+          disabled={envForced}
+          className="mb-5 flex w-full items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3 text-left backdrop-blur-md disabled:opacity-70"
+        >
+          <span>
+            <span className="block text-[13.5px] font-semibold text-ink">Open access {envForced && "(forced by OPEN_ACCESS env)"}</span>
+            <span className="block text-[12px] text-dim">
+              {openAccess ? "ON — everyone gets in instantly; the waitlist below is bypassed." : "OFF — new signups wait at the front door until approved."}
+            </span>
+          </span>
+          <span className="relative ml-3 inline-block h-6 w-11 shrink-0 rounded-full transition" style={{ background: openAccess ? "var(--color-accent)" : "var(--color-line)" }}>
+            <span className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all" style={{ left: openAccess ? "22px" : "2px" }} />
+          </span>
+        </button>
+      )}
 
       {status === "loading" && <div className="flex items-center gap-2 text-dim"><Loader2 className="animate-spin" size={16} /> Loading…</div>}
       {status === "error" && <div className="rounded-2xl border border-line bg-surface p-6 text-sm text-rose-300">{error}</div>}

@@ -233,6 +233,7 @@ import {
 import { confirmationCounts, confirmedBy, confirmSquadmate, initSquads } from "./squads";
 import { addFeedback, feedbackEnabled, initFeedback, listFeedback } from "./feedback";
 import { attachEventNats, emitEvent, ingestEvent } from "./domainEventBus";
+import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
 import {
   conversationsEnabled,
   createConversation,
@@ -566,7 +567,7 @@ async function ensureUser(
     }
     // OPEN_ACCESS=1 (event/demo mode): every brand-new login is active
     // immediately — no waitlist, no onboarding gate (Seaside Summit demo).
-    const openAccess = process.env.OPEN_ACCESS === "1";
+    const openAccess = openAccessEnabled();
     await ensureAccess(userId, brandNew && !openAccess ? "waitlisted" : "active");
     if (brandNew) {
       emitEvent("user.provisioned", { userId, payload: { openAccess } });
@@ -1623,6 +1624,72 @@ const LIFECYCLE_STAGES = [
 ] as const;
 
 /** Save a contact (a one-directional SAVED edge) with an optional label + stage. */
+/* ---------------- admin settings (open-access toggle) ---------------- */
+
+app.get("/api/admin/settings", (req, res) => {
+  auth(req);
+  if ((req.header("x-user-admin") || "") !== "1") return res.status(403).json({ error: "admin only" });
+  res.json({ openAccess: openAccessEnabled(), envForced: process.env.OPEN_ACCESS === "1", raw: getSetting("open_access", "1") });
+});
+
+app.put("/api/admin/settings/open-access", async (req, res) => {
+  const { userId } = auth(req);
+  if ((req.header("x-user-admin") || "") !== "1") return res.status(403).json({ error: "admin only" });
+  const on = req.body?.on !== false;
+  try {
+    await setSetting("open_access", on ? "1" : "0", userId);
+    emitEvent("access.status_changed", { userId, payload: { toggle: "open_access", on } });
+    res.json({ ok: true, openAccess: openAccessEnabled() });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ------- founder → startup linking (find-or-create + MEMBER_OF) ------- */
+
+app.post("/api/startups/link", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const name = str(req.body?.name, 80);
+  if (!name) return res.status(400).json({ error: "name required" });
+  const f6s = str(req.body?.f6s_url, 200);
+  try {
+    const lower = name.toLowerCase();
+    let node = shared.nodes.find(
+      (n) => ((n as { entityType?: string }).entityType ?? "") === "startup" &&
+        (n.label.toLowerCase() === lower || n.label.toLowerCase().includes(lower) || lower.includes(n.label.toLowerCase())),
+    );
+    let created = false;
+    await serialize(async () => {
+      let ws = workingSet(userId, meta);
+      if (!node) {
+        const r = createEntity(ws, {
+          entityType: "startup",
+          label: name,
+          properties: f6s ? { website: f6s } : {},
+          now: Date.now(),
+        });
+        ws = r.dataset;
+        node = ws.nodes.find((n) => n.id === r.nodeId);
+        created = true;
+      }
+      const edgeId = `member_${userId}_${node!.id}`;
+      if (!ws.links.some((l) => l.id === edgeId)) {
+        ws = { ...ws, links: [...ws.links, { id: edgeId, source: userId, target: node!.id, type: "MEMBER_OF" as const, weight: 1 }] };
+      }
+      return commitGraph(userId, refreshDerived(ws));
+    });
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const cofounders = shared.links
+      .filter((l) => l.type === "MEMBER_OF" && linkTargetId(l) === node!.id && linkSourceId(l) !== userId)
+      .map((l) => labelOf.get(linkSourceId(l)) ?? linkSourceId(l));
+    if (created) emitEvent("entity.created", { userId, targetId: node!.id, payload: { entityType: "startup" } });
+    emitEvent("edge.added", { userId, targetId: node!.id, payload: { kind: "startup_membership" } });
+    res.json({ ok: true, startupId: node!.id, label: node!.label, created, cofounders });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
 /* -------- domain-event ingest (BFF + extractor sourced envelopes) -------- */
 
 app.post("/api/events/ingest", (req, res) => {
@@ -3590,7 +3657,7 @@ app.get("/api/access", async (req, res) => {
       access = await getAccess(userId);
     }
     // OPEN_ACCESS also lifts users who were waitlisted BEFORE the flag went on.
-    if (process.env.OPEN_ACCESS === "1" && access && access.status === "waitlisted") {
+    if (openAccessEnabled() && access && access.status === "waitlisted") {
       await setStatus(userId, "active");
       access = await getAccess(userId);
     }
@@ -4992,6 +5059,9 @@ async function main() {
   );
   await initSquads().catch((e) =>
     console.error("graph-service: squads init failed:", e instanceof Error ? e.message : e),
+  );
+  await initSettings().catch((e) =>
+    console.error("graph-service: settings init failed:", e instanceof Error ? e.message : e),
   );
   await initFeedback().catch((e) =>
     console.error("graph-service: feedback init failed:", e instanceof Error ? e.message : e),

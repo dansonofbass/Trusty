@@ -78,12 +78,21 @@ import { gatewayChat, litellmConfigured, type GatewayCallMeta } from "./llmGatew
 import { agentConfigured } from "./agent/gateway";
 import { runAgentLoop, type AgentTool } from "./agent/loop";
 import { buildComposerRegistry } from "./agent/registry";
-import { summitPromptAddendum, summitContextActive, summitTools } from "./agent/summitTools";
+import { summitPromptAddendum, summitContextActive, summitProfileSummary, summitTools } from "./agent/summitTools";
 import { AGENT_SYSTEM_PROMPT, buildContextBlock } from "./agent/prompt";
 
 const PORT = Number(process.env.PORT ?? 4003);
 const GRAPH = process.env.GRAPH_SERVICE_URL ?? "http://localhost:4001";
 const apiKey = process.env.ANTHROPIC_API_KEY;
+
+/** Fire-and-forget domain event via graph-service's ingest route. */
+function emitAgentEvent(userId: string, type: string, payload?: Record<string, unknown>): void {
+  fetch(`${GRAPH}/api/events/ingest`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-user-id": userId },
+    body: JSON.stringify({ event: { type, userId, source: "extractor", payload } }),
+  }).catch(() => {});
+}
 
 // Ollama endpoint (the model used is decided per request by the router).
 const ollamaHost = (process.env.OLLAMA_HOST?.replace(/\/+$/, "")) ?? "http://localhost:11434";
@@ -1083,10 +1092,13 @@ app.post("/agent/stream", async (req, res) => {
   };
 
   const summitMode = skill === "summit" || summitContextActive(text, mentions, prior);
+  const summitProfile = summitMode ? await summitProfileSummary(GRAPH, userId) : "";
+  if (text) emitAgentEvent(userId, "agent.turn_started", { skill: skill || undefined, summitMode });
+  if (resume) emitAgentEvent(userId, "agent.confirm_decided", { approved: resume.approved });
   try {
     const result = await runAgentLoop({
       transcript,
-      system: summitMode ? AGENT_SYSTEM_PROMPT + summitPromptAddendum() : AGENT_SYSTEM_PROMPT,
+      system: summitMode ? AGENT_SYSTEM_PROMPT + summitPromptAddendum(summitProfile) : AGENT_SYSTEM_PROMPT,
       registry: summitMode ? summitRegistry : composerRegistry,
       ctx: { userId, graphUrl: GRAPH, emit: emit as (ev: AgentStreamEvent) => void },
       model,

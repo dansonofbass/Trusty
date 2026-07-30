@@ -476,3 +476,15 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+/* --- agent thinking shimmer (Claude-style) --- */
+.thinking-shimmer {
+  background: linear-gradient(90deg, var(--color-faint) 20%, var(--color-ink) 50%, var(--color-faint) 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-sweep 1.6s linear infinite;
+}
+@keyframes thinking-sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .thinking-shimmer { animation: none; color: var(--color-dim); } }
