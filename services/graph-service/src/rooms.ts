@@ -229,6 +229,16 @@ export async function squadChatter(): Promise<
     }));
 }
 
+/** Total messages in the last N hours — a system.stats gauge. */
+export async function countRecentMessages(hours = 24): Promise<number> {
+  if (!pool) return 0;
+  const r = await pool.query(
+    `SELECT count(*) AS n FROM room_messages WHERE created_at > now() - ($1 || ' hours')::interval`,
+    [Math.max(1, Math.floor(hours))],
+  );
+  return Number(r.rows[0]?.n ?? 0);
+}
+
 /** Recent squad joins for the activity feed (logged by the join route). */
 export async function logSquadJoin(squadNodeId: string, memberId: string): Promise<void> {
   if (!pool) return;

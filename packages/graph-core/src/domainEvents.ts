@@ -58,6 +58,8 @@ export const DOMAIN_EVENT_TYPES = [
   "conversation.turns_saved",
   "conversation.renamed",
   "conversation.deleted",
+  // system health/metrics (periodic snapshots — numeric gauges for Kibana)
+  "system.stats",
   // rooms (group messaging: squad chats now, community groups later)
   "room.created",
   "room.message_sent",

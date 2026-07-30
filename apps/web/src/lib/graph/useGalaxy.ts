@@ -32,6 +32,25 @@ export function useGalaxy(): { universeIds: Set<string>; frontierIds: Set<string
         }
       }
     }
+    // Co-membership is unconditional visibility: if you're IN a squad (or a
+    // startup), you see EVERYONE in it — the container is the trust surface,
+    // not something to earn hop-by-hop.
+    const end = (v: string | { id: string }) => (typeof v === "string" ? v : v.id);
+    const myContainers = new Set(
+      dataset.links
+        .filter((l) => l.type === "MEMBER_OF" && end(l.source) === dataset.meId)
+        .map((l) => end(l.target)),
+    );
+    if (myContainers.size) {
+      for (const l of dataset.links) {
+        if (l.type !== "MEMBER_OF") continue;
+        const t = end(l.target);
+        if (myContainers.has(t)) {
+          ids.add(t);
+          ids.add(end(l.source));
+        }
+      }
+    }
     return ids;
   }, [graph, dataset.meId, dataset.links, follows, peeks, recIds, trustLayer]);
 

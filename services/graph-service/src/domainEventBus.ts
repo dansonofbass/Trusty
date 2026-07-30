@@ -44,6 +44,9 @@ const INDEX_TEMPLATE = {
         targetType: { type: "keyword" },
         source: { type: "keyword" },
         payload: { type: "flattened" },
+        // system.stats gauges land here as real numerics so Kibana can chart
+        // avg/max over time (flattened payload aggregates as keywords only).
+        metrics: { type: "object", dynamic: true },
       },
     },
   },
@@ -73,8 +76,12 @@ async function flush(): Promise<void> {
   const day = new Date().toISOString().slice(0, 10).replace(/-/g, ".");
   const index = `trusty-events-${day}`;
   const body =
-    batch.map((e) => `${JSON.stringify({ index: { _index: index, _id: e.id } })}\n${JSON.stringify(e)}`).join("\n") +
-    "\n";
+    batch
+      .map((e) => {
+        const doc = e.type === "system.stats" && e.payload ? { ...e, metrics: e.payload } : e;
+        return `${JSON.stringify({ index: { _index: index, _id: e.id } })}\n${JSON.stringify(doc)}`;
+      })
+      .join("\n") + "\n";
   try {
     const r = await fetch(`${ES_URL}/_bulk`, {
       method: "POST",

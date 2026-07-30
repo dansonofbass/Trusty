@@ -235,8 +235,8 @@ import { addFeedback, feedbackEnabled, initFeedback, listFeedback } from "./feed
 import { attachEventNats, emitEvent, ingestEvent, setEventHook } from "./domainEventBus";
 import { addNotification, initNotifications, listNotifications, markNotificationsRead } from "./notifications";
 import {
-  deleteMessage, ensureSquadRoom, getRoom, initRooms, listMessages, logSquadJoin,
-  markRoomRead, postMessage, recentSquadJoins, roomsEnabled, roomSummary, squadChatter,
+  countRecentMessages, deleteMessage, ensureSquadRoom, getRoom, initRooms, listMessages,
+  logSquadJoin, markRoomRead, postMessage, recentSquadJoins, roomsEnabled, roomSummary, squadChatter,
 } from "./rooms";
 import type { DomainEvent } from "@constellation/graph-core";
 import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
@@ -5347,6 +5347,33 @@ async function main() {
     if (natsConn) attachEventNats(natsConn);
   } else {
     console.warn("graph-service: NATS_URL not set — connector ingestion disabled");
+  }
+
+  // Periodic health/usage gauges → system.stats events (numeric `metrics` in
+  // ES) so Kibana charts real trends, not just event counts.
+  const emitStats = async () => {
+    try {
+      const persons = shared.nodes.filter((n) => n.type === "person" && !(n as { figure?: boolean }).figure);
+      const byType = (t: string) => shared.links.filter((l) => l.type === t).length;
+      emitEvent("system.stats", {
+        payload: {
+          nodes: shared.nodes.length,
+          edges: shared.links.length,
+          persons: persons.length,
+          users: userMeta.size,
+          savedEdges: byType("SAVED"),
+          trustEdges: byType("TRUSTS"),
+          memberEdges: byType("MEMBER_OF"),
+          messages24h: await countRecentMessages(24).catch(() => 0),
+        },
+      });
+    } catch {
+      /* stats must never hurt the service */
+    }
+  };
+  if (process.env.ELASTICSEARCH_URL) {
+    void emitStats();
+    setInterval(() => void emitStats(), 5 * 60_000);
   }
 
   app.listen(PORT, () =>
