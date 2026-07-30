@@ -69,14 +69,14 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh w-screen flex-col overflow-hidden md:flex-row">
       {/* Mobile top bar (ChatGPT style): menu · brand · new chat */}
-      <header className="flex shrink-0 items-center justify-between border-b border-line px-1.5 pb-1.5 pt-[max(env(safe-area-inset-top),6px)] md:hidden">
+      <header className="flex shrink-0 items-center justify-between border-b border-line bg-[color-mix(in_srgb,var(--color-card)_92%,transparent)] px-2 pb-1.5 pt-[max(env(safe-area-inset-top),8px)] backdrop-blur-md md:hidden">
         <button
           type="button"
           aria-label="Open menu"
           onClick={() => setDrawerOpen(true)}
-          className="grid h-10 w-10 place-items-center rounded-xl text-[var(--color-dim)] transition active:bg-[var(--color-tint)]"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)]"
         >
-          <Menu size={20} />
+          <Menu size={21} strokeWidth={2.2} />
         </button>
         <Brand />
         <button
@@ -87,9 +87,9 @@ function Shell({ children }: { children: React.ReactNode }) {
             newChat();
             router.push("/");
           }}
-          className="grid h-10 w-10 place-items-center rounded-xl text-[var(--color-dim)] transition active:bg-[var(--color-tint)]"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)]"
         >
-          <SquarePen size={19} />
+          <SquarePen size={19} strokeWidth={2.2} />
         </button>
       </header>
 
