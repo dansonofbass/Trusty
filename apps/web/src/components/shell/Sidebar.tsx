@@ -38,7 +38,7 @@ const NAV: { href: string; label: string; icon: React.ElementType }[] = [
  * folder tree lands with Phase 3), and the account/wallet footer. Chats
  * history joins in Phase 2 (conversations are session-ephemeral today).
  */
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const setRightPanel = useUI((s) => s.setRightPanel);
@@ -83,12 +83,14 @@ export default function Sidebar() {
     if (sending) return; // don't yank a streaming thread out from under itself
     void loadConversation(id).catch(() => {});
     router.push("/");
+    onNavigate?.();
   };
 
   const startNewChat = () => {
     if (sending) return;
     newChat();
     router.push("/");
+    onNavigate?.();
   };
 
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function Sidebar() {
   const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
-    <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-line bg-[color-mix(in_srgb,var(--color-card)_70%,transparent)] backdrop-blur-md">
+    <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-line bg-[color-mix(in_srgb,var(--color-card)_70%,transparent)] backdrop-blur-md max-md:w-full max-md:bg-[var(--color-card)]">
       <div className="flex items-center gap-2 px-4 pb-3 pt-4">
         <Brand />
       </div>
@@ -126,7 +128,10 @@ export default function Sidebar() {
       {/* Search / palette */}
       <button
         type="button"
-        onClick={() => setPaletteOpen(true)}
+        onClick={() => {
+          setPaletteOpen(true);
+          onNavigate?.();
+        }}
         className="mx-3 mb-3 flex items-center gap-2 rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] px-3 py-2 text-[12.5px] text-[var(--color-faint)] transition hover:border-[rgba(146,166,255,0.35)] hover:text-ink"
       >
         <Search size={14} />
@@ -139,6 +144,7 @@ export default function Sidebar() {
           <Link
             key={n.href}
             href={n.href}
+            onClick={onNavigate}
             className="mb-0.5 flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition"
             style={
               active(n.href)
@@ -207,6 +213,7 @@ export default function Sidebar() {
         <div className="mb-1 flex items-center justify-between px-3">
           <Link
             href="/docs"
+            onClick={onNavigate}
             className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)] transition hover:text-ink"
           >
             <FileText size={11} /> Docs
@@ -214,7 +221,10 @@ export default function Sidebar() {
           <button
             type="button"
             title="New doc"
-            onClick={() => router.push("/docs?new=1")}
+            onClick={() => {
+              router.push("/docs?new=1");
+              onNavigate?.();
+            }}
             className="rounded p-1 text-[var(--color-faint)] transition hover:text-ink"
           >
             <Plus size={12} />
@@ -253,6 +263,7 @@ export default function Sidebar() {
                           <li key={d.id}>
                             <Link
                               href={`/docs?open=${encodeURIComponent(d.id)}`}
+                              onClick={onNavigate}
                               className="flex items-center gap-1.5 truncate rounded-lg px-2 py-1 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
                               title={d.title || "Untitled"}
                             >
@@ -273,6 +284,7 @@ export default function Sidebar() {
                 <li key={d.id}>
                   <Link
                     href={`/docs?open=${encodeURIComponent(d.id)}`}
+                    onClick={onNavigate}
                     className="flex items-center gap-1.5 truncate rounded-lg px-2 py-1.5 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
                     title={d.title || "Untitled"}
                   >
@@ -285,7 +297,10 @@ export default function Sidebar() {
         )}
         <button
           type="button"
-          onClick={() => setRightPanel("addEntity")}
+          onClick={() => {
+            setRightPanel("addEntity");
+            onNavigate?.();
+          }}
           className="mt-3 flex w-full items-center gap-2 rounded-xl border border-dashed border-[var(--color-line)] px-3 py-2 text-[12px] text-[var(--color-faint)] transition hover:border-[var(--color-accent-line)] hover:text-ink"
         >
           <Plus size={13} /> Add an entity

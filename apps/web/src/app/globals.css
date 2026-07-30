@@ -488,3 +488,13 @@ body {
 }
 @keyframes thinking-sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .thinking-shimmer { animation: none; color: var(--color-dim); } }
+
+/* Mobile sidebar drawer (ChatGPT-style) */
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.drawer-in { animation: drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-in { animation: none; }
+}

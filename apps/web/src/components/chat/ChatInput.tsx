@@ -20,6 +20,11 @@ import { GOLD } from "@/lib/palette";
 /** Same key as the mobile Composer — one private draft, every surface. */
 const DRAFT_KEY = "trusty_composer_draft_v1";
 
+/** Touch device → don't pop the keyboard on load, keep the placeholder short.
+ *  Client-only component, but guard anyway. */
+const isTouch = () =>
+  typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
 const INTENT_META: Record<ComposerIntent, { label: string; icon: React.ElementType; color: string }> = {
   search: { label: "Search", icon: SearchIcon, color: "#3fc6f4" },
   question: { label: "Question", icon: SearchIcon, color: "#3fc6f4" },
@@ -161,7 +166,7 @@ export default function ChatInput({
     <div className="relative">
       <div className="rounded-2xl border border-[var(--color-line)] bg-[color-mix(in_srgb,var(--color-card)_92%,transparent)] p-3 shadow-xl backdrop-blur-md focus-within:border-[rgba(255,140,90,0.4)]">
         <textarea
-          autoFocus
+          autoFocus={!isTouch()}
           ref={inputRef}
           value={text}
           onChange={(e) => {
@@ -187,11 +192,13 @@ export default function ChatInput({
           }}
           rows={compact ? 2 : 4}
           placeholder={
-            agentMode
-              ? "Ask, need, recommend, note… the agent detects intent, searches your network and acts — outward actions wait for your OK. Enter to send, Shift+Enter for a new line."
-              : "Write naturally — search, recommend, capture an experience, note a decision… the heuristics sort it out."
+            isTouch()
+              ? "Ask anything — / for skills, @ to mention"
+              : agentMode
+                ? "Ask, need, recommend, note… the agent detects intent, searches your network and acts — outward actions wait for your OK. Enter to send, Shift+Enter for a new line."
+                : "Write naturally — search, recommend, capture an experience, note a decision… the heuristics sort it out."
           }
-          className="w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)]"
+          className="w-full resize-none bg-transparent text-[16px] leading-snug text-ink outline-none placeholder:text-[var(--color-faint)] md:text-[13.5px] md:leading-relaxed"
         />
 
         <div className="mt-1 flex flex-wrap items-center gap-2">

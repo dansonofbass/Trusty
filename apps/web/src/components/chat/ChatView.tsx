@@ -162,10 +162,10 @@ export default function ChatView() {
 
   if (hero) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-6">
-        <div className="w-full max-w-[680px]">
+      <div className="scroll-quiet flex h-full flex-col overflow-y-auto px-4 py-6 md:px-6">
+        <div className="m-auto w-full max-w-[680px]">
           <h1
-            className="text-center text-[34px] font-bold leading-tight text-ink"
+            className="text-center text-[26px] font-bold leading-tight text-ink md:text-[34px]"
             style={{ fontFamily: "var(--font-display)" }}
           >
             What are you looking for?
@@ -221,7 +221,7 @@ export default function ChatView() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-line px-5 py-2.5">
+      <div className="hidden items-center gap-2 border-b border-line px-5 py-2.5 md:flex">
         <Sparkles size={13} style={{ color: "var(--color-accent)" }} />
         <span className="text-[12.5px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
           {agentMode ? "AI agent" : "Quick mode — agent offline"}
@@ -236,7 +236,7 @@ export default function ChatView() {
         </button>
       </div>
 
-      <div ref={scrollRef} className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5 md:py-4">
         <div className="mx-auto w-full max-w-[760px]">
           <AgentChat
             entries={chat}
@@ -269,7 +269,7 @@ export default function ChatView() {
         </div>
       </div>
 
-      <div className="shrink-0 px-5 pb-4">
+      <div className="shrink-0 px-2.5 pb-[max(env(safe-area-inset-bottom),10px)] md:px-5 md:pb-4">
         <div className="mx-auto w-full max-w-[760px]">
           {toast && (
             <div className="mb-2 rounded-lg bg-[rgba(84,210,110,0.1)] px-2.5 py-1.5 text-[11.5px] text-[#54d26e]">

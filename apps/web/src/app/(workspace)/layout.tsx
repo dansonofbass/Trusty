@@ -2,10 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, SquarePen } from "lucide-react";
 import GraphDataProvider, { useGraphData } from "@/lib/graph/GraphDataProvider";
-import ChatProvider from "@/lib/chat/ChatProvider";
+import ChatProvider, { useChat } from "@/lib/chat/ChatProvider";
 import Sidebar from "@/components/shell/Sidebar";
+import Brand from "@/components/Brand";
 import { switchMode } from "@/lib/dataSource";
 
 // Client-only islands (canvas/window dependencies) — same pattern as the old
@@ -37,6 +39,12 @@ function LoadingSky() {
 /** Gates the shell on the shared dataset + renders the global notice toast. */
 function Shell({ children }: { children: React.ReactNode }) {
   const { data, loadError, notice, mode } = useGraphData();
+  const { newChat, sending } = useChat();
+  const router = useRouter();
+  const pathname = usePathname();
+  // ChatGPT-app-style mobile chrome: ☰ opens the sidebar as a drawer.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => setDrawerOpen(false), [pathname]);
 
   if (loadError) {
     return (
@@ -59,9 +67,52 @@ function Shell({ children }: { children: React.ReactNode }) {
   if (!data) return <LoadingSky />;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
-      <Sidebar />
-      <main className="relative min-w-0 flex-1">{children}</main>
+    <div className="flex h-dvh w-screen flex-col overflow-hidden md:flex-row">
+      {/* Mobile top bar (ChatGPT style): menu · brand · new chat */}
+      <header className="flex shrink-0 items-center justify-between border-b border-line px-1.5 pb-1.5 pt-[max(env(safe-area-inset-top),6px)] md:hidden">
+        <button
+          type="button"
+          aria-label="Open menu"
+          onClick={() => setDrawerOpen(true)}
+          className="grid h-10 w-10 place-items-center rounded-xl text-[var(--color-dim)] transition active:bg-[var(--color-tint)]"
+        >
+          <Menu size={20} />
+        </button>
+        <Brand />
+        <button
+          type="button"
+          aria-label="New chat"
+          onClick={() => {
+            if (sending) return;
+            newChat();
+            router.push("/");
+          }}
+          className="grid h-10 w-10 place-items-center rounded-xl text-[var(--color-dim)] transition active:bg-[var(--color-tint)]"
+        >
+          <SquarePen size={19} />
+        </button>
+      </header>
+
+      {/* Desktop sidebar */}
+      <div className="hidden h-full shrink-0 md:block">
+        <Sidebar />
+      </div>
+
+      <main className="relative min-h-0 min-w-0 flex-1">{children}</main>
+
+      {/* Mobile drawer: the same sidebar, sliding in from the left */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-[70] md:hidden">
+          <div
+            className="absolute inset-0 bg-black/55"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden
+          />
+          <div className="drawer-in absolute inset-y-0 left-0 w-[300px] max-w-[85vw] shadow-2xl">
+            <Sidebar onNavigate={() => setDrawerOpen(false)} />
+          </div>
+        </div>
+      )}
 
       <InspectorHost />
       <CommandPalette />
@@ -87,25 +138,8 @@ function Shell({ children }: { children: React.ReactNode }) {
  * dataset and the chat thread survive center-view navigation.
  */
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
-
-  // Phones get the search-first /m view. Decide before mounting the heavy
-  // shell; `?desktop=1` (or /m's "Desktop view") opts out, remembered per tab.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const forceDesktop =
-      params.get("desktop") === "1" || sessionStorage.getItem("prefer-desktop") === "1";
-    if (forceDesktop) sessionStorage.setItem("prefer-desktop", "1");
-    if (!forceDesktop && window.matchMedia("(max-width: 720px)").matches) {
-      router.replace(`/m${window.location.search}`);
-      return;
-    }
-    setReady(true);
-  }, [router]);
-
-  if (!ready) return null;
-
+  // Phones no longer bounce to /m — the shell is responsive (mobile chrome in
+  // Shell above). /m stays reachable directly as the legacy search-first view.
   return (
     <GraphDataProvider>
       <ChatProvider>
