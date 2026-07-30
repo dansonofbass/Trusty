@@ -3,7 +3,9 @@
 # (needs ports 80+443 reachable from the internet; HTTP→HTTPS redirect is
 # built in). PUBLIC_DOMAIN + ACME_EMAIL come from .env via docker-compose.
 {
-	email {$ACME_EMAIL}
+	# Default keeps the parser happy when ACME_EMAIL is unset (local dev) —
+	# an empty {$VAR} placeholder would be a zero-arg parse error.
+	email {$ACME_EMAIL:dev@localhost.invalid}
 }
 
 {$PUBLIC_DOMAIN:localhost} {
@@ -18,4 +20,14 @@
 	handle {
 		reverse_proxy web:3000
 	}
+}
+
+# Kibana (observability profile) — basic-auth protected; hash generated with
+# `docker compose run --rm caddy caddy hash-password`. No-op until the DNS
+# record for kibana.<domain> exists and KIBANA_PASS_HASH is set.
+kibana.{$PUBLIC_DOMAIN:localhost} {
+	basic_auth {
+		{$KIBANA_USER:admin} {$KIBANA_PASS_HASH}
+	}
+	reverse_proxy kibana:5601
 }

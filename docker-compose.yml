@@ -261,6 +261,7 @@ services:
     <<: *node-service
     command: npm run dev:graph
     environment:
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-}
       PORT: 4001
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USERNAME: neo4j
@@ -476,7 +477,11 @@ services:
       - "443:443"
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
-      ACME_EMAIL: ${ACME_EMAIL:-}
+      # Non-empty default: an empty-but-set var defeats Caddyfile {$VAR:default}
+      ACME_EMAIL: ${ACME_EMAIL:-dev@localhost.invalid}
+      KIBANA_USER: ${KIBANA_USER:-admin}
+      # Default = bcrypt("changeme-kibana") — set a real hash in prod .env.
+      KIBANA_PASS_HASH: ${KIBANA_PASS_HASH:-$$2a$$14$$WKHOpOJeKzMnfTle/JUEsO1AtmODEyzE/PcnMW6NM56qNivIglsZG}
     volumes:
       # CADDY_CONFIG=Caddyfile.customcert + CERTS_DIR=<dir with fullchain.pem/
       # privkey.pem> switches from automatic ACME to a provided certificate
@@ -491,9 +496,52 @@ services:
       keycloak:
         condition: service_started
 
+  # ---------------- observability (domain events → Kibana) ----------------
+  # Behind the "observability" profile (like ollama's llm-local): local devs
+  # pay nothing; the server enables via COMPOSE_PROFILES=observability.
+  # graph-service ships domain events here when ELASTICSEARCH_URL is set.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"   # internal network only; NOT port-published
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_PUBLICBASEURL: https://kibana.${PUBLIC_DOMAIN:-localhost}
+      TELEMETRY_ENABLED: "false"
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5601/api/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
 volumes:
   caddy-data:
   caddy-config:
+  es-data:
+  kibana-data:
   neo4j-data:
   pg-data:
   ollama-data:

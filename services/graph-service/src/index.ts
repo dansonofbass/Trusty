@@ -33,6 +33,7 @@ import {
   recommendationsForTarget,
   recommendationConsensus,
   isSpecialistType,
+  validateDomainEvent,
   specialistTrustLabel,
   TRUST_LABEL_TEXT,
   type SpecialistLayerName,
@@ -231,6 +232,7 @@ import {
 } from "./journeys";
 import { confirmationCounts, confirmedBy, confirmSquadmate, initSquads } from "./squads";
 import { addFeedback, feedbackEnabled, initFeedback, listFeedback } from "./feedback";
+import { attachEventNats, emitEvent, ingestEvent } from "./domainEventBus";
 import {
   conversationsEnabled,
   createConversation,
@@ -566,6 +568,10 @@ async function ensureUser(
     // immediately — no waitlist, no onboarding gate (Seaside Summit demo).
     const openAccess = process.env.OPEN_ACCESS === "1";
     await ensureAccess(userId, brandNew && !openAccess ? "waitlisted" : "active");
+    if (brandNew) {
+      emitEvent("user.provisioned", { userId, payload: { openAccess } });
+      emitEvent("access.status_changed", { userId, payload: { status: openAccess ? "active" : "waitlisted" } });
+    }
     userMeta.set(userId, meta);
     return meta;
   });
@@ -662,6 +668,7 @@ app.get("/public/invites/:code", async (req, res) => {
     const invite = await getInvite(code);
     if (!invite || invite.revoked) return res.json({ ok: false });
     await recordVisit(code, { ua: req.header("user-agent")?.slice(0, 120) });
+    emitEvent("invite.visited", { targetId: code });
     const inviter = shared.nodes.find((n) => n.id === invite.inviterId);
     res.json({ ok: true, code, inviter: { name: inviter?.label ?? "A friend" } });
   } catch (e) {
@@ -1541,6 +1548,7 @@ app.get("/api/who-to-meet", (req, res) => {
         .map((n) => ({ nodeId: n.id, score: 0, matchPct: 0, reasons: ["at the summit"], node: n }));
     }
   }
+  emitEvent("who_to_meet.queried", { userId, app, payload: { mode: String(req.query.mode ?? "people"), resultCount: out.length, cold: out.length > 0 && out[0]?.matchPct === 0 } });
   res.json({ app, suggestions: out });
 });
 
@@ -1609,6 +1617,22 @@ const LIFECYCLE_STAGES = [
 ] as const;
 
 /** Save a contact (a one-directional SAVED edge) with an optional label + stage. */
+/* -------- domain-event ingest (BFF + extractor sourced envelopes) -------- */
+
+app.post("/api/events/ingest", (req, res) => {
+  auth(req);
+  const events = Array.isArray(req.body?.events) ? (req.body.events as unknown[]).slice(0, 50) : [req.body?.event];
+  let accepted = 0;
+  for (const raw of events) {
+    const e = validateDomainEvent(raw);
+    if (e && e.source !== "graph-service") {
+      ingestEvent(e);
+      accepted++;
+    }
+  }
+  res.json({ ok: true, accepted });
+});
+
 /* ---------------- feedback (action button → admin inbox) ---------------- */
 
 app.post("/api/feedback", async (req, res) => {
@@ -1617,6 +1641,7 @@ app.post("/api/feedback", async (req, res) => {
   try {
     const ok = await addFeedback(userId, String(req.body?.text ?? ""), str(req.body?.screen, 120), str(req.body?.app, 40));
     if (!ok) return res.status(400).json({ error: "text required" });
+    emitEvent("feedback.submitted", { userId, app: str(req.body?.app, 40), payload: { screen: str(req.body?.screen, 120) } });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -1711,6 +1736,7 @@ app.post("/api/squads/join", async (req, res) => {
       }
       return commitGraph(userId, refreshDerived({ ...ws, links }));
     });
+    emitEvent("squad.joined", { userId, app: "summit", targetId: squad.id, payload: { autoConnected: members.length } });
     res.json({ ok: true, squadId: squad.id, autoConnected: members.length });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -1753,6 +1779,7 @@ app.post("/api/squads/confirm", async (req, res) => {
     }
     const r = await confirmSquadmate(mine, memberId, userId);
     if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("squad.confirmed", { userId, app: "summit", targetId: memberId });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -1917,6 +1944,7 @@ app.post("/api/attend", async (req, res) => {
           : [...ws.links, { id: edgeId, source: userId, target: workshopId, type: "ATTENDING" as const, weight: 1 }];
       return commitGraph(userId, refreshDerived({ ...ws, links }));
     });
+    emitEvent("session.attendance_toggled", { userId, targetId: workshopId, payload: { off } });
     res.json(view);
   } catch (e) {
     res.status(400).json(asError(e));
@@ -2268,6 +2296,7 @@ app.post("/api/meetings", async (req, res) => {
       location: location ? String(location).slice(0, 120) : undefined,
       note,
     });
+    emitEvent("meeting.requested", { userId, targetId: String(targetId ?? ""), payload: { kind: String(kind ?? "coffee") } });
     res.json(hydrateMeeting(m));
   } catch (e) {
     res.status(400).json(asError(e));
@@ -2289,6 +2318,7 @@ app.post("/api/meetings/:id/:action", async (req, res) => {
   try {
     const m = await respondMeeting(req.params.id, userId, action);
     if (!m) return res.status(404).json({ error: "not found or not yours to respond to" });
+    emitEvent(action === "confirmed" ? "meeting.confirmed" : "meeting.declined", { userId, targetId: String((m as { requesterId?: unknown }).requesterId ?? "") });
     res.json(hydrateMeeting(m));
   } catch (e) {
     res.status(400).json(asError(e));
@@ -2308,6 +2338,7 @@ app.post("/api/trust", async (req, res) => {
     kind: "trust",
     topic: (scope as TrustScope)?.topic,
   });
+  emitEvent("trust.added", { userId, targetId: String(to), payload: { topic: (scope as TrustScope)?.topic, geo: (scope as TrustScope)?.geo } });
   try {
     res.json(
       await serialize(() =>
@@ -2373,6 +2404,7 @@ app.post("/api/trust/outcome", async (req, res) => {
         value: v,
         scope: edge.trust.scope,
       });
+      emitEvent("trust.outcome_recorded", { userId, targetId: typeof edge.target === "string" ? edge.target : edge.target.id, payload: { value: v } });
     }
     res.json(view);
   } catch (e) {
@@ -2520,6 +2552,7 @@ app.post("/api/trust-search", async (req, res) => {
     resultCount: ordered.length,
     source: "trust-search",
   });
+  emitEvent("search.performed", { userId, payload: { source: "trust-search", topic: query.topic, geo: query.geo, resultCount: ordered.length } });
   res.json({ query, recommendations: ordered });
 });
 
@@ -2562,6 +2595,7 @@ app.post("/api/recs", async (req, res) => {
         }),
       ),
     );
+    emitEvent("rec.published", { userId, targetId, payload: { topic } });
     res.json({ ok: true, id });
   } catch (e) {
     res.status(400).json(asError(e));
@@ -2594,6 +2628,7 @@ app.post("/api/recs/:id/outcomes", async (req, res) => {
     );
     // Also feed the append-only outcome log so DERIVED reputation reflects it.
     const props = rec.properties as { targetId?: string; topic?: string } | undefined;
+    emitEvent("rec.outcome_attached", { userId, targetId: recId, payload: { value } });
     void recordOutcome({
       edgeId: recId,
       fromId: userId,
@@ -3466,6 +3501,7 @@ app.post("/api/invites", async (req, res) => {
     typeof req.body?.maxUses === "number" ? req.body.maxUses : INVITE_DEFAULT_MAX_USES;
   try {
     const invite = await createInvite(userId, note, maxUses);
+    emitEvent("invite.created", { userId, targetId: invite.code });
     res.json({ code: invite.code, path: `/invite/${invite.code}`, maxUses: invite.maxUses });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -3508,6 +3544,7 @@ app.post("/api/invites/accept", async (req, res) => {
       return res.json({ ok: false, reason: "inviter_gone" });
 
     const result = await consumeInvite(code, userId);
+    emitEvent("invite.accepted", { userId, targetId: code });
     if (!result.ok) return res.json({ ok: false, reason: result.reason });
     await bindInvite(userId, code, invite.inviterId);
     const inviter = shared.nodes.find((n) => n.id === invite.inviterId);
@@ -3580,6 +3617,7 @@ app.post("/api/waitlist/join", async (req, res) => {
       existing?.code ??
       (await createInvite(userId, "waitlist referral", Math.max(INVITE_DEFAULT_MAX_USES, WAITLIST_UNLOCK_THRESHOLD * 4))).code;
     const entry = await joinWaitlist(userId, code, email);
+    emitEvent("waitlist.joined", { userId });
     await bindWaitlist(userId, entry.code);
     res.json({
       ok: true,
@@ -3658,6 +3696,7 @@ app.post("/api/admin/waitlist/:userId/approve", async (req, res) => {
     if (access.status !== "waitlisted")
       return res.json({ ok: true, status: access.status }); // already through — idempotent
     await adminUnlock(target); // waitlist entry (if any) reads as unlocked
+    emitEvent("waitlist.approved", { userId: target, payload: { by: userId } });
     await setStatus(target, "pending_onboarding");
     res.json({ ok: true, status: "pending_onboarding" });
   } catch (e) {
@@ -3745,6 +3784,7 @@ app.post("/api/onboarding/complete", async (req, res) => {
   const { userId, meta } = auth(req);
   try {
     const firstCompletion = await completeOnboarding(userId);
+    emitEvent("onboarding.completed", { userId, payload: { first: !!firstCompletion } });
     const access = await getAccess(userId);
     const inviterId = access?.inviterId;
     const hasInviter = !!inviterId && shared.nodes.some((n) => n.id === inviterId);
@@ -4389,6 +4429,7 @@ app.post("/api/search/log", (req, res) => {
     context: context ? String(context) : undefined,
     source: "resolve-scope",
   });
+  emitEvent("search.performed", { userId, payload: { source: "resolve-scope", topic: topic ? String(topic) : undefined } });
   res.json({ ok: true });
 });
 
@@ -4975,6 +5016,7 @@ async function main() {
       onLinkResolved: (ev) =>
         resolvePlaceLink(Number(ev.linkId), { ok: ev.ok, nodeId: ev.nodeId, label: ev.label, error: ev.error }),
     });
+    if (natsConn) attachEventNats(natsConn);
   } else {
     console.warn("graph-service: NATS_URL not set — connector ingestion disabled");
   }

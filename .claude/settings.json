@@ -5,7 +5,8 @@
       "Skill(claude-api:*)",
       "Bash(git -C f:/Develop/constellation/constellation branch --show-current)",
       "PowerShell(docker compose run --rm --no-deps install sh -c \"ls node_modules/next/dist/docs/ 2>/dev/null | head -80\")",
-      "PowerShell(docker compose run --rm --no-deps install sh -c \"cat node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md\" > \"$env:TEMP\\\\claude\\\\next-layouts.md\" 2>$null; docker compose run --rm --no-deps install sh -c \"ls node_modules/next/dist/docs/01-app/03-api-reference/02-file-conventions/ 2>/dev/null; ls node_modules/next/dist/docs/01-app/03-api-reference/ | head -20\")"
+      "PowerShell(docker compose run --rm --no-deps install sh -c \"cat node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md\" > \"$env:TEMP\\\\claude\\\\next-layouts.md\" 2>$null; docker compose run --rm --no-deps install sh -c \"ls node_modules/next/dist/docs/01-app/03-api-reference/02-file-conventions/ 2>/dev/null; ls node_modules/next/dist/docs/01-app/03-api-reference/ | head -20\")",
+      "Bash(grep -n \"res.json\\({ ok: true, squadId\\\\|await confirmSquadmate\\(mine\\\\|app.post\\(\\\\\"/api/attend\\\\\"\\\\|app.post\\(\\\\\"/api/meetings\\\\\"\\\\|app.post\\(\\\\\"/api/notes\\\\\"\\\\|app.post\\(\\\\\"/api/trust\\\\\"\\\\|app.post\\(\\\\\"/api/trust/outcome\\\\\"\\\\|app.post\\(\\\\\"/api/recs\\\\\"\\\\|outcomes\\\\\", async\\\\|app.post\\(\\\\\"/api/asks\\\\\"\" services/graph-service/src/index.ts)"
     ]
   }
 }

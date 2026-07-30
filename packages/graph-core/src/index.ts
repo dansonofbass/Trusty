@@ -301,3 +301,12 @@ export {
   type SpecialistTrustLabel,
   type TrustLabelInput,
 } from "./specialist";
+
+export {
+  DOMAIN_EVENT_TYPES,
+  isDomainEventType,
+  validateDomainEvent,
+  type DomainEvent,
+  type DomainEventType,
+  type DomainEventSource,
+} from "./domainEvents";
