@@ -1,0 +1,31 @@
+# Production override — run the web app as a real Next.js build instead of the
+# dev server (no dev badge, no on-demand compiles, prod React), and run the
+# Node services without tsx watch (no file-watcher restarts).
+#
+# Server usage (set once in server .env):  COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+# or per-command:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d ...
+#
+# The web container builds on start (`next build` then `next start`), so a
+# deploy is still just: git pull && docker compose up -d --force-recreate web.
+# First start takes a few minutes while the build runs; Caddy will 502 until
+# it's up. Keycloak intentionally stays in start-dev (switching to `start`
+# requires hostname/TLS re-config — tracked separately).
+services:
+  web:
+    command: sh -c "npm run build --workspace web && exec npm run start --workspace web -- -H 0.0.0.0 -p 3000"
+    environment:
+      NODE_ENV: production
+      # next build is memory-hungry; keep it from OOMing alongside ES/Kibana.
+      NODE_OPTIONS: --max-old-space-size=2048
+
+  graph-service:
+    command: npm run start --workspace @constellation/graph-service
+
+  gateway:
+    command: npm run start --workspace @constellation/gateway
+
+  extractor:
+    command: npm run start --workspace @constellation/extractor
+
+  recommender:
+    command: npm run start --workspace @constellation/recommender
