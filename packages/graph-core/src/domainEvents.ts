@@ -58,6 +58,10 @@ export const DOMAIN_EVENT_TYPES = [
   "conversation.turns_saved",
   "conversation.renamed",
   "conversation.deleted",
+  // rooms (group messaging: squad chats now, community groups later)
+  "room.created",
+  "room.message_sent",
+  "room.message_deleted",
   "agent.turn_started",
   "agent.tool_called",
   "agent.turn_completed",

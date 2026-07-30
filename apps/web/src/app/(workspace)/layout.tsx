@@ -8,6 +8,7 @@ import GraphDataProvider, { useGraphData } from "@/lib/graph/GraphDataProvider";
 import ChatProvider, { useChat } from "@/lib/chat/ChatProvider";
 import Sidebar from "@/components/shell/Sidebar";
 import Brand from "@/components/Brand";
+import NotificationBell from "@/components/NotificationBell";
 import { switchMode } from "@/lib/dataSource";
 
 // Client-only islands (canvas/window dependencies) — same pattern as the old
@@ -19,6 +20,7 @@ const InvitePanel = dynamic(() => import("@/components/InvitePanel"), { ssr: fal
 const WelcomeToast = dynamic(() => import("@/components/WelcomeToast"), { ssr: false });
 const OutcomePrompts = dynamic(() => import("@/components/OutcomePrompts"), { ssr: false });
 const PlaceModalHost = dynamic(() => import("@/components/PlaceModalHost"), { ssr: false });
+const NotificationsPanel = dynamic(() => import("@/components/NotificationsPanel"), { ssr: false });
 
 function LoadingSky() {
   return (
@@ -79,18 +81,21 @@ function Shell({ children }: { children: React.ReactNode }) {
           <Menu size={21} strokeWidth={2.2} />
         </button>
         <Brand />
-        <button
-          type="button"
-          aria-label="New chat"
-          onClick={() => {
-            if (sending) return;
-            newChat();
-            router.push("/");
-          }}
-          className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)]"
-        >
-          <SquarePen size={19} strokeWidth={2.2} />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <NotificationBell />
+          <button
+            type="button"
+            aria-label="New chat"
+            onClick={() => {
+              if (sending) return;
+              newChat();
+              router.push("/");
+            }}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)]"
+          >
+            <SquarePen size={19} strokeWidth={2.2} />
+          </button>
+        </div>
       </header>
 
       {/* Desktop sidebar */}
@@ -118,6 +123,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <CommandPalette />
       <AddEntity variant="docked" />
       <InvitePanel />
+      <NotificationsPanel />
       <WelcomeToast />
       <OutcomePrompts />
       <PlaceModalHost />

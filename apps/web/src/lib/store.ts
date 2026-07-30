@@ -16,7 +16,7 @@ export type ViewId = "universe" | "circles" | "discover" | "path";
 /** The mutually-exclusive right-side workspaces.
  *  Desktop (workspace shell) uses only "addEntity" | "invite" as overlays;
  *  "composer" | "asks" remain for the mobile /m surfaces. */
-export type RightPanelId = "composer" | "asks" | "addEntity" | "invite";
+export type RightPanelId = "composer" | "asks" | "addEntity" | "invite" | "notifications";
 
 /** Content of the contextual right panel (workspace shell). P1 ships the
  *  inspector; "local-graph" | "backlinks" arrive with the linking phase. */

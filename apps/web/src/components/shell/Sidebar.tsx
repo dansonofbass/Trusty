@@ -10,6 +10,7 @@ import {
   Folder,
   FolderOpen,
   MessageCircle,
+  MessagesSquare,
   Megaphone,
   Orbit,
   Plus,
@@ -22,11 +23,14 @@ import { useUI } from "@/lib/store";
 import { askInbox } from "@/lib/asksClient";
 import { fetchWorkspace, type FolderRow, type WritingSummary } from "@/lib/writings";
 import { listConversations, type ConversationSummary } from "@/lib/chat/conversationsClient";
+import { fetchRooms } from "@/lib/socialClient";
+import NotificationBell from "@/components/NotificationBell";
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
 
 const NAV: { href: string; label: string; icon: React.ElementType }[] = [
   { href: "/", label: "Chat", icon: MessageCircle },
+  { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/discover", label: "Discover", icon: Radio },
   { href: "/graph", label: "Graph", icon: Orbit },
   { href: "/asks", label: "Asks", icon: Megaphone },
@@ -46,6 +50,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const docsNonce = useUI((s) => s.docsNonce);
   const chatsNonce = useUI((s) => s.chatsNonce);
   const [unreadAsks, setUnreadAsks] = useState(0);
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
   const [docs, setDocs] = useState<WritingSummary[]>([]);
   const [folders, setFolders] = useState<FolderRow[]>([]);
   // Obsidian-style tree: collapse state survives reloads.
@@ -98,6 +103,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     askInbox()
       .then((inbox) => alive && setUnreadAsks(inbox.length))
       .catch(() => {});
+    fetchRooms()
+      .then((r) => alive && setUnreadMsgs(r.rooms.reduce((n, room) => n + room.unread, 0)))
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -123,6 +131,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-line bg-[color-mix(in_srgb,var(--color-card)_70%,transparent)] backdrop-blur-md max-md:w-full max-md:bg-[var(--color-card)]">
       <div className="flex items-center gap-2 px-4 pb-3 pt-4">
         <Brand />
+        <span className="ml-auto md:block max-md:hidden">
+          <NotificationBell className="!h-8 !w-8" />
+        </span>
       </div>
 
       {/* Search / palette */}
@@ -154,6 +165,14 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           >
             <n.icon size={15} strokeWidth={2.2} />
             <span className="flex-1">{n.label}</span>
+            {n.href === "/messages" && unreadMsgs > 0 && (
+              <span
+                className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"
+                style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+              >
+                {unreadMsgs > 9 ? "9+" : unreadMsgs}
+              </span>
+            )}
             {n.href === "/asks" && unreadAsks > 0 && (
               <span
                 className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"

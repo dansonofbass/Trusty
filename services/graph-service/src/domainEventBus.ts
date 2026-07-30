@@ -103,6 +103,13 @@ function scheduleFlush(): void {
 let seq = 0;
 const newId = (): string => `ev_${Date.now().toString(36)}${(seq++ % 46656).toString(36)}`;
 
+/** Optional in-process observer of every event (e.g. the notifications
+ *  deriver in index.ts). Must never throw — wrapped defensively anyway. */
+let eventHook: ((event: DomainEvent) => void) | null = null;
+export function setEventHook(fn: (event: DomainEvent) => void): void {
+  eventHook = fn;
+}
+
 /** Emit a domain event. Safe anywhere — never throws, never blocks. */
 export function emitEvent(
   type: DomainEventType,
@@ -120,6 +127,11 @@ export function emitEvent(
       ...(fields.targetType ? { targetType: fields.targetType } : {}),
       ...(fields.payload ? { payload: fields.payload } : {}),
     };
+    try {
+      eventHook?.(event);
+    } catch {
+      /* observers never break emitters */
+    }
     if (nats) {
       try {
         nats.publish(`trusty.events.${type}`, codec.encode(event));
@@ -139,6 +151,11 @@ export function emitEvent(
 /** Ingest an already-validated envelope from the BFF / extractor. */
 export function ingestEvent(event: DomainEvent): void {
   try {
+    try {
+      eventHook?.(event);
+    } catch {
+      /* observers never break emitters */
+    }
     if (nats) {
       try {
         nats.publish(`trusty.events.${event.type}`, codec.encode(event));

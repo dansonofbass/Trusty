@@ -232,7 +232,13 @@ import {
 } from "./journeys";
 import { confirmationCounts, confirmedBy, confirmSquadmate, initSquads } from "./squads";
 import { addFeedback, feedbackEnabled, initFeedback, listFeedback } from "./feedback";
-import { attachEventNats, emitEvent, ingestEvent } from "./domainEventBus";
+import { attachEventNats, emitEvent, ingestEvent, setEventHook } from "./domainEventBus";
+import { addNotification, initNotifications, listNotifications, markNotificationsRead } from "./notifications";
+import {
+  deleteMessage, ensureSquadRoom, getRoom, initRooms, listMessages, logSquadJoin,
+  markRoomRead, postMessage, recentSquadJoins, roomsEnabled, roomSummary, squadChatter,
+} from "./rooms";
+import type { DomainEvent } from "@constellation/graph-core";
 import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
 import {
   conversationsEnabled,
@@ -1810,6 +1816,7 @@ app.post("/api/squads/join", async (req, res) => {
       return commitGraph(userId, refreshDerived({ ...ws, links }));
     });
     emitEvent("squad.joined", { userId, app: "summit", targetId: squad.id, payload: { autoConnected: members.length } });
+    void logSquadJoin(squad.id, userId).catch(() => {});
     res.json({ ok: true, squadId: squad.id, autoConnected: members.length });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -1859,6 +1866,217 @@ app.post("/api/squads/confirm", async (req, res) => {
   }
 });
 
+/* ------------- notifications (derived from domain events) ---------- */
+
+/** Map domain events to per-user notifications. Registered as the event-bus
+ *  hook; runs in-process on every emitEvent. Must stay cheap and never throw
+ *  (the bus wraps it defensively too). */
+function deriveNotifications(evt: DomainEvent): void {
+  const actor = evt.userId;
+  if (!actor) return;
+  const labelOf = (id: string) => shared.nodes.find((n) => n.id === id)?.label ?? "Someone";
+  const actorLabel = labelOf(actor);
+  const add = (userId: string, type: string, text: string, targetId?: string) =>
+    void addNotification({ userId, type, text, actorId: actor, actorLabel, targetId }).catch(() => {});
+  const p = (evt.payload ?? {}) as Record<string, unknown>;
+  switch (evt.type) {
+    case "edge.added": {
+      const kind = String(p.kind ?? "");
+      if (kind === "contact" && evt.targetId) {
+        add(evt.targetId, "contact", `${actorLabel} added you as a contact`, actor);
+      } else if (kind === "startup_membership" && evt.targetId) {
+        for (const l of shared.links) {
+          if (l.type === "MEMBER_OF" && linkTargetId(l) === evt.targetId) {
+            const m = linkSourceId(l);
+            if (m !== actor) add(m, "startup", `${actorLabel} joined ${labelOf(evt.targetId)} — your co-founder is on Trusty`, evt.targetId);
+          }
+        }
+      }
+      break;
+    }
+    case "squad.joined":
+      if (evt.targetId) {
+        for (const m of squadMembers(evt.targetId)) {
+          if (m !== actor) add(m, "squad", `${actorLabel} joined ${labelOf(evt.targetId)}`, evt.targetId);
+        }
+      }
+      break;
+    case "squad.confirmed":
+      if (evt.targetId) add(evt.targetId, "confirm", `${actorLabel} confirmed you're in their squad`, actor);
+      break;
+    case "trust.added":
+      if (evt.targetId) add(evt.targetId, "trust", `${actorLabel} now trusts you${p.topic ? ` for ${String(p.topic)}` : ""}`, actor);
+      break;
+    case "meeting.requested":
+      if (evt.targetId) add(evt.targetId, "meeting", `${actorLabel} requested a ${String(p.kind ?? "meeting")} with you`, actor);
+      break;
+    case "rec.published":
+      if (evt.targetId && shared.nodes.some((n) => n.id === evt.targetId && n.type === "person")) {
+        add(evt.targetId, "rec", `${actorLabel} recommended you to their network`, actor);
+      }
+      break;
+    case "listen.requested":
+      if (evt.targetId) add(evt.targetId, "listen", `${actorLabel} asked to listen to your recommendations`, actor);
+      break;
+    case "listen.accepted":
+      if (evt.targetId) add(evt.targetId, "listen", `${actorLabel} accepted your listen request`, actor);
+      break;
+    default:
+      break;
+  }
+}
+setEventHook(deriveNotifications);
+
+app.get("/api/notifications", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    res.json(await listNotifications(userId));
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/notifications/read", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const ids = Array.isArray(req.body?.ids)
+      ? (req.body.ids as unknown[]).map(Number).filter(Number.isFinite)
+      : undefined;
+    await markNotificationsRead(userId, ids);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ------------- rooms (group messaging: squads now, groups later) ---- */
+
+const nodeLabels = () => new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+
+/** Squad rooms derive access from the graph: you must currently be MEMBER_OF
+ *  the squad the room wraps. (The future "group" kind checks room_members.) */
+const canEnterRoom = (userId: string, room: { kind: string; refId: string | null }) =>
+  room.kind === "squad" && !!room.refId && mySquadOf(userId) === room.refId;
+
+app.get("/api/rooms", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const rooms: unknown[] = [];
+    const mine = mySquadOf(userId);
+    if (mine && roomsEnabled()) {
+      const squad = shared.nodes.find((n) => n.id === mine);
+      const roomId = await ensureSquadRoom(mine, squad?.label ?? "My squad");
+      const summary = await roomSummary(roomId, userId);
+      const labels = nodeLabels();
+      rooms.push({
+        id: roomId,
+        kind: "squad",
+        title: squad?.label ?? "My squad",
+        memberCount: squadMembers(mine).length,
+        unread: summary.unread,
+        lastMessage: summary.lastMessage
+          ? { ...summary.lastMessage, senderLabel: labels.get(summary.lastMessage.senderId) ?? "Someone" }
+          : null,
+      });
+    }
+    res.json({ rooms });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.get("/api/rooms/:id/messages", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const room = await getRoom(req.params.id);
+    if (!room || !canEnterRoom(userId, room)) return res.status(403).json({ error: "not a member of this room" });
+    const before = req.query.before ? Number(req.query.before) : undefined;
+    const messages = await listMessages(room.id, { before: Number.isFinite(before) ? before : undefined });
+    const labels = nodeLabels();
+    res.json({
+      room: { id: room.id, kind: room.kind, title: room.title, refId: room.refId },
+      members: squadMembers(room.refId!).map((id) => ({ id, label: labels.get(id) ?? id, me: id === userId })),
+      messages: messages.map((m) => ({
+        ...m,
+        senderLabel: labels.get(m.senderId) ?? "Someone",
+        mine: m.senderId === userId,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/rooms/:id/messages", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const room = await getRoom(req.params.id);
+    if (!room || !canEnterRoom(userId, room)) return res.status(403).json({ error: "not a member of this room" });
+    const replyTo = Number(req.body?.replyTo);
+    const message = await postMessage(room.id, userId, String(req.body?.body ?? ""), Number.isFinite(replyTo) ? replyTo : undefined);
+    await markRoomRead(room.id, userId);
+    emitEvent("room.message_sent", { userId, targetId: room.id, payload: { kind: room.kind } });
+    res.json({ message: { ...message, senderLabel: nodeLabels().get(userId) ?? "You", mine: true } });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+app.delete("/api/rooms/:id/messages/:mid", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const room = await getRoom(req.params.id);
+    if (!room || !canEnterRoom(userId, room)) return res.status(403).json({ error: "not a member of this room" });
+    const ok = await deleteMessage(room.id, Number(req.params.mid), userId);
+    if (!ok) return res.status(404).json({ error: "not your message" });
+    emitEvent("room.message_deleted", { userId, targetId: room.id });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/rooms/:id/read", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const room = await getRoom(req.params.id);
+    if (!room || !canEnterRoom(userId, room)) return res.status(403).json({ error: "not a member of this room" });
+    await markRoomRead(room.id, userId);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Discover feed: what's happening across squads — chatter volume + joins. */
+app.get("/api/squads/activity", async (req, res) => {
+  auth(req);
+  try {
+    const labels = nodeLabels();
+    const [chatter, joins] = await Promise.all([squadChatter(), recentSquadJoins(15)]);
+    res.json({
+      chatter: chatter
+        .map((c) => ({
+          squadId: c.squadNodeId,
+          squad: labels.get(c.squadNodeId) ?? "Squad",
+          messages24h: c.messages24h,
+          lastAt: c.lastAt,
+          memberCount: squadMembers(c.squadNodeId).length,
+        }))
+        .sort((a, b) => b.messages24h - a.messages24h),
+      joins: joins.map((j) => ({
+        squadId: j.squadNodeId,
+        squad: labels.get(j.squadNodeId) ?? "Squad",
+        memberId: j.memberId,
+        member: labels.get(j.memberId) ?? "Someone",
+        at: j.createdAt,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 app.post("/api/contacts", async (req, res) => {
   const { userId, meta } = auth(req);
   const body = req.body ?? {};
@@ -1884,6 +2102,7 @@ app.post("/api/contacts", async (req, res) => {
           ];
       return commitGraph(userId, refreshDerived({ ...ws, links }));
     });
+    emitEvent("edge.added", { userId, targetId, payload: { kind: "contact", labels } });
     res.json(view);
   } catch (e) {
     res.status(400).json(asError(e));
@@ -5062,6 +5281,12 @@ async function main() {
   );
   await initSettings().catch((e) =>
     console.error("graph-service: settings init failed:", e instanceof Error ? e.message : e),
+  );
+  await initNotifications().catch((e) =>
+    console.error("graph-service: notifications init failed:", e instanceof Error ? e.message : e),
+  );
+  await initRooms().catch((e) =>
+    console.error("graph-service: rooms init failed:", e instanceof Error ? e.message : e),
   );
   await initFeedback().catch((e) =>
     console.error("graph-service: feedback init failed:", e instanceof Error ? e.message : e),
