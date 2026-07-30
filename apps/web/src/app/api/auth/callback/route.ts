@@ -8,6 +8,7 @@ import {
   type Session,
 } from "@/lib/auth/session";
 import { isAdmin } from "@/lib/auth/roles";
+import { emitWebEvent } from "@/lib/domainEvents";
 
 const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
 
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest) {
             ? `${appBase}/waitlist`
             : appBase; // gating disabled (open mode) → straight to Home
 
+    emitWebEvent("auth.login", session.sub, { landing: status ?? "open", invited: !!pkce.invite });
     const res = NextResponse.redirect(landing);
     await setSessionCookie(res, session);
     clearPkceCookie(res);

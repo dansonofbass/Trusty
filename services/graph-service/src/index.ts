@@ -1221,6 +1221,7 @@ app.post("/api/writings/folders", async (req, res) => {
   const { userId } = auth(req);
   try {
     const f = await createFolder(userId, String(req.body?.name ?? ""), str(req.body?.parentId, 30));
+    emitEvent("folder.created", { userId });
     if (!f) return res.status(400).json({ error: "valid name (and existing parent) required" });
     res.json(f);
   } catch (e) {
@@ -1232,6 +1233,7 @@ app.patch("/api/writings/folders/:id", async (req, res) => {
   const { userId } = auth(req);
   try {
     const ok = await renameFolder(userId, String(req.params.id), String(req.body?.name ?? ""));
+    emitEvent("folder.renamed", { userId, targetId: String(req.params.id) });
     if (!ok) return res.status(404).json({ error: "folder not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -1243,6 +1245,7 @@ app.delete("/api/writings/folders/:id", async (req, res) => {
   const { userId } = auth(req);
   try {
     const ok = await deleteFolder(userId, String(req.params.id));
+    emitEvent("folder.deleted", { userId, targetId: String(req.params.id) });
     if (!ok) return res.status(404).json({ error: "folder not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -1255,6 +1258,7 @@ app.patch("/api/writings/:id/move", async (req, res) => {
   const { userId } = auth(req);
   try {
     const ok = await moveWriting(userId, String(req.params.id), str(req.body?.folderId, 30) ?? null);
+    emitEvent("doc.moved", { userId, targetId: String(req.params.id) });
     if (!ok) return res.status(404).json({ error: "writing or folder not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -1322,6 +1326,7 @@ app.delete("/api/writings/:id", async (req, res) => {
   const { userId } = auth(req);
   try {
     const ok = await deleteWriting(userId, String(req.params.id));
+    emitEvent("doc.deleted", { userId, targetId: String(req.params.id) });
     if (!ok) return res.status(404).json({ error: "not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -1426,6 +1431,7 @@ app.post("/api/entity", async (req, res) => {
       return commitGraph(userId, refreshDerived(materializeTags(r.dataset, nodeId)));
     });
     res.json({ ...view, _entity: { nodeId } });
+    emitEvent("entity.created", { userId, targetId: nodeId, payload: { entityType: String(entityType) } });
   } catch (e) {
     res.status(400).json(asError(e));
   }
@@ -2763,6 +2769,7 @@ app.post("/api/specialists/:nodeId/claim", async (req, res) => {
       statement: str(b.statement, 1000),
     });
     if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("specialist.claim_submitted", { userId, targetId: nodeId });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -2781,6 +2788,7 @@ app.patch("/api/specialists/:nodeId/profile", async (req, res) => {
   }
   try {
     const r = await updateProfileFields(nodeId, userId, layer, fields);
+    emitEvent("specialist.profile_updated", { userId, targetId: nodeId, payload: { layer } });
     if (!r.ok) return res.status(403).json({ error: r.error });
     res.json({ ok: true, layers: r.layers });
   } catch (e) {
@@ -2811,6 +2819,7 @@ app.post("/api/specialists/:nodeId/managers", async (req, res) => {
   if (!targetUserId || !role) return res.status(400).json({ error: "userId and role required" });
   try {
     const r = await addManager(String(req.params.nodeId), userId, targetUserId, role as never, isAdminReq(req));
+    emitEvent("specialist.manager_added", { userId, targetId: String(req.params.nodeId) });
     if (!r.ok) return res.status(403).json({ error: r.error });
     res.json({ ok: true });
   } catch (e) {
@@ -2823,6 +2832,7 @@ app.delete("/api/specialists/:nodeId/managers/:userId", async (req, res) => {
   if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
   try {
     const r = await removeManager(String(req.params.nodeId), userId, String(req.params.userId), isAdminReq(req));
+    emitEvent("specialist.manager_removed", { userId, targetId: String(req.params.nodeId) });
     if (!r.ok) return res.status(403).json({ error: r.error });
     res.json({ ok: true });
   } catch (e) {
@@ -2872,6 +2882,7 @@ app.post("/api/admin/specialists/:nodeId/verifications", async (req, res) => {
       expiresAt: str(b.expiresAt, 40),
     });
     if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("specialist.verification_granted", { userId, targetId: String(req.params.nodeId) });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -2885,6 +2896,7 @@ app.delete("/api/admin/specialists/:nodeId/verifications/:vid", async (req, res)
   if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
   try {
     const r = await revokeVerification(String(req.params.nodeId), String(req.params.vid), userId, str(req.query.reason as unknown, 300));
+    emitEvent("specialist.verification_revoked", { userId, targetId: String(req.params.nodeId) });
     if (!r.ok) return res.status(400).json({ error: r.error });
     res.json({ ok: true });
   } catch (e) {
@@ -2920,6 +2932,7 @@ app.post("/api/admin/specialists/:nodeId/subscription", async (req, res) => {
       endsAt: str(b.endsAt, 40),
     });
     if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("specialist.subscription_changed", { userId, targetId: String(req.params.nodeId) });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -3013,6 +3026,7 @@ app.post("/api/admin/specialists/claims/:id/review", async (req, res) => {
   const approve = req.body?.approve === true;
   try {
     const r = await reviewClaim(String(req.params.id), userId, approve, str(req.body?.reason, 500));
+    emitEvent("specialist.claim_reviewed", { userId, targetId: String(req.params.id), payload: { approved } });
     if (!r.ok) return res.status(400).json({ error: r.error });
     res.json({ ok: true, nodeId: r.nodeId });
   } catch (e) {
@@ -3229,6 +3243,7 @@ app.post("/api/listen/policy", async (req, res) => {
     return res.status(400).json({ error: "policy must be manual | auto_accept" });
   try {
     await setPolicy(userId, policy as ListenPolicy);
+    emitEvent("listen.policy_set", { userId, payload: { policy: String(policy) } });
     res.json({ ok: true, policy });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -3458,6 +3473,7 @@ app.post("/api/credits/boost", async (req, res) => {
   try {
     const contribution = await contributionValueFor(userId, shared.nodes);
     const result = await spendForBoost(userId, earnedCredits(contribution));
+    emitEvent("credits.boost_purchased", { userId });
     if (!result.ok) {
       const msg =
         result.reason === "insufficient_credits"
@@ -3483,6 +3499,7 @@ app.post("/api/admin/credits/:userId", async (req, res) => {
     return res.status(400).json({ error: "amount >= 1 required" });
   try {
     await grantCredits(target, amount, adminId, str(req.body?.note, 200));
+    emitEvent("credits.granted", { userId: adminId, targetId: target, payload: { amount } });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -3985,12 +4002,14 @@ app.post("/api/places/:id/save", async (req, res) => {
   if (!shared.nodes.some((n) => n.id === id)) return res.status(404).json({ error: "not found" });
   const note = typeof req.body?.note === "string" ? req.body.note : undefined;
   await savePlace(userId, id, "saved", note);
+  emitEvent("place.saved", { userId, targetId: id });
   res.json({ saved: true });
 });
 
 app.delete("/api/places/:id/save", async (req, res) => {
   const { userId } = auth(req);
   await unsavePlace(userId, String(req.params.id), "saved");
+  emitEvent("place.unsaved", { userId, targetId: String(req.params.id) });
   res.json({ saved: false });
 });
 
@@ -4080,6 +4099,7 @@ app.post("/api/places/:id/menu", async (req, res) => {
   try {
     const dish = dishPayload(req.body);
     const sid = await createSuggestion({ placeId: id, userId, kind: "menu", patch: dish });
+    emitEvent("place.menu_proposed", { userId, targetId: id });
     res.json({ ok: true, pending: true, id: sid });
   } catch (e) {
     res.status(400).json(asError(e));
@@ -4139,6 +4159,7 @@ app.post("/api/places/:id/photos", async (req, res) => {
   }
   try {
     const sid = await createSuggestion({ placeId: id, userId, kind: "photo", patch: { url } });
+    emitEvent("place.photo_submitted", { userId, targetId: id });
     res.json({ ok: true, pending: true, id: sid });
   } catch (e) {
     res.status(400).json(asError(e));
@@ -4233,6 +4254,7 @@ app.post("/api/places/:id/suggest", async (req, res) => {
   const note = typeof req.body?.note === "string" ? req.body.note.slice(0, 280) : undefined;
   try {
     const sid = await createSuggestion({ placeId: id, userId, patch, note });
+    emitEvent("place.edit_suggested", { userId, targetId: id });
     res.json({ ok: true, id: sid });
   } catch (e) {
     res.status(400).json(asError(e));
@@ -4266,6 +4288,7 @@ app.post("/api/admin/place-suggestions/:sid/approve", async (req, res) => {
       await applyPlaceUpdate(s.placeId, { label: typeof label === "string" ? label : undefined, properties });
     }
     await setSuggestionStatus(sid, "approved", userId);
+    emitEvent("moderation.suggestion_approved", { userId, targetId: String(sid) });
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json(asError(e));
@@ -4277,6 +4300,7 @@ app.post("/api/admin/place-suggestions/:sid/reject", async (req, res) => {
   const sid = Number(req.params.sid);
   try {
     await setSuggestionStatus(sid, "rejected", userId);
+    emitEvent("moderation.suggestion_rejected", { userId, targetId: String(sid) });
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json(asError(e));
@@ -4576,6 +4600,7 @@ app.post("/api/conversations", async (req, res) => {
   if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
   try {
     res.json(await createConversation(userId, str(req.body?.title, 120)));
+    emitEvent("conversation.created", { userId });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -4602,6 +4627,7 @@ app.put("/api/conversations/:id/turns", async (req, res) => {
   if (!turns || !transcript) return res.status(400).json({ error: "turns[] and transcript[] required" });
   try {
     const ok = await replaceTurns(userId, String(req.params.id), turns, transcript, str(req.body?.title, 120));
+    emitEvent("conversation.turns_saved", { userId, targetId: String(req.params.id), payload: { turns: turns.length } });
     if (!ok) return res.status(404).json({ error: "conversation not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -4616,6 +4642,7 @@ app.patch("/api/conversations/:id", async (req, res) => {
   if (!title) return res.status(400).json({ error: "title required" });
   try {
     const ok = await renameConversation(userId, String(req.params.id), title);
+    emitEvent("conversation.renamed", { userId, targetId: String(req.params.id) });
     if (!ok) return res.status(404).json({ error: "conversation not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -4628,6 +4655,7 @@ app.delete("/api/conversations/:id", async (req, res) => {
   if (!conversationsEnabled()) return res.status(503).json({ error: "conversations unavailable" });
   try {
     const ok = await deleteConversation(userId, String(req.params.id));
+    emitEvent("conversation.deleted", { userId, targetId: String(req.params.id) });
     if (!ok) return res.status(404).json({ error: "conversation not found" });
     res.json({ ok: true });
   } catch (e) {
@@ -4661,6 +4689,7 @@ app.post("/api/journeys", async (req, res) => {
         title: str(req.body?.title, 120),
       }),
     );
+    emitEvent("journey.created", { userId, payload: { topic } });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -4680,6 +4709,7 @@ app.post("/api/journeys/auto", async (req, res) => {
         goal: str(req.body?.goal, 200),
       }),
     );
+    emitEvent("journey.continued", { userId, payload: { topic } });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -4716,6 +4746,7 @@ app.post("/api/journeys/:id/events", async (req, res) => {
       rawDetail,
     );
     if (!j) return res.status(404).json({ error: "journey not found" });
+    emitEvent("journey.event_appended", { userId, targetId: String(req.params.id), payload: { kind } });
     res.json(j);
   } catch (e) {
     res.status(500).json(asError(e));
@@ -4737,6 +4768,7 @@ app.post("/api/asks", async (req, res) => {
         app: appOf(req),
       }),
     );
+    emitEvent("ask.created", { userId, app: str(req.body?.app, 40) });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -4844,6 +4876,7 @@ app.post("/api/asks/:id/answer", async (req, res) => {
       edgeId: result.edgeId,
       note: note ? String(note).slice(0, 200) : undefined,
     });
+    emitEvent("ask.answered", { userId, targetId: String(req.params.id) });
     res.json({ ok: true, nodeId: result.providerId });
   } catch (e) {
     res.status(400).json(asError(e));
