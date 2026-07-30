@@ -19,10 +19,10 @@ const devOrigins = [publicHost, publicDomain].filter(
 const nextConfig: NextConfig = {
   // graph-core ships as TypeScript source; Next compiles it for the web bundle.
   transpilePackages: ["@constellation/graph-core"],
-  // Prod builds must not go down over a lint rule or type error that dev mode
-  // (which never type-checks) happily served — CI/typecheck owns correctness.
+  // Prod builds must not go down over a type error that dev mode (which never
+  // type-checks) happily served — the typecheck gate owns correctness. Next 16
+  // no longer runs eslint in builds, so no eslint key.
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   ...(devOrigins.length ? { allowedDevOrigins: devOrigins } : {}),
 };
 
