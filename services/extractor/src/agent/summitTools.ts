@@ -52,6 +52,9 @@ export const summitPromptAddendum = (): string => `
 ## Seaside Startup Summit mode
 TODAY IS ${yerevanToday()} (Yerevan time) — use this for "today/tomorrow" agenda questions; never guess the date.
 The user invoked @seasidestartupsummit — you also have summit tools:
+- STARTUP LOOKUP: when the user names their startup, call summit_lookup_startup
+  FIRST and show them what F6S has (company + team) — ask "is this yours /
+  correct?" and only save via summit_setup_profile after they confirm.
 - FIRST INTERACTION: if you don't know the user's summit setup yet, get them
   set up conversationally — ask (in ONE friendly message) what they're
   building, the skills they offer and need, their program (Starter/Booster/
@@ -62,6 +65,59 @@ The user invoked @seasidestartupsummit — you also have summit tools:
 - summit_agenda / summit_attend: the programme (streams: Starter, Booster, Talent, FireCode, side summits). Attending sessions improves matching.
 - For mentor-session notes ("notes from my session with X"), use save_note and INCLUDE the mentor's name with an @ prefix in the note text — the docs pipeline links it and creates the mentor entity if unknown.
 Keep answers event-practical: who, where, when, why.`;
+
+
+const lookupStartup: AgentTool = {
+  name: "summit_lookup_startup",
+  description:
+    "Look up a startup on F6S (where all summit startups registered): company profile + team member profiles. READ-ONLY — present what you find and ask the user to confirm it's really their startup before saving anything.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: { name: { type: "string", description: "The startup's name as the user said it" } },
+    required: ["name"],
+  },
+  async execute(input, ctx) {
+    const name = str((input as Record<string, unknown>)?.name, 80);
+    if (!name) return { ok: false, summary: "name required" };
+    const key = (process.env.SERPAPI_KEYS ?? "").split(",")[0]?.trim();
+    if (!key) return { ok: false, summary: "startup lookup unavailable (no search key configured)" };
+    const qs = new URLSearchParams({
+      engine: "google",
+      q: `site:f6s.com "${name}"`,
+      num: "6",
+      api_key: key,
+    });
+    let results: { title?: string; link?: string; snippet?: string }[] = [];
+    try {
+      const r = await fetch(`https://serpapi.com/search.json?${qs}`, { signal: ctx.signal });
+      const body = (await r.json()) as { organic_results?: typeof results; error?: string };
+      if (body.error) return { ok: false, summary: `lookup failed: ${body.error}` };
+      results = body.organic_results ?? [];
+    } catch {
+      return { ok: false, summary: "lookup failed (search unreachable)" };
+    }
+    const companies = results.filter((x) => (x.link ?? "").includes("/company/"));
+    const members = results.filter((x) => (x.title ?? "").includes("F6S Member Profile"));
+    if (!companies.length && !members.length) {
+      return { ok: true, summary: `nothing on F6S matches "${name}" — ask the user to spell it as registered, or continue without F6S data`, data: {} };
+    }
+    const parts: string[] = [];
+    if (companies.length) {
+      const c = companies[0];
+      parts.push(`company: ${c.title} (${c.link})${c.snippet ? ` — ${c.snippet.slice(0, 180)}` : ""}`);
+    }
+    if (members.length) {
+      const team = members.slice(0, 4).map((m) => (m.title ?? "").replace(/\s*\|\s*F6S Member Profile.*$/i, ""));
+      parts.push(`team profiles: ${team.join("; ")}`);
+    }
+    return {
+      ok: true,
+      summary: `${parts.join(" · ")} — SHOW this to the user and ask if it's their startup before saving`,
+      data: { companies: companies.slice(0, 3), members: members.slice(0, 5) },
+    };
+  },
+};
 
 const setupProfile: AgentTool = {
   name: "summit_setup_profile",
@@ -75,6 +131,7 @@ const setupProfile: AgentTool = {
     additionalProperties: false,
     properties: {
       startup: { type: "string", description: "Startup / project name" },
+      f6s_url: { type: "string", description: "F6S company URL, if the user confirmed the lookup" },
       stage: { type: "string", description: "idea | mvp | revenue | scaling" },
       program: { type: "string", description: "Starter | Booster | Talent | FireCode (their summit program)" },
       skills_offered: { type: "array", items: { type: "string" }, description: "Skills/expertise they OFFER, lowercase tags (e.g. ['marketing','ml'])" },
@@ -93,6 +150,8 @@ const setupProfile: AgentTool = {
     const stage = str(args.stage, 20)?.toLowerCase();
     const program = str(args.program, 20);
     if (startup) properties.startup = startup;
+    const f6s = str(args.f6s_url, 200);
+    if (f6s && f6s.includes("f6s.com")) properties.f6s_url = f6s;
     if (stage && ["idea", "mvp", "revenue", "scaling"].includes(stage)) properties.stage = stage;
     if (program) properties.program = program;
     for (const key of ["skills_offered", "skills_needed", "sectors", "looking_for"] as const) {
@@ -340,6 +399,7 @@ const attend: AgentTool = {
 };
 
 export const summitTools: AgentTool[] = [
+  lookupStartup,
   setupProfile,
   whoToMeet,
   listSquads,

@@ -54,6 +54,7 @@
       "order": 4,
       "fields": [
         { "key": "startup", "label": "Startup", "type": "text" },
+        { "key": "f6s_url", "label": "F6S profile", "type": "text" },
         { "key": "stage", "label": "Stage", "type": "select", "options": ["idea", "mvp", "revenue", "scaling"] },
         { "key": "program", "label": "Summit program", "type": "select", "options": ["Starter", "Booster", "Talent", "FireCode"] },
         { "key": "skills_offered", "label": "Skills offered", "type": "multiselect" },
