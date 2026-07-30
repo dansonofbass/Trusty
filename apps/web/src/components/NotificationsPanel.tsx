@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Handshake, MessageCircle, ShieldCheck, Sparkles, UserPlus, Users } from "lucide-react";
+import { Bell, BookmarkCheck, Handshake, MessageCircle, ShieldCheck, Sparkles, UserPlus, Users } from "lucide-react";
 import PanelShell from "./dock/PanelShell";
 import { useUI } from "@/lib/store";
 import {
@@ -20,6 +20,8 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   rec: Sparkles,
   listen: Bell,
   startup: Users,
+  circle: Users,
+  answer: BookmarkCheck,
 };
 
 function timeAgo(iso: string): string {
@@ -60,7 +62,7 @@ export default function NotificationsPanel() {
 
   const openItem = (n: NotificationItem) => {
     setRightPanel(null);
-    if (n.type === "squad" || n.type === "startup") {
+    if (n.type === "squad" || n.type === "startup" || n.type === "circle") {
       router.push("/messages");
     } else if (n.actorId) {
       select(n.actorId); // opens the Inspector on the actor

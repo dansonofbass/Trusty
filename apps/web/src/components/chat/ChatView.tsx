@@ -9,10 +9,44 @@ import AgentChat, { type TrustToolData } from "@/components/composer/AgentChat";
 import WeaveFlow from "@/components/composer/WeaveFlow";
 import ChatInput from "./ChatInput";
 import { useUI } from "@/lib/store";
+import { spaceFromHost } from "@/lib/space";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useChat } from "@/lib/chat/ChatProvider";
 import { resolveScope, trustSearch as runTrustSearch, type TrustRec } from "@/lib/trustClient";
 import { saveDraft } from "@/lib/writings";
+
+interface HeroCard {
+  title: string;
+  sub: string;
+  prompt?: string;
+  href?: string;
+}
+
+/** Space-aware hero suggestions: each community's front door teaches ITS jobs. */
+function heroCardsForSpace(space: string | null): HeroCard[] {
+  if (space === "summit") {
+    return [
+      { title: "🎪 Get set up for the Summit", prompt: "/summit set me up", sub: "Profile, program, squad — 1 minute" },
+      { title: "🤝 Who should I meet?", prompt: "/summit who should I meet?", sub: "Mentor & founder matches, with reasons" },
+      { title: "🗓 What's on today?", prompt: "/summit what's on the agenda today?", sub: "Today's sessions, by program" },
+      { title: "🔍 Find someone trusted", prompt: "Find a trusted dentist in Yerevan", sub: "Search your network's real experience" },
+    ];
+  }
+  if (space === "irham") {
+    return [
+      { title: "🏛 Residency & documents", prompt: "What documents do I need for the residency application?", sub: "Saved community answers, with author + date" },
+      { title: "🧾 Find a trusted accountant", prompt: "Find a trusted accountant for my IE", sub: "Ranked by your community's real experience" },
+      { title: "⭕ Join the circles", href: "/discover", sub: "Residency · Accounting · Jobs · Health — pick yours" },
+      { title: "📣 Ask the community", prompt: "Ask my network: which bank is currently opening accounts?", sub: "Reaches people who listen to you" },
+    ];
+  }
+  return [
+    { title: "🔍 Find someone trusted", prompt: "Find a trusted dentist in Yerevan", sub: "Search your network's real experience" },
+    { title: "⭕ Create a circle", href: "/messages", sub: "A group chat + shared memory for your community" },
+    { title: "📝 Capture a thought", prompt: "Note: ", sub: "Notes link people, places and ideas automatically" },
+    { title: "📣 Ask your network", prompt: "Ask my network: ", sub: "Broadcast a need to people who listen to you" },
+  ];
+}
 
 const KIND_FOR_INTENT: Record<string, string> = {
   search: "note",
@@ -175,19 +209,14 @@ export default function ChatView() {
           </p>
           {input}
           {heroChips}
-          {/* Try-asking guide: real suggestion cards (what + example), one tap
-              runs it; "everything" opens the full command catalog. */}
+          {/* Try-asking guide: space-aware suggestion cards — one tap runs the
+              prompt (or routes); "everything" opens the full command catalog. */}
           <div className="mx-auto mt-6 grid w-full max-w-[620px] grid-cols-1 gap-2 sm:grid-cols-2">
-            {[
-              { title: "🎪 Get set up for the Summit", prompt: "@seasidestartupsummit set me up", sub: "Profile, program, squad — 1 minute" },
-              { title: "🤝 Who should I meet?", prompt: "@seasidestartupsummit who should I meet?", sub: "Mentor & founder matches, with reasons" },
-              { title: "🗓 What's on today?", prompt: "@seasidestartupsummit what's on the agenda today?", sub: "Today's sessions, by program" },
-              { title: "🔍 Find someone trusted", prompt: "Find a trusted dentist in Yerevan", sub: "Search your network's real experience" },
-            ].map((c) => (
+            {heroCardsForSpace(spaceFromHost()).map((c) => (
               <button
-                key={c.prompt}
+                key={c.title}
                 type="button"
-                onClick={() => void runTurn({ text: c.prompt })}
+                onClick={() => (c.href ? router.push(c.href) : void runTurn({ text: c.prompt! }))}
                 className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-2.5 text-left backdrop-blur-md transition hover:border-[var(--color-accent-line)]"
               >
                 <div className="text-[12.5px] font-semibold text-ink">{c.title}</div>

@@ -25,6 +25,8 @@ import { agentChat, type ToolSpec } from "./gateway";
 export interface ToolContext {
   userId: string;
   graphUrl: string;
+  /** Space (ontology app slug) the request came from — scopes tool reads. */
+  app?: string;
   emit: (ev: AgentStreamEvent) => void;
   signal?: AbortSignal;
 }

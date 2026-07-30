@@ -13,6 +13,10 @@ export interface Skill {
   description: string;
   /** Example prompts shown in the picker + guide. */
   examples: string[];
+  /** Restrict to these Spaces (subdomains). Omit = everywhere. The neutral
+   *  home shows unrestricted skills plus any listed with `alsoHome`. */
+  spaces?: string[];
+  alsoHome?: boolean;
 }
 
 export const SKILLS: Skill[] = [
@@ -22,6 +26,8 @@ export const SKILLS: Skill[] = [
     icon: "🎪",
     description: "Event concierge: matches, squads, agenda, mentor notes.",
     examples: ["set me up", "who should I meet?", "what's on the agenda today?", "who's in my squad?"],
+    spaces: ["summit"],
+    alsoHome: true,
   },
   {
     slug: "find",
@@ -55,6 +61,10 @@ export const SKILLS: Skill[] = [
 
 export const skillBySlug = (slug: string | null | undefined): Skill | undefined =>
   SKILLS.find((s) => s.slug === slug);
+
+/** Skills visible in the current Space (space=null → the neutral home). */
+export const skillsForSpace = (space: string | null): Skill[] =>
+  SKILLS.filter((s) => !s.spaces || s.spaces.includes(space ?? "") || (space === null && s.alsoHome));
 
 /** The active "/token" being typed at the START of the input, if any. */
 export function parseSlashToken(text: string, caret: number): { query: string } | null {

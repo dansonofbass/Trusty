@@ -16,6 +16,13 @@
 	}
 }
 
+# Community Spaces — same app, the BFF scopes data by Host. These names use
+# ACME (needs DNS records); if your provided cert is a wildcard, add the same
+# `tls /certs/...` lines here instead.
+summit.{$PUBLIC_DOMAIN:localhost}, irham.{$PUBLIC_DOMAIN:localhost} {
+	reverse_proxy web:3000
+}
+
 # Kibana (observability profile) — basic-auth protected; hash generated with
 # `docker compose run --rm caddy caddy hash-password`. No-op until the DNS
 # record for kibana.<domain> exists and KIBANA_PASS_HASH is set.

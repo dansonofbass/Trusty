@@ -8,18 +8,25 @@
 import { createPortal } from "react-dom";
 import { X, Tent, Search, NotebookPen, Scale, Megaphone } from "lucide-react";
 
+/** Plain-language framing shown at the top: the three things this app does. */
+const THREE_JOBS = [
+  { emoji: "💬", text: "Ask — one input; the agent searches your community's saved answers and your trusted network before anything generic." },
+  { emoji: "⭕", text: "Message your circles — group chats where good answers get bookmarked and become shared memory." },
+  { emoji: "🤝", text: "Find people you can trust — every recommendation comes with WHO vouches for it and why." },
+];
+
 const SECTIONS: { icon: React.ReactNode; title: string; blurb: string; prompts: string[] }[] = [
   {
     icon: <Tent size={14} />,
     title: "Seaside Startup Summit",
-    blurb: "Mention @seasidestartupsummit and the agent becomes your event concierge.",
+    blurb: "Type /summit (or just mention the summit) and the agent becomes your event concierge.",
     prompts: [
-      "@seasidestartupsummit set me up",
-      "@seasidestartupsummit who should I meet?",
-      "@seasidestartupsummit what's on the agenda today?",
-      "@seasidestartupsummit who's in my squad?",
-      "@seasidestartupsummit confirm Ani is in my squad",
-      "@seasidestartupsummit notes from my mentor session with Chris Burry: …",
+      "/summit set me up",
+      "/summit who should I meet?",
+      "/summit what's on the agenda today?",
+      "/summit who's in my squad?",
+      "/summit confirm Ani is in my squad",
+      "/summit notes from my mentor session with Chris Burry: …",
     ],
   },
   {
@@ -83,6 +90,15 @@ export default function GuideSheet({ onRun, onClose }: {
           </button>
         </div>
         <div className="scroll-quiet min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          {/* The whole app in three sentences — de-jargoned. */}
+          <div className="space-y-1.5">
+            {THREE_JOBS.map((j) => (
+              <p key={j.emoji} className="flex items-start gap-2 text-[12px] leading-snug text-[var(--color-dim)]">
+                <span>{j.emoji}</span>
+                <span>{j.text}</span>
+              </p>
+            ))}
+          </div>
           <p className="rounded-lg bg-[var(--color-tint)] px-3 py-2 text-[11.5px] leading-snug text-[var(--color-dim)]">
             Tip: type <b className="text-ink">/</b> in the message box to switch skills — <b className="text-ink">/summit</b>,{" "}
             <b className="text-ink">/find</b>, <b className="text-ink">/note</b>, <b className="text-ink">/decide</b>, <b className="text-ink">/ask</b>.

@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
   const state = randomToken(16);
   const verifier = randomToken(32);
   const challenge = await pkceChallenge(verifier);
+  // Space subdomains: remember which host started the flow so the callback
+  // (always on APP_BASE_URL) can land the user back on their space.
+  const returnHost = req.headers.get("host") ?? undefined;
   const res = NextResponse.redirect(buildAuthorizationUrl(state, challenge, { register }));
-  setPkceCookie(res, JSON.stringify({ state, verifier, invite, waitlist }));
+  setPkceCookie(res, JSON.stringify({ state, verifier, invite, waitlist, returnHost }));
   return res;
 }

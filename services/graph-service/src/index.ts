@@ -47,6 +47,7 @@ import {
   isListening,
   recommendationsFromListened,
   haversineKm,
+  analyzeComposerText,
   createEntity,
   updateEntity,
   upsertProfile,
@@ -235,9 +236,10 @@ import { addFeedback, feedbackEnabled, initFeedback, listFeedback } from "./feed
 import { attachEventNats, emitEvent, ingestEvent, setEventHook } from "./domainEventBus";
 import { addNotification, initNotifications, listNotifications, markNotificationsRead } from "./notifications";
 import {
-  countRecentMessages, deleteMessage, ensureSquadRoom, getRoom, initRooms, listMessages,
+  countRecentMessages, deleteMessage, ensureRoom, ensureSquadRoom, getRoom, initRooms, listMessages,
   logSquadJoin, markRoomRead, postMessage, recentSquadJoins, roomsEnabled, roomSummary, squadChatter,
 } from "./rooms";
+import { initAnswers, listRoomAnswers, saveAnswer, searchAnswers } from "./answers";
 import type { DomainEvent } from "@constellation/graph-core";
 import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
 import {
@@ -462,7 +464,7 @@ function viewFor(userId: string, meta: UserMeta, app?: string): Dataset {
     view.nodes
       .filter((n) => {
         const et = (n as { entityType?: string }).entityType;
-        return et === "squad" || et === "organizer";
+        return et === "squad" || et === "organizer" || et === "circle";
       })
       .map((n) => n.id),
   );
@@ -1921,6 +1923,17 @@ function deriveNotifications(evt: DomainEvent): void {
     case "listen.accepted":
       if (evt.targetId) add(evt.targetId, "listen", `${actorLabel} accepted your listen request`, actor);
       break;
+    case "circle.joined":
+      if (evt.targetId) {
+        for (const m of squadMembers(evt.targetId)) {
+          if (m !== actor) add(m, "circle", `${actorLabel} joined ${labelOf(evt.targetId)}`, evt.targetId);
+        }
+      }
+      break;
+    case "answer.saved":
+      // targetId = the message author: "your answer was saved as knowledge".
+      if (evt.targetId) add(evt.targetId, "answer", `${actorLabel} saved your message as an answer`, actor);
+      break;
     default:
       break;
   }
@@ -1953,33 +1966,275 @@ app.post("/api/notifications/read", async (req, res) => {
 
 const nodeLabels = () => new Map(shared.nodes.map((n) => [n.id, n.label] as const));
 
-/** Squad rooms derive access from the graph: you must currently be MEMBER_OF
- *  the squad the room wraps. (The future "group" kind checks room_members.) */
-const canEnterRoom = (userId: string, room: { kind: string; refId: string | null }) =>
-  room.kind === "squad" && !!room.refId && mySquadOf(userId) === room.refId;
+/** Rooms wrap container nodes (squads, circles); access derives LIVE from the
+ *  graph — you must currently be MEMBER_OF the container. Leave it, lose it. */
+const canEnterRoom = (userId: string, room: { kind: string; refId: string | null }) => {
+  if (!room.refId) return false;
+  if (room.kind === "squad") return mySquadOf(userId) === room.refId;
+  if (room.kind === "circle") return squadMembers(room.refId).includes(userId);
+  return false;
+};
+
+const entityTypeOf = (n: { entityType?: string } | undefined) => n?.entityType ?? "";
+
+/** All circle nodes the user is MEMBER_OF. */
+const myCircles = (userId: string) => {
+  const byId = new Map(shared.nodes.map((n) => [n.id, n] as const));
+  const out: typeof shared.nodes = [];
+  for (const l of shared.links) {
+    if (l.type !== "MEMBER_OF" || linkSourceId(l) !== userId) continue;
+    const node = byId.get(linkTargetId(l));
+    if (node && entityTypeOf(node as { entityType?: string }) === "circle") out.push(node);
+  }
+  return out;
+};
 
 app.get("/api/rooms", async (req, res) => {
   const { userId } = auth(req);
   try {
     const rooms: unknown[] = [];
-    const mine = mySquadOf(userId);
-    if (mine && roomsEnabled()) {
-      const squad = shared.nodes.find((n) => n.id === mine);
-      const roomId = await ensureSquadRoom(mine, squad?.label ?? "My squad");
-      const summary = await roomSummary(roomId, userId);
+    if (roomsEnabled()) {
       const labels = nodeLabels();
-      rooms.push({
-        id: roomId,
-        kind: "squad",
-        title: squad?.label ?? "My squad",
-        memberCount: squadMembers(mine).length,
-        unread: summary.unread,
-        lastMessage: summary.lastMessage
-          ? { ...summary.lastMessage, senderLabel: labels.get(summary.lastMessage.senderId) ?? "Someone" }
-          : null,
-      });
+      const containers: { kind: string; node: (typeof shared.nodes)[number] }[] = [];
+      const mine = mySquadOf(userId);
+      const mySquadNode = mine ? shared.nodes.find((n) => n.id === mine) : undefined;
+      if (mySquadNode) containers.push({ kind: "squad", node: mySquadNode });
+      for (const c of myCircles(userId)) containers.push({ kind: "circle", node: c });
+      for (const { kind, node } of containers) {
+        const roomId = await ensureRoom(kind, node.id, node.label);
+        const summary = await roomSummary(roomId, userId);
+        rooms.push({
+          id: roomId,
+          kind,
+          title: node.label,
+          memberCount: squadMembers(node.id).length,
+          unread: summary.unread,
+          lastMessage: summary.lastMessage
+            ? { ...summary.lastMessage, senderLabel: labels.get(summary.lastMessage.senderId) ?? "Someone" }
+            : null,
+        });
+      }
     }
     res.json({ rooms });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* --------- circles (user-created groups, space-scoped browse) --------- */
+
+const CIRCLE_CATEGORIES = new Set(["topic", "community", "event", "team"]);
+const circleNodes = () =>
+  shared.nodes.filter((n) => entityTypeOf(n as { entityType?: string }) === "circle");
+const circleProps = (n: (typeof shared.nodes)[number]) =>
+  ((n as { properties?: Record<string, unknown> }).properties ?? {}) as Record<string, unknown>;
+
+app.get("/api/circles", async (req, res) => {
+  const { userId } = auth(req);
+  const space = appOf(req);
+  try {
+    const circles = circleNodes()
+      .filter((n) => String(circleProps(n).app ?? BUILTIN_APP) === space)
+      .map((n) => {
+        const members = squadMembers(n.id);
+        return {
+          id: n.id,
+          label: n.label,
+          description: String(circleProps(n).description ?? ""),
+          category: String(circleProps(n).category ?? "topic"),
+          open: circleProps(n).open !== false,
+          memberCount: members.length,
+          mine: members.includes(userId),
+          roomId: `room_circle_${n.id}`,
+        };
+      })
+      .sort((a, b) => b.memberCount - a.memberCount);
+    res.json({ circles });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/circles", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const name = str(req.body?.name, 60);
+  const description = str(req.body?.description, 280);
+  const category = CIRCLE_CATEGORIES.has(String(req.body?.category ?? "")) ? String(req.body?.category) : "topic";
+  const open = req.body?.open !== false;
+  const space = appOf(req);
+  if (!name) return res.status(400).json({ error: "name required" });
+  try {
+    const lower = name.toLowerCase();
+    if (circleNodes().some((n) => n.label.toLowerCase() === lower && String(circleProps(n).app ?? "") === space)) {
+      return res.status(409).json({ error: "a circle with that name already exists in this space" });
+    }
+    let nodeId = "";
+    await serialize(async () => {
+      let ws = workingSet(userId, meta);
+      const r = createEntity(ws, {
+        entityType: "circle",
+        label: name,
+        properties: { description, category, open, app: space, createdBy: userId },
+        now: Date.now(),
+      });
+      ws = r.dataset;
+      nodeId = r.nodeId;
+      ws = {
+        ...ws,
+        links: [...ws.links, { id: `member_${userId}_${nodeId}`, source: userId, target: nodeId, type: "MEMBER_OF" as const, weight: 1 }],
+      };
+      return commitGraph(userId, refreshDerived(ws));
+    });
+    const roomId = await ensureRoom("circle", nodeId, name);
+    emitEvent("circle.created", { userId, app: space, targetId: nodeId, payload: { category, open } });
+    emitEvent("room.created", { userId, app: space, targetId: roomId, payload: { kind: "circle" } });
+    res.json({ ok: true, circleId: nodeId, roomId });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Join an open circle (or accept being added — same edge either way). */
+app.post("/api/circles/:id/join", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const circle = circleNodes().find((n) => n.id === req.params.id);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  if (circleProps(circle).open === false && !squadMembers(circle.id).includes(userId)) {
+    return res.status(403).json({ error: "this circle is invite-only — ask a member to add you" });
+  }
+  try {
+    await serialize(async () => {
+      const ws = workingSet(userId, meta);
+      const edgeId = `member_${userId}_${circle.id}`;
+      if (ws.links.some((l) => l.id === edgeId)) return commitGraph(userId, ws);
+      return commitGraph(
+        userId,
+        refreshDerived({
+          ...ws,
+          links: [...ws.links, { id: edgeId, source: userId, target: circle.id, type: "MEMBER_OF" as const, weight: 1 }],
+        }),
+      );
+    });
+    emitEvent("circle.joined", { userId, app: String(circleProps(circle).app ?? ""), targetId: circle.id });
+    res.json({ ok: true, circleId: circle.id, roomId: `room_circle_${circle.id}` });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Any member can bring someone in (the community vouching pattern). */
+app.post("/api/circles/:id/members", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const personId = str(req.body?.personId, 200);
+  const circle = circleNodes().find((n) => n.id === req.params.id);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  if (!squadMembers(circle.id).includes(userId)) return res.status(403).json({ error: "only members can add people" });
+  if (!personId || !shared.nodes.some((n) => n.id === personId && n.type === "person")) {
+    return res.status(400).json({ error: "unknown person" });
+  }
+  try {
+    await serialize(async () => {
+      const ws = workingSet(userId, meta);
+      const edgeId = `member_${personId}_${circle.id}`;
+      if (ws.links.some((l) => l.id === edgeId)) return commitGraph(userId, ws);
+      return commitGraph(
+        userId,
+        refreshDerived({
+          ...ws,
+          links: [...ws.links, { id: edgeId, source: personId, target: circle.id, type: "MEMBER_OF" as const, weight: 1 }],
+        }),
+      );
+    });
+    emitEvent("circle.joined", { userId, app: String(circleProps(circle).app ?? ""), targetId: circle.id, payload: { added: personId } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/circles/:id/leave", async (req, res) => {
+  const { userId, meta } = auth(req);
+  const circle = circleNodes().find((n) => n.id === req.params.id);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  try {
+    await serialize(async () => {
+      const ws = workingSet(userId, meta);
+      const edgeId = `member_${userId}_${circle.id}`;
+      if (!ws.links.some((l) => l.id === edgeId)) return commitGraph(userId, ws);
+      return commitGraph(userId, refreshDerived({ ...ws, links: ws.links.filter((l) => l.id !== edgeId) }));
+    });
+    emitEvent("circle.left", { userId, targetId: circle.id });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ------------- saved answers (community memory, space-scoped) ---------- */
+
+app.post("/api/rooms/:id/messages/:mid/save-answer", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const room = await getRoom(req.params.id);
+    if (!room || !canEnterRoom(userId, room)) return res.status(403).json({ error: "not a member of this room" });
+    const mid = Number(req.params.mid);
+    const msg = (await listMessages(room.id, {})).find((m) => m.id === mid && !m.deleted);
+    if (!msg) return res.status(404).json({ error: "message not found" });
+    const container = room.refId ? shared.nodes.find((n) => n.id === room.refId) : undefined;
+    const space = String((container ? circleProps(container).app : "") || appOf(req));
+    const labels = nodeLabels();
+    const r = await saveAnswer({
+      roomId: room.id,
+      messageId: mid,
+      authorId: msg.senderId,
+      authorLabel: labels.get(msg.senderId) ?? "Someone",
+      savedBy: userId,
+      body: msg.body,
+      topics: analyzeComposerText(msg.body).topics,
+      app: space,
+    });
+    if (r.created) emitEvent("answer.saved", { userId, app: space, targetId: msg.senderId, payload: { room: room.kind } });
+    res.json({ ok: true, created: r.created });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+app.get("/api/rooms/:id/answers", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const room = await getRoom(req.params.id);
+    if (!room || !canEnterRoom(userId, room)) return res.status(403).json({ error: "not a member of this room" });
+    res.json({ answers: await listRoomAnswers(room.id) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Space-scoped answer search — the agent's community-memory retrieval. */
+app.get("/api/answers/search", async (req, res) => {
+  auth(req);
+  try {
+    const q = String(req.query.q ?? "").slice(0, 200);
+    const rows = await searchAnswers(appOf(req), q);
+    const roomTitles = new Map<string, string>();
+    for (const r of rows) {
+      if (!roomTitles.has(r.roomId)) {
+        const room = await getRoom(r.roomId);
+        roomTitles.set(r.roomId, room?.title ?? "a circle");
+      }
+    }
+    res.json({
+      answers: rows.map((r) => ({
+        id: r.id,
+        body: r.body,
+        author: r.authorLabel,
+        authorId: r.authorId,
+        room: roomTitles.get(r.roomId) ?? "a circle",
+        topics: r.topics,
+        savedAt: r.createdAt,
+      })),
+    });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -5287,6 +5542,9 @@ async function main() {
   );
   await initRooms().catch((e) =>
     console.error("graph-service: rooms init failed:", e instanceof Error ? e.message : e),
+  );
+  await initAnswers().catch((e) =>
+    console.error("graph-service: answers init failed:", e instanceof Error ? e.message : e),
   );
   await initFeedback().catch((e) =>
     console.error("graph-service: feedback init failed:", e instanceof Error ? e.message : e),

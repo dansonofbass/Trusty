@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
   if (!code || !state || !pkceRaw) {
     return NextResponse.redirect(`${appBase}/api/auth/login`);
   }
-  let pkce: { state: string; verifier: string; invite?: string; waitlist?: boolean };
+  let pkce: { state: string; verifier: string; invite?: string; waitlist?: boolean; returnHost?: string };
   try {
     pkce = JSON.parse(pkceRaw);
   } catch {
@@ -102,14 +102,26 @@ export async function GET(req: NextRequest) {
     //   waitlisted         → /waitlist
     if (pkce.invite) await consumeInvite(pkce.invite, session);
     const status = await fetchStatus(session);
+    // Space subdomains: land back on the host that started the flow — but only
+    // if it's OUR domain (the apex or a subdomain of it), never an open redirect.
+    const returnBase = (() => {
+      const rh = (pkce.returnHost ?? "").toLowerCase();
+      try {
+        const baseHost = new URL(appBase).host.toLowerCase();
+        if (rh && (rh === baseHost || rh.endsWith(`.${new URL(appBase).hostname.toLowerCase()}`))) {
+          return `${new URL(appBase).protocol}//${rh}`;
+        }
+      } catch { /* fall through */ }
+      return appBase;
+    })();
     const landing =
       status === "active"
-        ? appBase
+        ? returnBase
         : status === "pending_onboarding"
-          ? `${appBase}/onboarding`
+          ? `${returnBase}/onboarding`
           : status === "waitlisted"
-            ? `${appBase}/waitlist`
-            : appBase; // gating disabled (open mode) → straight to Home
+            ? `${returnBase}/waitlist`
+            : returnBase; // gating disabled (open mode) → straight to Home
 
     emitWebEvent("auth.login", session.sub, { landing: status ?? "open", invited: !!pkce.invite });
     const res = NextResponse.redirect(landing);

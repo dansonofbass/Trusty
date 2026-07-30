@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { readValidSession } from "@/lib/auth/session";
 import { extractionRateLimit, rateLimited } from "@/lib/rateLimit";
+import { spaceFromHost } from "@/lib/space";
 
 const EXTRACTOR = process.env.EXTRACTOR_INTERNAL_URL ?? "http://extractor:4003";
 
@@ -21,6 +22,11 @@ export async function POST(req: NextRequest) {
         "content-type": "application/json",
         "x-user-id": session.sub,
         ...(session.name ? { "x-user-name": session.name } : {}),
+        // Space subdomain → agent tools scope their graph reads to it.
+        ...((() => {
+          const sp = spaceFromHost(req.headers.get("host") ?? undefined);
+          return sp ? { "x-app": sp } : {};
+        })()),
       },
       body,
       cache: "no-store",

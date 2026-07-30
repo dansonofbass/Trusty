@@ -25,6 +25,7 @@ import { fetchWorkspace, type FolderRow, type WritingSummary } from "@/lib/writi
 import { listConversations, type ConversationSummary } from "@/lib/chat/conversationsClient";
 import { fetchRooms } from "@/lib/socialClient";
 import NotificationBell from "@/components/NotificationBell";
+import { SPACE_META, SPACE_SLUGS, homeUrl, spaceFromHost, spaceUrl } from "@/lib/space";
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
 
@@ -184,6 +185,48 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </Link>
         ))}
       </nav>
+
+      {/* Spaces — community front doors (subdomains). Current one highlighted. */}
+      <div className="mt-3 px-2">
+        <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
+          Spaces
+        </div>
+        {(() => {
+          const current = spaceFromHost();
+          return (
+            <ul>
+              {current !== null && (
+                <li>
+                  <a
+                    href={homeUrl()}
+                    className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
+                  >
+                    <span>🏠</span>
+                    <span className="min-w-0 flex-1 truncate">Trusty home</span>
+                  </a>
+                </li>
+              )}
+              {SPACE_SLUGS.map((slug) => (
+                <li key={slug}>
+                  <a
+                    href={current === slug ? undefined : spaceUrl(slug)}
+                    className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] transition hover:bg-[var(--color-tint)]"
+                    style={
+                      current === slug
+                        ? { background: "var(--color-accent-soft)", color: "var(--color-accent)" }
+                        : { color: "var(--color-dim)" }
+                    }
+                    title={SPACE_META[slug].tagline}
+                  >
+                    <span>{SPACE_META[slug].emoji}</span>
+                    <span className="min-w-0 flex-1 truncate">{SPACE_META[slug].label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
+      </div>
 
       {/* Chats history (Phase 2 — persisted conversations) */}
       <div className="mt-3 px-2">

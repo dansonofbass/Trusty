@@ -13,7 +13,8 @@ import {
   type ResolvedMention,
 } from "@constellation/graph-core";
 import MentionPopover from "@/components/composer/MentionPopover";
-import { SKILLS, parseSlashToken, skillBySlug, type Skill } from "@/lib/skills";
+import { parseSlashToken, skillsForSpace, type Skill } from "@/lib/skills";
+import { spaceFromHost } from "@/lib/space";
 import { X } from "lucide-react";
 import { GOLD } from "@/lib/palette";
 
@@ -102,10 +103,11 @@ export default function ChatInput({
 
   // "/" skill picker — first token only; static registry, never empty.
   const slash = useMemo(() => parseSlashToken(text, caret), [text, caret]);
-  const slashMatches = useMemo(
-    () => (slash ? SKILLS.filter((k) => k.slug.startsWith(slash.query) || k.name.toLowerCase().includes(slash.query)) : []),
-    [slash],
-  );
+  const slashMatches = useMemo(() => {
+    if (!slash) return [];
+    const pool = skillsForSpace(spaceFromHost());
+    return pool.filter((k) => k.slug.startsWith(slash.query) || k.name.toLowerCase().includes(slash.query));
+  }, [slash]);
   const pickSkill = (k: Skill) => {
     setSkill(k);
     setText(text.replace(/^\s*\/[\w-]*/, "").trimStart());
@@ -166,6 +168,7 @@ export default function ChatInput({
     <div className="relative">
       <div className="rounded-2xl border border-[var(--color-line)] bg-[color-mix(in_srgb,var(--color-card)_92%,transparent)] p-3 shadow-xl backdrop-blur-md focus-within:border-[rgba(255,140,90,0.4)]">
         <textarea
+          dir="auto"
           autoFocus={!isTouch()}
           ref={inputRef}
           value={text}

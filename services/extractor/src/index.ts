@@ -1100,7 +1100,12 @@ app.post("/agent/stream", async (req, res) => {
       transcript,
       system: summitMode ? AGENT_SYSTEM_PROMPT + summitPromptAddendum(summitProfile) : AGENT_SYSTEM_PROMPT,
       registry: summitMode ? summitRegistry : composerRegistry,
-      ctx: { userId, graphUrl: GRAPH, emit: emit as (ev: AgentStreamEvent) => void },
+      ctx: {
+        userId,
+        graphUrl: GRAPH,
+        app: (req.header("x-app") || "").trim() || undefined,
+        emit: emit as (ev: AgentStreamEvent) => void,
+      },
       model,
       meta: {
         userId,

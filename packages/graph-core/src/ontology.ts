@@ -53,6 +53,7 @@ export const DOMAIN_LABEL: Record<string, string> = {
   immigration: "Immigration",
   shopping: "Shopping",
   travel: "Travel",
+  community: "Community",
 };
 
 export type FieldType = "text" | "number" | "money" | "boolean" | "select" | "multiselect" | "geo";
@@ -390,6 +391,25 @@ export const ENTITY_TYPES: EntityTypeDef[] = [
       PRICE_RANGE,
       { key: "amenities", label: "Amenities", type: "multiselect", options: ["wifi", "pool", "breakfast", "parking", "gym", "spa", "pet_friendly"] },
       GEO,
+    ],
+  },
+  // ── Community ─────────────────────────────────────────────────
+  {
+    // User-created group (a "circle"): graph-native like squads — a node with
+    // MEMBER_OF edges — plus a chat room. Built-in (not app-defined) so circle
+    // creation works in every Space without seeding; the `app` property records
+    // which Space the circle belongs to.
+    id: "circle",
+    label: "Circle",
+    domain: "community",
+    baseType: "location",
+    topic: "community",
+    fields: [
+      { key: "description", label: "About", type: "text" },
+      { key: "category", label: "Kind", type: "select", options: ["topic", "community", "event", "team"] },
+      { key: "open", label: "Open to join", type: "boolean" },
+      { key: "app", label: "Space", type: "text" },
+      { key: "createdBy", label: "Created by", type: "text" },
     ],
   },
 ];

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { MessagesSquare, Radio, Users } from "lucide-react";
 import { FeedContent } from "@/components/FeedPanel";
 import { useUI } from "@/lib/store";
-import { fetchSquadActivity, type SquadActivity } from "@/lib/socialClient";
+import { fetchCircles, fetchSquadActivity, joinCircle, type CircleSummary, type SquadActivity } from "@/lib/socialClient";
+import { spaceFromHost } from "@/lib/space";
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, Math.floor((Date.now() - Date.parse(iso)) / 1000));
@@ -15,11 +16,86 @@ function timeAgo(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+/** Circles in this space you can join (or open, if you're in). */
+function CirclesSection() {
+  const router = useRouter();
+  const [circles, setCircles] = useState<CircleSummary[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchCircles()
+      .then((r) => alive && setCircles(r.circles))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!circles || circles.length === 0) return null;
+
+  const enter = async (c: CircleSummary) => {
+    if (c.mine) {
+      router.push(`/messages?room=${encodeURIComponent(c.roomId)}`);
+      return;
+    }
+    setBusyId(c.id);
+    try {
+      await joinCircle(c.id);
+      router.push(`/messages?room=${encodeURIComponent(c.roomId)}`);
+    } catch {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className="mb-5">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
+        <MessagesSquare size={11} /> Circles
+      </div>
+      <div className="space-y-1.5">
+        {circles.slice(0, 8).map((c) => (
+          <div
+            key={c.id}
+            className="flex w-full items-center gap-3 rounded-xl border border-line bg-[var(--color-surface)] px-3.5 py-2.5 backdrop-blur-md"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="truncate text-[13px] font-semibold text-ink">{c.label}</span>
+                <span className="rounded-full bg-[rgba(146,166,255,0.1)] px-1.5 py-0.5 text-[9.5px] text-[var(--color-dim)]">{c.category}</span>
+                <span className="text-[10px] text-[var(--color-faint)]">{c.memberCount} member{c.memberCount === 1 ? "" : "s"}</span>
+              </span>
+              {c.description && (
+                <span dir="auto" className="mt-0.5 block truncate text-[11px] text-[var(--color-dim)]">{c.description}</span>
+              )}
+            </span>
+            <button
+              type="button"
+              disabled={busyId === c.id || (!c.open && !c.mine)}
+              onClick={() => void enter(c)}
+              className="shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold transition disabled:opacity-40"
+              style={
+                c.mine
+                  ? { background: "rgba(146,166,255,0.12)", color: "var(--color-ink)" }
+                  : { background: "var(--color-accent)", color: "var(--color-on-accent)" }
+              }
+            >
+              {c.mine ? "Open chat" : c.open ? (busyId === c.id ? "Joining…" : "Join") : "Invite-only"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** What's happening across squads: chat volume + who just joined. */
 function SquadActivitySection() {
   const router = useRouter();
   const select = useUI((s) => s.select);
   const [activity, setActivity] = useState<SquadActivity | null>(null);
+  // Squads are summit-space structure — don't show them to other communities.
+  const inSummit = spaceFromHost() === "summit";
 
   useEffect(() => {
     let alive = true;
@@ -31,6 +107,7 @@ function SquadActivitySection() {
     };
   }, []);
 
+  if (!inSummit) return null;
   if (!activity || (activity.chatter.length === 0 && activity.joins.length === 0)) return null;
 
   return (
@@ -112,6 +189,7 @@ export default function DiscoverPage() {
       </div>
       <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[720px] px-4 py-4">
+          <CirclesSection />
           <SquadActivitySection />
           <FeedContent
             selected={null}

@@ -40,6 +40,7 @@ async function graphFetch(
     headers: {
       "content-type": "application/json",
       "x-user-id": ctx.userId,
+      ...(ctx.app ? { "x-app": ctx.app } : {}),
     },
     ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     signal: ctx.signal,
@@ -303,6 +304,41 @@ const saveNote: AgentTool = {
   },
 };
 
+const searchAnswersTool: AgentTool = {
+  name: "search_answers",
+  description:
+    "Search the community's SAVED ANSWERS — messages members pinned as reusable knowledge in their circles (procedures, rules, provider tips, gotchas). ALWAYS try this FIRST for how-to / procedure / rule / \u201cwhich provider\u201d questions. When citing one, name the author and the date; if it's older than ~2 months, add that rules may have changed since.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      query: { type: "string", description: "Keywords, e.g. 'residency documents OVIR'" },
+    },
+    required: ["query"],
+  },
+  async execute(input, ctx) {
+    const q = str((input as Record<string, unknown>)?.query, 200);
+    if (!q) return { ok: false, summary: "query required" };
+    const r = await graphFetch(ctx, `/api/answers/search?q=${encodeURIComponent(q)}`);
+    if (!r.ok) return fail(r.body, r.status);
+    const answers =
+      (r.body as { answers?: { body: string; author: string; room: string; savedAt: string }[] } | null)
+        ?.answers ?? [];
+    if (!answers.length) {
+      return {
+        ok: true,
+        summary: `no saved answers match "${q}" — answer from general knowledge, and suggest saving good answers from circle chats so the next person finds them`,
+      };
+    }
+    const when = (iso: string) =>
+      new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const summary = answers
+      .map((a) => `\u00ab${a.body.slice(0, 300)}\u00bb \u2014 ${a.author}, in ${a.room}, ${when(a.savedAt)}`)
+      .join("\n");
+    return { ok: true, summary, data: { answers } };
+  },
+};
+
 const createAsk: AgentTool = {
   name: "create_ask",
   description:
@@ -445,6 +481,7 @@ export function buildComposerRegistry(extra: AgentTool[] = []): ToolRegistry {
   const tools = [
     trustSearch,
     entitySearch,
+    searchAnswersTool,
     saveNote,
     updateJourney,
     recordDecision,

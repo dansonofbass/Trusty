@@ -73,17 +73,21 @@ export async function initRooms(): Promise<void> {
   console.log("graph-service: rooms ready (postgres)");
 }
 
-/** Find-or-create the room for a squad node. Deterministic id. */
-export async function ensureSquadRoom(squadNodeId: string, title: string): Promise<string> {
-  const id = `room_squad_${squadNodeId}`;
+/** Find-or-create the room wrapping a container node (squad, circle…).
+ *  Deterministic id: `room_<kind>_<refId>`. */
+export async function ensureRoom(kind: string, refId: string, title: string): Promise<string> {
+  const id = `room_${kind}_${refId}`;
   if (!pool) return id;
   await pool.query(
-    `INSERT INTO rooms (id, kind, ref_id, title) VALUES ($1, 'squad', $2, $3)
-     ON CONFLICT (id) DO UPDATE SET title = $3`,
-    [id, squadNodeId, title],
+    `INSERT INTO rooms (id, kind, ref_id, title) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (id) DO UPDATE SET title = $4`,
+    [id, kind, refId, title],
   );
   return id;
 }
+
+export const ensureSquadRoom = (squadNodeId: string, title: string): Promise<string> =>
+  ensureRoom("squad", squadNodeId, title);
 
 export async function getRoom(
   roomId: string,

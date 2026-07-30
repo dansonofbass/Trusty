@@ -64,6 +64,11 @@ export const DOMAIN_EVENT_TYPES = [
   "room.created",
   "room.message_sent",
   "room.message_deleted",
+  // circles (user-created community groups) + saved answers (community memory)
+  "circle.created",
+  "circle.joined",
+  "circle.left",
+  "answer.saved",
   "agent.turn_started",
   "agent.tool_called",
   "agent.turn_completed",

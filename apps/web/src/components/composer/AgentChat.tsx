@@ -113,7 +113,7 @@ export default function AgentChat({
     <div className="mb-3 space-y-3">
       {entries.map((e, i) =>
         e.role === "user" ? (
-          <div key={i} className="ml-8 rounded-2xl rounded-tr-sm border border-line bg-[rgba(146,166,255,0.08)] px-3 py-2 text-[12.5px] leading-relaxed text-ink">
+          <div key={i} dir="auto" className="ml-8 rounded-2xl rounded-tr-sm border border-line bg-[rgba(146,166,255,0.08)] px-3 py-2 text-[12.5px] leading-relaxed text-ink">
             {e.text}
           </div>
         ) : (
@@ -123,7 +123,7 @@ export default function AgentChat({
             </span>
             {e.trace.length > 0 && <ThinkingBlock steps={toSteps(e.trace)} active={!!e.streaming} />}
             {(e.text || e.streaming) && (
-              <div className="mt-1.5 text-[12.5px] leading-relaxed text-ink">
+              <div dir="auto" className="mt-1.5 text-[12.5px] leading-relaxed text-ink">
                 <MarkdownLite text={e.text} />
                 {e.streaming && (
                   <span className="ml-0.5 inline-block h-3.5 w-[7px] animate-pulse align-middle" style={{ background: GOLD }} />

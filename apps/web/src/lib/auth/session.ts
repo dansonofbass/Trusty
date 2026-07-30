@@ -59,11 +59,24 @@ export function sessionFromTokens(claims: { sub: string; name?: string; email?: 
   };
 }
 
+// Space subdomains (summit.<domain>, irham.<domain>) share one login: scope
+// the cookies to the apex domain when APP_BASE_URL is a real domain. Host-only
+// (undefined) for localhost/IP dev.
+const COOKIE_DOMAIN = (() => {
+  try {
+    const h = new URL(process.env.APP_BASE_URL ?? "").hostname;
+    return h && h.includes(".") && !/^\d+\.\d+\.\d+\.\d+$/.test(h) ? h : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
 const cookieOpts = {
   httpOnly: true,
   sameSite: "lax" as const,
   secure: SECURE,
   path: "/",
+  ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
 };
 
 export async function setSessionCookie(res: NextResponse, s: Session): Promise<void> {

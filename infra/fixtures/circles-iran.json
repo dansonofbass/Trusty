@@ -1,0 +1,61 @@
+{
+  "app": {
+    "slug": "irham",
+    "label": "Iranians in Armenia",
+    "order": 20,
+    "config": {
+      "accent": "#54d26e",
+      "tagline": "Residency, tax, jobs — answered by people who did it"
+    }
+  },
+  "circles": [
+    {
+      "name": "Residency",
+      "category": "topic",
+      "open": true,
+      "description": "Appointments, permit.am, the officer call, renewals — the whole chain, answered by people who've been through it."
+    },
+    {
+      "name": "Accounting & Tax",
+      "category": "topic",
+      "open": true,
+      "description": "IE registration, the 20-day tax-regime window, turnover, invoices, prepayment — and which accountants people actually trust."
+    },
+    {
+      "name": "Banks & Money",
+      "category": "topic",
+      "open": true,
+      "description": "Account openings, transfers, Paysend/Payoneer routes, what works this month and what got closed."
+    },
+    {
+      "name": "Jobs & Referrals",
+      "category": "topic",
+      "open": true,
+      "description": "Who's hiring, who's looking, referrals inside the community — introduce yourself and your stack."
+    },
+    {
+      "name": "Health & Insurance",
+      "category": "topic",
+      "open": true,
+      "description": "Clinics, insurance, the residency health certificate, English/Persian-speaking doctors, medication."
+    },
+    {
+      "name": "Language",
+      "category": "topic",
+      "open": true,
+      "description": "Learning Armenian together — lessons, vocabulary, apps, practice partners."
+    },
+    {
+      "name": "Buy & Sell",
+      "category": "community",
+      "open": true,
+      "description": "Community marketplace: furniture, electronics, forwarder tips for Amazon/AliExpress, moving in and out."
+    },
+    {
+      "name": "Hangouts",
+      "category": "event",
+      "open": true,
+      "description": "Table tennis, running, coffee — meet people you don't have a transaction with."
+    }
+  ]
+}
