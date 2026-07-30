@@ -56,6 +56,19 @@ export default function MobileSearch() {
   const [tab, setTab] = useState<MobileTab>("feed");
   const [qrMode, setQrMode] = useState<null | "share" | "scan">(null);
   const [meSub, setMeSub] = useState<string | null>(null);
+
+  // The new chat shell is the mobile app now — /m is legacy. Bounce to it
+  // (carrying ?connect= QR links along); /m?legacy=1 still opens this view.
+  // "/?desktop=1" is loop-proof against stale cached bundles whose workspace
+  // layout still redirects phones here.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("legacy") === "1") return;
+    const cid = params.get("connect");
+    router.replace(cid ? `/?desktop=1&connect=${encodeURIComponent(cid)}` : "/?desktop=1");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     fetch("/api/auth/me").then((r) => (r.ok ? r.json() : null)).then((u) => u?.sub && setMeSub(u.sub)).catch(() => {});
     // QR deep link (/m?connect=<id>): open that person in the graph sheet.
