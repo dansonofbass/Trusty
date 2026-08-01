@@ -10,6 +10,7 @@ import WeaveFlow from "@/components/composer/WeaveFlow";
 import ChatInput from "./ChatInput";
 import { useUI } from "@/lib/store";
 import { spaceFromHost } from "@/lib/space";
+import SummitHome from "@/components/summit/SummitHome";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useChat } from "@/lib/chat/ChatProvider";
 import { resolveScope, trustSearch as runTrustSearch, type TrustRec } from "@/lib/trustClient";
@@ -193,6 +194,22 @@ export default function ChatView() {
       compact={!hero}
     />
   );
+
+  if (hero && spaceFromHost() === "summit") {
+    // Summit space: buttons-first front door (field-tested — strangers expect
+    // taps, not a conversation). The chat input stays right below; typing
+    // anything runs the agent as usual.
+    return (
+      <div className="scroll-quiet flex h-full flex-col overflow-y-auto px-4 py-5 md:px-6">
+        <div className="m-auto w-full max-w-[560px]">
+          <SummitHome />
+          <div className="mt-4">{input}</div>
+          {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
+          {toast && <p className="mt-3 text-center text-[11.5px] text-[#54d26e]">{toast}</p>}
+        </div>
+      </div>
+    );
+  }
 
   if (hero) {
     return (

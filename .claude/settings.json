@@ -7,7 +7,16 @@
       "PowerShell(docker compose run --rm --no-deps install sh -c \"ls node_modules/next/dist/docs/ 2>/dev/null | head -80\")",
       "PowerShell(docker compose run --rm --no-deps install sh -c \"cat node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md\" > \"$env:TEMP\\\\claude\\\\next-layouts.md\" 2>$null; docker compose run --rm --no-deps install sh -c \"ls node_modules/next/dist/docs/01-app/03-api-reference/02-file-conventions/ 2>/dev/null; ls node_modules/next/dist/docs/01-app/03-api-reference/ | head -20\")",
       "Bash(grep -n \"res.json\\({ ok: true, squadId\\\\|await confirmSquadmate\\(mine\\\\|app.post\\(\\\\\"/api/attend\\\\\"\\\\|app.post\\(\\\\\"/api/meetings\\\\\"\\\\|app.post\\(\\\\\"/api/notes\\\\\"\\\\|app.post\\(\\\\\"/api/trust\\\\\"\\\\|app.post\\(\\\\\"/api/trust/outcome\\\\\"\\\\|app.post\\(\\\\\"/api/recs\\\\\"\\\\|outcomes\\\\\", async\\\\|app.post\\(\\\\\"/api/asks\\\\\"\" services/graph-service/src/index.ts)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(cd \"f:/Develop/constellation/constellation\" && grep -n \"export function QRShare\\\\|export function QRScan\" -A 6 apps/web/src/components/summit/QRConnect.tsx && grep -n \"whoToMeet\\\\|who-to-meet\" apps/web/src/lib/summitClient.ts 2>/dev/null | head -5 && sed -n '/app.get\\(\"\\\\/api\\\\/who-to-meet\"/,+30p' services/graph-service/src/index.ts | head -35)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat\\(summit\\): buttons-first Summit Home — setup in 2 taps, the whole event in 6 buttons *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)"
+    ],
+    "additionalDirectories": [
+      "F:\\Develop\\constellation\\constellation\\services\\graph-service\\src"
     ]
   }
 }

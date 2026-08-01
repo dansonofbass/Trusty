@@ -43,12 +43,37 @@ export const getDirectory = (opts: { type?: string; q?: string; skill?: string }
   return jget<{ nodes: GNode[]; count: number }>(`/api/directory?${p}`);
 };
 
-export const getWhoToMeet = (skill?: string, mode?: string) => {
+export const getWhoToMeet = (skill?: string, mode?: string, opts: { includeCold?: boolean; limit?: number } = {}) => {
   const p = new URLSearchParams({ app: SUMMIT_APP });
   if (skill) p.set("skill", skill);
   if (mode) p.set("mode", mode);
+  if (opts.includeCold) p.set("includeCold", "1");
+  if (opts.limit) p.set("limit", String(opts.limit));
   return jget<{ suggestions: MeetCard[] }>(`/api/who-to-meet?${p}`).then((r) => r.suggestions ?? []);
 };
+
+/* Squads — self-serve membership + peer confirmation. */
+export interface SquadRow {
+  id: string;
+  label: string;
+  number: number;
+  memberCount: number;
+}
+export interface SquadMember {
+  id: string;
+  label: string;
+  me: boolean;
+  confirmations: number;
+  confirmedByMe: boolean;
+}
+export const getSquads = () =>
+  jget<{ mySquadId: string | null; squads: SquadRow[] }>("/api/squads");
+export const joinSquad = (squadId: string) =>
+  jsend<{ ok: true; squadId: string; autoConnected: number }>("/api/squads/join", "POST", { squadId });
+export const getMySquad = () =>
+  jget<{ squad: { id: string; label: string } | null; members: SquadMember[] }>("/api/squads/mine");
+export const confirmSquadmate = (memberId: string) =>
+  jsend("/api/squads/confirm", "POST", { memberId });
 
 /** One Home-feed row ("People to meet today", "Potential API customers", …). */
 export interface HomeSection {
