@@ -147,3 +147,47 @@ div[class*="alert"][class*="danger"] * {
 footer {
   color: #5d6890;
 }
+
+/* ---- keycloak.v2 (PatternFly) layout — same brand, different skeleton ---- */
+div[class*="c-login"],
+main[class*="c-login__main"],
+div[class*="c-login__main"] {
+  background: #101a38 !important;
+  border-radius: 18px !important;
+  color: #e9edff;
+}
+div[class*="c-login__main-header"],
+div[class*="c-login__main-body"],
+div[class*="c-login__main-footer"] {
+  background: transparent !important;
+  color: #e9edff;
+}
+h1[class*="c-title"],
+span[class*="c-title"] {
+  color: #e9edff !important;
+}
+div[class*="c-login__header"],
+header[class*="c-login__header"] {
+  color: #e9edff !important;
+}
+/* PF text inputs sit inside a wrapper that draws the border. */
+span[class*="c-form-control"] {
+  background: rgba(146, 166, 255, 0.06) !important;
+  border: 1px solid rgba(146, 166, 255, 0.22) !important;
+  border-radius: 12px !important;
+}
+span[class*="c-form-control"] > input {
+  background: transparent !important;
+  border: none !important;
+  color: #e9edff !important;
+  font-size: 16px !important;
+  padding: 12px 14px !important;
+}
+span[class*="c-form-control"]:focus-within {
+  border-color: rgba(255, 140, 90, 0.6) !important;
+}
+/* Checkbox + helper text */
+div[class*="c-check"] label,
+label[class*="c-check"] {
+  color: #8e97bd !important;
+}

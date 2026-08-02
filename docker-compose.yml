@@ -218,6 +218,12 @@ services:
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      # Default theme for ALL realms via the theme SPI — applies without any
+      # realm edit (realm import skips existing realms, so loginTheme set in
+      # realm-export.json never reaches a live server). Both spellings so it
+      # works across Keycloak's old/new SPI option formats.
+      KC_SPI_THEME_DEFAULT: trusty
+      KC_SPI_THEME__DEFAULT: trusty
     ports:
       - "8080:8080"
     volumes:
