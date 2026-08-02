@@ -77,5 +77,8 @@ export async function proxyGraphAdmin(req: NextRequest, path: string, method: Me
   const { session, refreshed } = await readValidSession(req);
   if (!session) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   if (!(await isAdmin(session))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  return forward(req, session, refreshed, path, method);
+  // The role is verified HERE (JWT signature). graph-service trusts BFF headers
+  // by design, and several admin routes re-check `x-user-admin` — without this
+  // header they 403 the very requests this gate just authorized.
+  return forward(req, session, refreshed, path, method, { "x-user-admin": "1" });
 }

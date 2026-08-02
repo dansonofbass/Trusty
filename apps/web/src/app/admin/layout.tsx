@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Utensils, ShieldCheck, Link2, Cpu, ArrowLeft, Menu, X, Loader2, Boxes, Users, Hourglass, Gauge, BadgeCheck, MessageCircle, Receipt } from "lucide-react";
+  LayoutDashboard, Utensils, ShieldCheck, Link2, Cpu, ArrowLeft, Menu, X, Loader2, Boxes, Users, Hourglass, Gauge, BadgeCheck, MessageCircle, Receipt, Sliders } from "lucide-react";
 
 interface NavItem { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }
 const NAV: NavItem[] = [
@@ -19,7 +19,8 @@ const NAV: NavItem[] = [
   { href: "/admin/places", label: "Places", icon: Utensils },
   { href: "/admin/moderation", label: "Moderation", icon: ShieldCheck },
   { href: "/admin/import", label: "Import by link", icon: Link2 },
-  { href: "/admin/extraction", label: "Extraction model", icon: Cpu },
+  { href: "/admin/models", label: "AI models", icon: Cpu },
+  { href: "/admin/extraction", label: "Routing (advanced)", icon: Sliders },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

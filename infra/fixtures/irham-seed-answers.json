@@ -1,0 +1,99 @@
+{
+  "_note": "Starter knowledge for the Iranians-in-Armenia space, distilled from the community's own Telegram threads. Seeded as REAL messages posted into circle chats and then saved as answers, so a newcomer's first question already has a credited, dated answer. Attribution is generic ('Community notes') until real members claim these topics — never put words in a named person's mouth.",
+  "circles": {
+    "Residency": [
+      {
+        "body": "Document checklist that got validated in-thread: passport + translation of the passport, social-number certificate (+ copy), IE registration certificate (+ copy), health certificate (+ copy), passport photos, and your tax receipts as backup. You apply at Tairov 14; the card itself is collected at Vazgen Sargsyan 3, window 14.",
+        "topics": ["residency", "documents"]
+      },
+      {
+        "body": "The 105,000 AMD fee is not paid in advance: on the day they give you an account number, you walk to the bank and pay, then come back. Bring cash — card payment for someone else's account is a common failure point.",
+        "topics": ["residency", "fees"]
+      },
+      {
+        "body": "Everyone gets a phone call from an officer roughly 10-20 days after applying. Expect: do you live here, what is your work, what field, which language do you code in, is your home address the same as your company address, who is your roommate. Have your contract, company registration, tax receipts and rental agreement ready to send on WhatsApp. Some officers also do a home visit.",
+        "topics": ["residency", "process"]
+      },
+      {
+        "body": "Attach your spouse only AFTER your own card is issued — book their appointment about 2.5 months after yours. Several families learned this the hard way and lost months. If the spouse works, registering their own IE is usually the simpler path.",
+        "topics": ["residency", "family"]
+      },
+      {
+        "body": "After the card arrives you must update everything else: social number, IE certificate, bank records — and register your address at your district police station so it is stamped on the BACK of the card. Without that stamp many things silently fail (you cannot register a car in your own name, for example).",
+        "topics": ["residency", "documents"]
+      },
+      {
+        "body": "Renewals: book 2-3 months before expiry. Rescheduling inside the final month costs 50,000 AMD, then 100,000, and in bad cases carries a multi-year entry ban.",
+        "topics": ["residency", "renewal"]
+      }
+    ],
+    "Accounting & Tax": [
+      {
+        "body": "After registering an IE you have about 20 days to register your tax regime at taxservice.am — and you cannot do it yourself without a digital signature, so line up an accountant BEFORE you register. Miss the window and you default to the general regime (20% VAT + profit tax) instead of the 1% turnover rate.",
+        "topics": ["tax", "accounting"]
+      },
+      {
+        "body": "Typical accountant pricing in the community runs from about 6,000 AMD/month at the low end to 12,000 for the widely used option, up to 30,000-40,000 for one-off registrations. Ask exactly what is included: monthly filing only, or also registration and correspondence.",
+        "topics": ["accounting", "pricing"]
+      },
+      {
+        "body": "Cash is not accepted as a payment method on invoices — the business needs a real account, and the invoice needs an account number. If you are paid in crypto or cash, that is the single hardest problem to solve cleanly; talk to your accountant BEFORE issuing the invoice, not after.",
+        "topics": ["accounting", "banking"]
+      },
+      {
+        "body": "Prepaid tax is paid to the Ministry of Finance account with the prepayment code (not the quarterly code). The community's rule of thumb: around 45-50k prepaid for a one-year application, around 150k for a five-year one. Prepaying does not change your quarterly invoices — you are just building credit.",
+        "topics": ["tax", "residency"]
+      },
+      {
+        "body": "Do not spend from the business card personally and do not send from it to another person's personal account: paying an individual from a business account triggers salary tax. Move money to your own personal account first, then spend.",
+        "topics": ["accounting", "banking"]
+      },
+      {
+        "body": "Two IEs are cheaper than one shared LLC for most people here: an LLC means pricier accounting, higher tax, more paperwork, and a real fee just to close it.",
+        "topics": ["accounting", "company"]
+      }
+    ],
+    "Banks & Money": [
+      {
+        "body": "A foreign contract is fine for the immigration office, but showing one at the bank is often what kills an account opening. Keep the two conversations separate and ask the community which branch is currently opening accounts before you walk in.",
+        "topics": ["banking"]
+      },
+      {
+        "body": "Payoneer rejects a plain bank statement because it lacks an address — ask your bank for a Bank Reference Letter instead. Fee reality check from someone who did it: the Payoneer route costs roughly 7-9% all-in, the crypto route roughly 3.5-5.5%.",
+        "topics": ["banking", "payments"]
+      },
+      {
+        "body": "Instalment credit for Iranians was withdrawn by the main provider — plan purchases without it, and do not count on credit history you built earlier still being usable.",
+        "topics": ["banking", "credit"]
+      }
+    ],
+    "Health & Insurance": [
+      {
+        "body": "The residency health certificate does not need a polyclinic or a hospital: a clinic on Bashinjaghyan issues it from your passport, valid two months. It cost 5,000 AMD when this was written; one member was later quoted 10,000 with an X-ray added — ask the price first.",
+        "topics": ["health", "residency"]
+      },
+      {
+        "body": "You do not need a residence card to buy health insurance — at least one provider issues on a passport. Insurance becomes relevant for tax reasons once turnover passes 2.4M AMD.",
+        "topics": ["health", "insurance"]
+      },
+      {
+        "body": "Affordable care without insurance: there are Iranian-Armenian doctors reachable on WhatsApp, and a clinic in Davitashen where a visit including an ultrasound check runs about 10,000 AMD.",
+        "topics": ["health"]
+      },
+      {
+        "body": "Prescriptions from an Iranian doctor are usually not re-issued locally, and several common medications are unavailable or restricted in Armenia. Check availability BEFORE you run out, and be careful about carrying restricted medication across the border.",
+        "topics": ["health", "medication"]
+      }
+    ],
+    "Jobs & Referrals": [
+      {
+        "body": "Armenian jobs are posted where you would not expect: Facebook groups and staff.am carry more real openings than the apps most of us use. Note that hiring priority goes to Armenians and many roles need Armenian, sometimes Russian before English.",
+        "topics": ["jobs"]
+      },
+      {
+        "body": "If someone offers paid job placement: meet in person, agree the fee is paid only after the job is confirmed, get a receipt, and put it in a short written agreement. Several people here have been approached by intermediaries with no track record.",
+        "topics": ["jobs", "trust"]
+      }
+    ]
+  }
+}

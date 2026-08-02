@@ -243,6 +243,9 @@ import { initAnswers, listRoomAnswers, saveAnswer, searchAnswers } from "./answe
 import type { DomainEvent } from "@constellation/graph-core";
 import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
 import {
+  DEFAULT_TIER, TIERS, initLlmUsage, recordUsage, setTier, tierCounts, tierOf, tiersFor, usageSummary,
+} from "./llmUsage";
+import {
   BILLING_CONFIG, allInvoices, billingEnabled, cancelInvoice, chatBalance, createInvoice,
   ensureMonthlyAllowance, getInvoice, initBilling, listInvoices, markInvoicePaid,
   messagesUsedThisMonth, planById, plans, spendForMessage,
@@ -829,7 +832,7 @@ app.get("/api/admin/entities/export", (req, res) => {
 
 /** List people + entities, scoped to an app (persons are shared across apps).
  *  `type` = an entityType, or "person" for every person node. */
-app.get("/api/admin/entities", (req, res) => {
+app.get("/api/admin/entities", async (req, res) => {
   auth(req);
   const app = String(req.query.app ?? "");
   const type = String(req.query.type ?? "");
@@ -839,9 +842,15 @@ app.get("/api/admin/entities", (req, res) => {
   if (type === "person") nodes = nodes.filter((n) => n.type === "person");
   else if (type) nodes = nodes.filter((n) => n.entityType === type);
   if (q) nodes = nodes.filter((n) => n.label.toLowerCase().includes(q) || (n.sub ?? "").toLowerCase().includes(q));
+  const page = nodes.slice(0, 1000);
+  // Directory doubles as user management: attach each person's plan tier so an
+  // admin can see and change who gets the premium model.
+  const plans = await tiersFor(page.filter((n) => n.type === "person").map((n) => n.id)).catch(() => ({}));
   res.json({
     total: nodes.length,
-    nodes: nodes.slice(0, 1000).map((n) => ({
+    plans,
+    tiers: TIERS,
+    nodes: page.map((n) => ({
       id: n.id, label: n.label, sub: n.sub, type: n.type, entityType: n.entityType,
       app: n.entityType ? (appForEntityType(n.entityType) ?? null) : null,
       isMe: n.isMe === true, properties: n.properties ?? {}, photos: n.photos ?? [],
@@ -4013,6 +4022,75 @@ app.get("/api/credits", async (req, res) => {
   }
 });
 
+/* --------------------------- LLM usage + plan tiers -------------------------- */
+
+/** Usage report from the extractor (internal network only — not proxied by the
+ *  BFF, so it never reaches the public internet). */
+app.post("/api/internal/llm-usage", async (req, res) => {
+  try {
+    const b = req.body ?? {};
+    await recordUsage({
+      userId: typeof b.userId === "string" && b.userId !== "system" ? b.userId : undefined,
+      model: String(b.model ?? "unknown"),
+      provider: b.provider ? String(b.provider) : undefined,
+      endpoint: b.endpoint ? String(b.endpoint) : undefined,
+      tier: b.tier ? String(b.tier) : undefined,
+      promptTokens: Number(b.promptTokens ?? 0),
+      completionTokens: Number(b.completionTokens ?? 0),
+      costUsd: Number(b.costUsd ?? 0),
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Cost insights for the admin AI-models panel. */
+app.get("/api/admin/llm-usage", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  try {
+    const days = Number(req.query.days ?? 30) || 30;
+    const summary = await usageSummary(days);
+    // Attach labels so the top-spender table shows people, not opaque ids.
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    summary.topUsers = summary.topUsers.map((u) => ({ ...u, label: labelOf.get(u.userId) }));
+    res.json({ ...summary, tiers: TIERS, tierCounts: await tierCounts() });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** The viewer's own tier — the BFF forwards it to the extractor as x-user-tier. */
+app.get("/api/plan", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    res.json({ tier: await tierOf(userId), tiers: TIERS });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: set a user's plan tier (which model they get). */
+app.put("/api/admin/users/:id/plan", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const tier = str(req.body?.tier, 30) || DEFAULT_TIER;
+  if (!(TIERS as readonly string[]).includes(tier)) {
+    return res.status(400).json({ error: `tier must be one of: ${TIERS.join(", ")}` });
+  }
+  try {
+    await setTier(req.params.id, tier, userId, str(req.body?.note, 200));
+    emitEvent("specialist.subscription_changed", {
+      userId: req.params.id,
+      payload: { tier, by: userId, kind: "plan_tier" },
+    });
+    res.json({ ok: true, tier });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
 /* --------------------------- chat credits & billing -------------------------- */
 
 /** The viewer's chat allowance: balance, usage, plans, and how to pay. */
@@ -4023,6 +4101,7 @@ app.get("/api/billing/me", async (req, res) => {
     const earned = earnedCredits(await contributionValueFor(userId, shared.nodes));
     res.json({
       enabled: billingEnabled(),
+      tier: await tierOf(userId),
       balance: await chatBalance(userId, earned),
       usedThisMonth: await messagesUsedThisMonth(userId),
       freeMonthly: BILLING_CONFIG.freeMonthly,
@@ -4047,7 +4126,8 @@ app.get("/api/billing/me", async (req, res) => {
 app.post("/api/billing/consume", async (req, res) => {
   const { userId } = auth(req);
   try {
-    if (!billingEnabled()) return res.json({ ok: true, balance: null, enabled: false });
+    const tier = await tierOf(userId);
+    if (!billingEnabled()) return res.json({ ok: true, balance: null, enabled: false, tier });
     await ensureMonthlyAllowance(userId);
     const earned = earnedCredits(await contributionValueFor(userId, shared.nodes));
     const r = await spendForMessage(userId, earned, { app: appOf(req) });
@@ -4063,8 +4143,8 @@ app.post("/api/billing/consume", async (req, res) => {
         },
       });
     }
-    emitEvent("wallet.spent", { userId, payload: { kind: "chat_message", ok: true } });
-    res.json({ ok: true, balance: r.balance, enabled: true });
+    emitEvent("wallet.spent", { userId, payload: { kind: "chat_message", ok: true, tier } });
+    res.json({ ok: true, balance: r.balance, enabled: true, tier });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -5705,6 +5785,9 @@ async function main() {
   );
   await initBilling().catch((e) =>
     console.error("graph-service: billing init failed:", e instanceof Error ? e.message : e),
+  );
+  await initLlmUsage().catch((e) =>
+    console.error("graph-service: llm usage init failed:", e instanceof Error ? e.message : e),
   );
   await initNotifications().catch((e) =>
     console.error("graph-service: notifications init failed:", e instanceof Error ? e.message : e),

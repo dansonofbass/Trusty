@@ -31,6 +31,7 @@ function clean(patch: RoutingOverrides): RoutingOverrides {
   if (patch.abTest !== undefined) out.abTest = patch.abTest;
   if (patch.abSalt !== undefined) out.abSalt = patch.abSalt;
   if (patch.allowOverride !== undefined) out.allowOverride = patch.allowOverride;
+  if (patch.tierModels !== undefined) out.tierModels = patch.tierModels;
   return out;
 }
 

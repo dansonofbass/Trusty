@@ -6,7 +6,8 @@
  * the invoice with a WhatsApp "pay" button, then a receipt-pending note.
  * Fully translated (fa/en) since this is a newcomer-path surface.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Loader2, MessageCircle, Sparkles, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import {
@@ -47,7 +48,15 @@ export default function CreditsPaywall({
 
   const wa = invoice ? whatsappLink(contact, invoice) : null;
 
-  return (
+  // The chip that opens this lives inside the sidebar, which has a
+  // backdrop-filter — that makes it a containing block for `position: fixed`,
+  // so the sheet would be centred on the SIDEBAR (and clipped off-screen).
+  // Portalling to <body> is the fix.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[80]">
       <div className="absolute inset-0 bg-black/55" onClick={onClose} aria-hidden />
       <div className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[20px] border border-line bg-[var(--color-card)] p-4 pb-[max(env(safe-area-inset-bottom),16px)] md:inset-x-auto md:left-1/2 md:top-1/2 md:bottom-auto md:w-[460px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:pb-4">
@@ -149,6 +158,7 @@ export default function CreditsPaywall({
 
         {error && <p className="mt-2 text-[11.5px] text-[#fda4af]">{error}</p>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

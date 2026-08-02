@@ -278,6 +278,9 @@ export interface RoutingOverrides {
   abTest?: string;
   abSalt?: string;
   allowOverride?: boolean;
+  /** Plan tier → model id ("free" → cheap/fast, "premium" → strong). Applied
+   *  before the A/B experiment and the global default. */
+  tierModels?: Record<string, string>;
 }
 
 /** Merge admin overrides over the env-derived base into an effective config. */

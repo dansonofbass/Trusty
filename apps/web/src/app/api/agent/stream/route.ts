@@ -18,6 +18,9 @@ export async function POST(req: NextRequest) {
   // (no LLM spend on a turn the user can't pay for). Unmetered deployments
   // (no DB) answer ok:true.
   const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
+  // The consume call also tells us the user's plan tier, which decides WHICH
+  // model answers them (admin-configured mapping in the extractor).
+  let tier = "free";
   try {
     const quota = await fetch(`${GRAPH}/api/billing/consume`, {
       method: "POST",
@@ -36,6 +39,8 @@ export async function POST(req: NextRequest) {
       const payload = await quota.json().catch(() => ({}));
       return NextResponse.json(payload, { status: 402 });
     }
+    const ok = (await quota.json().catch(() => null)) as { tier?: string } | null;
+    if (ok?.tier) tier = ok.tier;
   } catch {
     // Billing unreachable must never block the product — fail open.
   }
@@ -48,6 +53,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "content-type": "application/json",
         "x-user-id": session.sub,
+        "x-user-tier": tier,
         ...(session.name ? { "x-user-name": session.name } : {}),
         // Space subdomain → agent tools scope their graph reads to it.
         ...((() => {

@@ -40,7 +40,7 @@ export async function entitiesSchema(): Promise<EntitiesSchema> {
   return j(await fetch("/api/admin/entities/schema", { cache: "no-store" }), "schema");
 }
 
-export async function listEntities(opts: { app?: string; type?: string; q?: string }): Promise<{ total: number; nodes: EntityRow[] }> {
+export async function listEntities(opts: { app?: string; type?: string; q?: string }): Promise<{ total: number; nodes: EntityRow[]; plans?: Record<string, string>; tiers?: string[] }> {
   const qs = new URLSearchParams();
   if (opts.app) qs.set("app", opts.app);
   if (opts.type) qs.set("type", opts.type);
@@ -111,4 +111,14 @@ export async function addRelation(input: { relationId: string; source: string; t
 
 export async function removeRelation(edgeId: string): Promise<void> {
   await j(await fetch(`/api/admin/relations/${encodeURIComponent(edgeId)}`, { method: "DELETE" }), "remove relation");
+}
+
+/** Set a person's plan tier (free / premium) — decides which AI model they get. */
+export async function setUserPlan(userId: string, tier: string): Promise<void> {
+  const r = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/plan`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tier }),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `failed (${r.status})`);
 }

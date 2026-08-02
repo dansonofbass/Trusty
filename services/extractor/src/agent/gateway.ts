@@ -14,6 +14,7 @@
  * The transcript arrives in the neutral AgentMessage shape (graph-core) and is
  * mapped per provider here, so the loop and registry stay provider-agnostic.
  */
+import { reportUsage } from "../models";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AgentMessage, AgentToolCall } from "@constellation/graph-core";
 import { litellmConfigured, type GatewayCallMeta } from "../llmGateway";
@@ -166,7 +167,20 @@ async function litellmAgentChat(opts: AgentChatOpts): Promise<AgentChatResult> {
               }[];
             };
           }[];
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
+        // Final chunk carries real token counts — the basis for cost insights.
+        if (chunk.usage) {
+          reportUsage({
+            userId: opts.meta.userId,
+            model: opts.model,
+            provider: opts.meta.provider,
+            endpoint: opts.meta.endpoint,
+            promptTokens: Number(chunk.usage.prompt_tokens ?? 0),
+            completionTokens: Number(chunk.usage.completion_tokens ?? 0),
+            tier: opts.meta.tier,
+          });
+        }
         const delta = chunk.choices?.[0]?.delta;
         if (delta?.content) {
           text += delta.content;

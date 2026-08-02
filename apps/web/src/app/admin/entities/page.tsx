@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, ChevronRight, ChevronLeft, Loader2, Plus, Upload, Download, X, Users, Boxes, Sprout } from "lucide-react";
 import {
-  entitiesSchema, listEntities, exportEntities, importEntities, createEntityAdmin,
+  entitiesSchema, listEntities, exportEntities, importEntities, createEntityAdmin, setUserPlan,
   type EntityRow, type EntitiesSchema, type SchemaType, type ImportRow,
 } from "@/lib/adminEntitiesClient";
 import EntityEditor from "@/components/admin/EntityEditor";
@@ -36,6 +36,9 @@ export default function EntitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [schema, setSchema] = useState<EntitiesSchema>({ apps: [], entityTypes: [] });
   const [rows, setRows] = useState<EntityRow[]>([]);
+  const [plans, setPlans] = useState<Record<string, string>>({});
+  const [tiers, setTiers] = useState<string[]>(["free", "premium"]);
+  const [planBusy, setPlanBusy] = useState<string | null>(null);
   const [app, setApp] = useState("");        // "" = all apps
   const [type, setType] = useState("");       // "" = all, "person", or an entityType id
   const [q, setQ] = useState("");
@@ -94,6 +97,8 @@ export default function EntitiesPage() {
     try {
       const r = await listEntities({ app, type, q });
       setRows(r.nodes);
+      setPlans(r.plans ?? {});
+      if (r.tiers?.length) setTiers(r.tiers);
       setStatus("ok");
       void loadSpecialistMeta(r.nodes);
     }
@@ -191,6 +196,34 @@ export default function EntitiesPage() {
                         <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10.5px] uppercase tracking-wider text-dim">{r.entityType ?? r.type}</span>
                         {r.app && <span className="hidden shrink-0 text-[10.5px] uppercase tracking-wider text-faint sm:inline">{r.app}</span>}
                       </button>
+                      {r.type === "person" && (
+                        <select
+                          value={plans[r.id] ?? "free"}
+                          disabled={planBusy === r.id}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={async (e) => {
+                            const tier = e.target.value;
+                            setPlanBusy(r.id);
+                            try {
+                              await setUserPlan(r.id, tier);
+                              setPlans((p) => ({ ...p, [r.id]: tier }));
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : String(err));
+                            } finally {
+                              setPlanBusy(null);
+                            }
+                          }}
+                          title="Plan tier — which AI model this person gets"
+                          className="mr-2 shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold capitalize outline-none disabled:opacity-50"
+                          style={(plans[r.id] ?? "free") !== "free"
+                            ? { borderColor: "rgba(255,140,90,0.6)", color: "var(--color-accent)", background: "var(--color-accent-soft)" }
+                            : { borderColor: "var(--color-line)", color: "var(--color-dim)", background: "transparent" }}
+                        >
+                          {tiers.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      )}
                       {isSpecialist && (
                         <button
                           onClick={() => void togglePilot(r.id, subActive)}

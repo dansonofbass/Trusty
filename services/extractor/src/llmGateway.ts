@@ -11,6 +11,8 @@
  * the calling endpoint, and the user id — which LiteLLM forwards to Langfuse as
  * trace tags/metadata, so experiments are sliceable per arm and per user.
  */
+import { reportUsage } from "./models";
+
 const LITELLM_BASE_URL = process.env.LITELLM_BASE_URL?.replace(/\/+$/, "");
 const LITELLM_MASTER_KEY = process.env.LITELLM_MASTER_KEY ?? "";
 
@@ -25,6 +27,8 @@ export interface GatewayCallMeta {
   provider: string;
   endpoint: string;
   sessionId?: string;
+  /** Plan tier the caller is on (free/premium) — recorded with usage. */
+  tier?: string;
 }
 
 export interface GatewayChatOpts {
@@ -106,11 +110,25 @@ export async function gatewayChat(opts: GatewayChatOpts): Promise<string> {
       try {
         const chunk = JSON.parse(data) as {
           choices?: { delta?: { content?: string } }[];
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
         const piece = chunk.choices?.[0]?.delta?.content ?? "";
         if (piece) {
           out += piece;
           opts.onToken?.(piece);
+        }
+        // The final chunk carries usage (stream_options.include_usage) — the
+        // only place real token counts are available to us.
+        if (chunk.usage) {
+          reportUsage({
+            userId: opts.meta.userId,
+            model: opts.model,
+            provider: opts.meta.provider,
+            endpoint: opts.meta.endpoint,
+            promptTokens: Number(chunk.usage.prompt_tokens ?? 0),
+            completionTokens: Number(chunk.usage.completion_tokens ?? 0),
+            tier: opts.meta.tier,
+          });
         }
       } catch {
         /* ignore partial lines */

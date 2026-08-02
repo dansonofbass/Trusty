@@ -18,6 +18,7 @@
  * pinned manually. See router.ts for the env knobs (EXTRACTOR_PROVIDER,
  * EXTRACTOR_AB_TEST, EXTRACTOR_MODEL, EXTRACTOR_ALLOW_OVERRIDE).
  */
+import { modelCatalog } from "./models";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import express from "express";
@@ -121,12 +122,21 @@ function variantForRequest(
     return typeof v === "string" && v.trim() ? v.trim() : undefined;
   };
   const bodyStr = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  // Plan tiers: an admin can map each tier to a model (free → cheap/fast,
+  // premium → strong). The BFF forwards the caller's tier. An explicit
+  // per-request override still wins; without a mapping we fall through to the
+  // A/B experiment and the global default exactly as before.
+  const tier = header("x-user-tier");
+  const tierModel = tier ? (configStore.get().tierModels ?? {})[tier] : undefined;
   return resolveVariant(effectiveConfig(), {
     userId: header("x-user-id"),
-    overrideModel: header("x-extractor-model") ?? bodyStr(body?.model),
+    overrideModel: header("x-extractor-model") ?? bodyStr(body?.model) ?? tierModel,
     overrideProvider: header("x-extractor-provider") ?? bodyStr(body?.provider),
   });
 }
+
+/** The caller's plan tier, forwarded by the BFF (defaults to free). */
+const tierOf = (req: express.Request): string => (req.header("x-user-tier") || "free").trim() || "free";
 
 const app = express();
 app.use(cors());
@@ -168,11 +178,22 @@ function adminState() {
   return {
     effective: describeRouter(cfg),
     overrides: configStore.get(),
+    tierModels: configStore.get().tierModels ?? {},
     meta: configStore.meta(),
     base: { default: baseConfig.defaultKey, claudeModel: baseConfig.defaultClaudeModel, ollamaModel: baseConfig.ollamaModel },
     suggestions,
   };
 }
+
+/** Model catalog with live prices (from LiteLLM) for the admin comparison. */
+app.get("/admin/models", async (req, res) => {
+  if (!adminAllowed(req)) return res.status(403).json({ error: "forbidden" });
+  try {
+    res.json({ models: await modelCatalog(req.query.refresh === "1") });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
 
 app.get("/admin/routing", (req, res) => {
   if (!adminAllowed(req)) return res.status(403).json({ error: "forbidden" });
@@ -214,6 +235,22 @@ app.put("/admin/routing", async (req, res) => {
 
   if (body.abSalt !== undefined) patch.abSalt = String(body.abSalt).trim();
   if (body.allowOverride !== undefined) patch.allowOverride = Boolean(body.allowOverride);
+
+  // tierModels — { free: "claude-haiku-4-5", premium: "claude-sonnet-4-6" }.
+  // An empty value clears that tier (it then follows A/B + the default).
+  if (body.tierModels !== undefined) {
+    const raw = (body.tierModels ?? {}) as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [tier, model] of Object.entries(raw)) {
+      const key = String(tier).trim().slice(0, 30);
+      const value = String(model ?? "").trim();
+      if (!key || !value) continue;
+      const check = variantKeyAvailable(value, cfg);
+      if (!check.ok) return res.status(400).json({ error: `tier "${key}": ${check.reason}` });
+      out[key] = value;
+    }
+    patch.tierModels = out;
+  }
 
   try {
     await configStore.set(patch, req.header("x-user-id") || undefined);
@@ -1114,6 +1151,7 @@ app.post("/agent/stream", async (req, res) => {
         provider: "claude",
         endpoint: "agent",
         sessionId: typeof b.sessionId === "string" ? b.sessionId : undefined,
+        tier: tierOf(req),
       },
       emit: emit as (ev: AgentStreamEvent) => void,
       resume,
