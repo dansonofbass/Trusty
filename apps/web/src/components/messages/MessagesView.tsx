@@ -43,27 +43,47 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
   const [membersOpen, setMembersOpen] = useState(false);
   const [answersOpen, setAnswersOpen] = useState(false);
   const [answers, setAnswers] = useState<SavedAnswer[] | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  /** messageId → answerId, so a saved message can be shared by its public link. */
+  const [answerIdOf, setAnswerIdOf] = useState<Map<number, number>>(new Map());
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [sharing, setSharing] = useState<number | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ answerId: number; body: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const stickToBottom = useRef(true);
+
+  const indexAnswers = (list: SavedAnswer[]) =>
+    setAnswerIdOf(new Map(list.filter((a) => a.messageId).map((a) => [a.messageId as number, a.id])));
 
   const openAnswers = () => {
     setAnswersOpen(true);
     fetchRoomAnswers(roomId)
       .then((r) => {
         setAnswers(r.answers);
-        setSavedIds(new Set(r.answers.map((x) => x.messageId ?? -1)));
+        indexAnswers(r.answers);
       })
       .catch(() => setAnswers([]));
   };
 
-  const saveAsAnswer = async (m: RoomMessage) => {
+  /**
+   * One tap to share: a message must exist as a saved ANSWER to have a public
+   * link, so if it isn't saved yet we save it first (that's also what makes it
+   * findable by the assistant later) and then open the share sheet.
+   */
+  const share = async (m: RoomMessage) => {
+    setSharing(m.id);
     try {
-      await saveMessageAsAnswer(roomId, m.id);
-      setSavedIds((prev) => new Set(prev).add(m.id));
-    } catch {
-      /* non-members can't save; button hidden anyway */
+      let answerId = answerIdOf.get(m.id);
+      if (!answerId) {
+        await saveMessageAsAnswer(roomId, m.id);
+        const r = await fetchRoomAnswers(roomId);
+        indexAnswers(r.answers);
+        answerId = r.answers.find((a) => a.messageId === m.id)?.id;
+      }
+      if (answerId) setShareTarget({ answerId, body: m.body });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "couldn't share that message");
+    } finally {
+      setSharing(null);
     }
   };
 
@@ -81,7 +101,7 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
     const t = setInterval(load, POLL_MS);
     void markRoomRead(roomId).catch(() => {});
     fetchRoomAnswers(roomId)
-      .then((r) => setSavedIds(new Set(r.answers.map((x) => x.messageId ?? -1))))
+      .then((r) => indexAnswers(r.answers))
       .catch(() => {});
     return () => clearInterval(t);
   }, [load, roomId]);
@@ -163,6 +183,81 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
         </button>
       </div>
 
+      {/* Share sheet — one saved answer, every channel. The link is PUBLIC and
+          previews in Telegram, so sharing help is how Trusty spreads. */}
+      {shareTarget && (() => {
+        const url = `${typeof window !== "undefined" ? window.location.origin : ""}/a/${shareTarget.answerId}`;
+        const text = shareTarget.body.slice(0, 180);
+        const channels = [
+          { label: "Telegram", color: "#2AABEE", href: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}` },
+          { label: "WhatsApp", color: "#25D366", href: `https://wa.me/?text=${encodeURIComponent(`${text}
+
+${url}`)}` },
+        ];
+        return (
+          <div className="fixed inset-0 z-[65]">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShareTarget(null)} aria-hidden />
+            <div className="absolute inset-x-0 bottom-0 rounded-t-[20px] border border-line bg-[var(--color-card)] p-4 pb-[max(env(safe-area-inset-bottom),16px)] md:inset-x-auto md:left-1/2 md:top-1/2 md:bottom-auto md:w-[420px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:pb-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[13px] font-bold text-ink" style={{ fontFamily: "var(--font-display)" }}>
+                  Share this answer
+                </span>
+                <button type="button" onClick={() => setShareTarget(null)} aria-label="Close">
+                  <X size={15} className="text-[var(--color-faint)]" />
+                </button>
+              </div>
+              <p dir="auto" className="mb-3 line-clamp-3 rounded-xl bg-[var(--color-tint-soft)] px-3 py-2 text-[12px] leading-relaxed text-[var(--color-dim)]">
+                {shareTarget.body}
+              </p>
+              <div className="mb-2 flex gap-2">
+                {channels.map((c) => (
+                  <a
+                    key={c.label}
+                    href={c.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => setShareTarget(null)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold"
+                    style={{ background: c.color, color: "#08210f" }}
+                  >
+                    <Send size={13} /> {c.label}
+                  </a>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(url);
+                    setCopiedId(shareTarget.answerId);
+                    setTimeout(() => setCopiedId(null), 1600);
+                  }}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--color-line)] py-2.5 text-[12.5px] font-semibold text-[var(--color-dim)]"
+                >
+                  {copiedId === shareTarget.answerId ? <Check size={13} /> : <LinkIcon size={13} />}
+                  {copiedId === shareTarget.answerId ? "Copied" : "Copy link"}
+                </button>
+                {typeof navigator !== "undefined" && "share" in navigator && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.share?.({ text, url }).catch(() => {});
+                      setShareTarget(null);
+                    }}
+                    className="flex-1 rounded-xl border border-[var(--color-line)] py-2.5 text-[12.5px] font-semibold text-[var(--color-dim)]"
+                  >
+                    More…
+                  </button>
+                )}
+              </div>
+              <p className="mt-2.5 text-center text-[10.5px] leading-snug text-[var(--color-faint)]">
+                Anyone can read it without an account — they only need one to ask their own question.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Members sheet */}
       {membersOpen && thread && (
         <div className="fixed inset-0 z-[60]">
@@ -230,7 +325,6 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
               <ul className="space-y-2">
                 {answers.map((a) => {
                   const url = typeof window !== "undefined" ? `${window.location.origin}/a/${a.id}` : "";
-                  const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(a.body.slice(0, 180))}`;
                   return (
                   <li key={a.id} className="rounded-xl border border-line bg-[var(--color-tint-soft)] px-3 py-2">
                     <p dir="auto" className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink">{a.body}</p>
@@ -242,16 +336,15 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
                       </p>
                       {/* Sharing is the growth loop: the link reads publicly and
                           previews in Telegram, so helping someone spreads Trusty. */}
-                      <a
-                        href={share}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Share on Telegram"
+                      <button
+                        type="button"
+                        onClick={() => setShareTarget({ answerId: a.id, body: a.body })}
+                        title="Share this answer"
                         className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
                         style={{ background: "rgba(42,171,238,0.14)", color: "#2AABEE" }}
                       >
-                        <Send size={10} /> Telegram
-                      </a>
+                        <Send size={10} /> Share
+                      </button>
                       <button
                         type="button"
                         title="Copy link"
@@ -319,27 +412,42 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
                   ) : (
                     <p dir="auto" className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">{m.body}</p>
                   )}
-                  <div className="mt-0.5 flex items-center justify-end gap-2">
+                  {/* Actions stay VISIBLE (dimmed) — hover-only controls are
+                      invisible on phones, which is where most sharing happens. */}
+                  <div className="mt-1 flex items-center justify-end gap-2.5">
                     {!m.deleted && (
-                      savedIds.has(m.id) ? (
-                        <BookmarkCheck size={11} style={{ color: "var(--color-accent)" }} />
-                      ) : (
-                        <button
-                          type="button"
-                          title="Save as answer — reusable knowledge, credited to the author"
-                          onClick={() => void saveAsAnswer(m)}
-                          className="opacity-0 transition group-hover:opacity-100"
-                        >
-                          <Bookmark size={11} className="text-[var(--color-faint)]" />
-                        </button>
-                      )
+                      <button
+                        type="button"
+                        title={
+                          answerIdOf.get(m.id)
+                            ? "Saved as an answer — tap to share it"
+                            : "Save as answer, then share (credited to the author)"
+                        }
+                        onClick={() => void share(m)}
+                        disabled={sharing === m.id}
+                        className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition disabled:opacity-50"
+                        style={
+                          answerIdOf.has(m.id)
+                            ? { color: "var(--color-accent)", background: "var(--color-accent-soft)" }
+                            : { color: "var(--color-faint)" }
+                        }
+                      >
+                        {sharing === m.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : answerIdOf.has(m.id) ? (
+                          <BookmarkCheck size={11} />
+                        ) : (
+                          <Bookmark size={11} />
+                        )}
+                        Share
+                      </button>
                     )}
                     {!m.deleted && (
                       <button
                         type="button"
                         title="Reply"
                         onClick={() => setReplyTo(m)}
-                        className="opacity-0 transition group-hover:opacity-100"
+                        className="opacity-60 transition hover:opacity-100"
                       >
                         <CornerUpLeft size={11} className="text-[var(--color-faint)]" />
                       </button>
@@ -349,7 +457,7 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
                         type="button"
                         title="Delete"
                         onClick={() => void remove(m)}
-                        className="opacity-0 transition group-hover:opacity-100"
+                        className="opacity-60 transition hover:opacity-100"
                       >
                         <Trash2 size={11} className="text-[var(--color-faint)]" />
                       </button>
