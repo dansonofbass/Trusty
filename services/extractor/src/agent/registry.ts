@@ -394,8 +394,7 @@ const webSearch: AgentTool = {
     ];
     return {
       ok: true,
-      summary: lines.join("
-"),
+      summary: lines.join("\n"),
       data: { query, results: results.map((x) => ({ title: x.title, link: x.link, snippet: x.snippet })) },
     };
   },
