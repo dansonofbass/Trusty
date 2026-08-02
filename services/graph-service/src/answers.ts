@@ -98,6 +98,13 @@ export async function listRoomAnswers(roomId: string, limit = 50): Promise<Answe
   return r.rows.map(toRow);
 }
 
+/** One answer by id — the basis of the public, shareable answer page. */
+export async function getAnswer(id: number): Promise<AnswerRow | null> {
+  if (!pool) return null;
+  const r = await pool.query(`SELECT * FROM room_answers WHERE id = $1`, [id]);
+  return r.rows[0] ? toRow(r.rows[0]) : null;
+}
+
 /** Keyword search across a space's saved answers (body + topics), newest first. */
 export async function searchAnswers(app: string, q: string, limit = 8): Promise<AnswerRow[]> {
   if (!pool) return [];

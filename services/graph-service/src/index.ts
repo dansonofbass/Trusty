@@ -239,7 +239,7 @@ import {
   countRecentMessages, deleteMessage, ensureRoom, ensureSquadRoom, getRoom, initRooms, listMessages,
   logSquadJoin, markRoomRead, postMessage, recentSquadJoins, roomsEnabled, roomSummary, squadChatter,
 } from "./rooms";
-import { initAnswers, listRoomAnswers, saveAnswer, searchAnswers } from "./answers";
+import { getAnswer, initAnswers, listRoomAnswers, saveAnswer, searchAnswers } from "./answers";
 import type { DomainEvent } from "@constellation/graph-core";
 import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
 import {
@@ -688,6 +688,42 @@ app.get("/public/invites/:code", async (req, res) => {
     emitEvent("invite.visited", { targetId: code });
     const inviter = shared.nodes.find((n) => n.id === invite.inviterId);
     res.json({ ok: true, code, inviter: { name: inviter?.label ?? "A friend" } });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * A saved answer, publicly readable — the shareable unit (Telegram/WhatsApp
+ * link previews resolve against this). ONLY answers that live in an OPEN
+ * circle are exposed; anything from a private circle or a squad chat 404s so
+ * a link can never leak a closed room's content.
+ */
+app.get("/public/answers/:id", async (req, res) => {
+  try {
+    const answer = await getAnswer(Number(req.params.id));
+    if (!answer) return res.status(404).json({ error: "not found" });
+    const room = await getRoom(answer.roomId);
+    const circle = room?.refId ? shared.nodes.find((n) => n.id === room.refId) : undefined;
+    const props = circle ? circleProps(circle) : {};
+    const isOpenCircle = room?.kind === "circle" && props.open !== false;
+    if (!isOpenCircle) return res.status(404).json({ error: "not found" });
+    emitEvent("answer.saved", {
+      app: answer.app,
+      targetId: String(answer.id),
+      payload: { view: "public" },
+    });
+    res.json({
+      id: answer.id,
+      body: answer.body,
+      author: answer.authorLabel,
+      topics: answer.topics,
+      createdAt: answer.createdAt,
+      app: answer.app,
+      circle: { id: circle?.id ?? null, label: circle?.label ?? "", roomId: room?.id ?? null },
+      /** How much more the community has on this topic — the reason to join. */
+      moreInCircle: Math.max(0, (await listRoomAnswers(answer.roomId, 100)).length - 1),
+    });
   } catch (e) {
     res.status(500).json(asError(e));
   }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Bookmark, BookmarkCheck, CornerUpLeft, Loader2, MessagesSquare, Plus, Send, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, Bookmark, BookmarkCheck, Check, CornerUpLeft, Link as LinkIcon, Loader2, MessagesSquare, Plus, Send, Trash2, Users, X } from "lucide-react";
 import { useUI } from "@/lib/store";
 import {
   createCircle,
@@ -44,6 +44,7 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
   const [answersOpen, setAnswersOpen] = useState(false);
   const [answers, setAnswers] = useState<SavedAnswer[] | null>(null);
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const stickToBottom = useRef(true);
 
@@ -227,16 +228,47 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
               </p>
             ) : (
               <ul className="space-y-2">
-                {answers.map((a) => (
+                {answers.map((a) => {
+                  const url = typeof window !== "undefined" ? `${window.location.origin}/a/${a.id}` : "";
+                  const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(a.body.slice(0, 180))}`;
+                  return (
                   <li key={a.id} className="rounded-xl border border-line bg-[var(--color-tint-soft)] px-3 py-2">
                     <p dir="auto" className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink">{a.body}</p>
-                    <p className="mt-1 text-[10.5px] text-[var(--color-faint)]">
-                      — {a.authorLabel ?? a.author ?? "someone"}
-                      {(a.createdAt ?? a.savedAt) ? ` · ${new Date(a.createdAt ?? a.savedAt!).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}` : ""}
-                      {a.topics.length > 0 && ` · ${a.topics.slice(0, 3).map((t) => `#${t}`).join(" ")}`}
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="min-w-0 flex-1 text-[10.5px] text-[var(--color-faint)]">
+                        — {a.authorLabel ?? a.author ?? "someone"}
+                        {(a.createdAt ?? a.savedAt) ? ` · ${new Date(a.createdAt ?? a.savedAt!).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                        {a.topics.length > 0 && ` · ${a.topics.slice(0, 3).map((t) => `#${t}`).join(" ")}`}
+                      </p>
+                      {/* Sharing is the growth loop: the link reads publicly and
+                          previews in Telegram, so helping someone spreads Trusty. */}
+                      <a
+                        href={share}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Share on Telegram"
+                        className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+                        style={{ background: "rgba(42,171,238,0.14)", color: "#2AABEE" }}
+                      >
+                        <Send size={10} /> Telegram
+                      </a>
+                      <button
+                        type="button"
+                        title="Copy link"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(url);
+                          setCopiedId(a.id);
+                          setTimeout(() => setCopiedId(null), 1600);
+                        }}
+                        className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--color-line)] px-2 py-0.5 text-[10.5px] text-[var(--color-dim)]"
+                      >
+                        {copiedId === a.id ? <Check size={10} /> : <LinkIcon size={10} />}
+                        {copiedId === a.id ? "Copied" : "Link"}
+                      </button>
+                    </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>

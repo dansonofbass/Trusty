@@ -191,3 +191,61 @@ div[class*="c-check"] label,
 label[class*="c-check"] {
   color: #8e97bd !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Input contrast — the registration page renders inputs with markup the
+   earlier selectors missed (and Chrome's autofill repaints them white with
+   white text, which made fields unreadable). Cover EVERY text-ish input,
+   including autofill, with a specificity that wins without !important wars.
+   --------------------------------------------------------------------------- */
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+select,
+textarea {
+  background-color: rgba(146, 166, 255, 0.06) !important;
+  border: 1px solid rgba(146, 166, 255, 0.22) !important;
+  border-radius: 12px !important;
+  color: #e9edff !important;
+  -webkit-text-fill-color: #e9edff !important;
+  caret-color: #e9edff;
+  font-size: 16px !important;
+  padding: 12px 14px !important;
+  height: auto !important;
+  box-shadow: none !important;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(255, 140, 90, 0.6) !important;
+  outline: none !important;
+}
+
+/* Chrome/Safari autofill: the yellow-white repaint. Painting the inner shadow
+   is the only way to override the UA background. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: #e9edff !important;
+  -webkit-box-shadow: 0 0 0 1000px #16204a inset !important;
+  box-shadow: 0 0 0 1000px #16204a inset !important;
+  caret-color: #e9edff;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* The password-eye / input-group buttons sit next to the field — keep them
+   from inheriting the white default. */
+button[class*="pf-"][type="button"],
+.pf-c-button.pf-m-control,
+button[aria-label*="assword"] {
+  background: rgba(146, 166, 255, 0.08) !important;
+  border: 1px solid rgba(146, 166, 255, 0.22) !important;
+  color: #8e97bd !important;
+  border-radius: 12px !important;
+}
+
+/* Registration page: the field list gets breathing room on phones. */
+#kc-form-options,
+.form-group,
+div[class*="c-form__group"] {
+  margin-bottom: 14px;
+}
