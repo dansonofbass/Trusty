@@ -20,8 +20,13 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const invite = url.searchParams.get("invite")?.slice(0, 64) || undefined;
   const waitlist = url.searchParams.get("waitlist") === "1";
-  const wantsRegister = url.searchParams.get("register") === "1";
-  const register = wantsRegister && (!!invite || waitlist);
+  // Open-access era: registration is open to anyone — the app-layer front
+  // door (waitlist toggle) gates AFTER signup, so Keycloak doesn't need to.
+  const register = url.searchParams.get("register") === "1";
+  // Deep-link to return to after auth (QR connect etc.) — same-origin path only.
+  const rawNext = url.searchParams.get("next") ?? "";
+  const next =
+    rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext.slice(0, 400) : undefined;
 
   const state = randomToken(16);
   const verifier = randomToken(32);
@@ -30,6 +35,6 @@ export async function GET(req: NextRequest) {
   // (always on APP_BASE_URL) can land the user back on their space.
   const returnHost = req.headers.get("host") ?? undefined;
   const res = NextResponse.redirect(buildAuthorizationUrl(state, challenge, { register }));
-  setPkceCookie(res, JSON.stringify({ state, verifier, invite, waitlist, returnHost }));
+  setPkceCookie(res, JSON.stringify({ state, verifier, invite, waitlist, returnHost, next }));
   return res;
 }

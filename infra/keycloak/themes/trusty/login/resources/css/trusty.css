@@ -1,0 +1,149 @@
+/* Trusty login theme — dark brand over the classic Keycloak login layout.
+ * Deliberately defensive selectors (ids + elements, not PatternFly version
+ * classes) so it survives Keycloak upgrades. Palette mirrors the app:
+ * bg #070b18 · card #101a38 · ink #e9edff · accent #ff8c5a. */
+
+body,
+body.login-pf,
+.login-pf {
+  background: #070b18 !important;
+  color: #e9edff;
+}
+
+.login-pf body,
+.login-pf-page {
+  background: radial-gradient(ellipse at 50% -20%, #16224d 0%, #070b18 55%) no-repeat #070b18 !important;
+}
+
+/* Header — the wordmark. */
+#kc-header-wrapper {
+  color: #e9edff !important;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-size: 17px;
+  text-shadow: 0 0 24px rgba(146, 166, 255, 0.5);
+  padding-bottom: 8px;
+}
+
+/* The card. */
+.card-pf,
+#kc-content-wrapper > .card-pf,
+div[class*="card"] {
+  background: #101a38 !important;
+  border: 1px solid rgba(146, 166, 255, 0.16) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 20px 50px rgba(2, 4, 14, 0.55) !important;
+  color: #e9edff;
+}
+
+#kc-page-title,
+h1,
+h2 {
+  color: #e9edff !important;
+  font-weight: 700;
+}
+
+label,
+.control-label,
+.pf-v5-c-form__label-text,
+span[class*="form__label"] {
+  color: #8e97bd !important;
+  font-size: 13px;
+}
+
+/* Inputs — 16px so phones don't zoom; dark fields. */
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  background: rgba(146, 166, 255, 0.06) !important;
+  border: 1px solid rgba(146, 166, 255, 0.22) !important;
+  border-radius: 12px !important;
+  color: #e9edff !important;
+  font-size: 16px !important;
+  padding: 12px 14px !important;
+  height: auto !important;
+  box-shadow: none !important;
+}
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus {
+  border-color: rgba(255, 140, 90, 0.6) !important;
+  outline: none !important;
+}
+input::placeholder {
+  color: #5d6890 !important;
+}
+
+/* Primary action — the accent. */
+input[type="submit"],
+button[type="submit"],
+.btn-primary,
+button[class*="pf-m-primary"] {
+  background: #ff8c5a !important;
+  border: none !important;
+  border-radius: 12px !important;
+  color: #131629 !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  padding: 12px 16px !important;
+  width: 100%;
+  cursor: pointer;
+}
+input[type="submit"]:hover,
+button[type="submit"]:hover,
+button[class*="pf-m-primary"]:hover {
+  background: #ffa27a !important;
+}
+
+/* Links + the register CTA — make "create account" feel like a button. */
+a {
+  color: #ff8c5a !important;
+  font-weight: 600;
+}
+#kc-registration,
+#kc-registration-container {
+  margin-top: 14px;
+}
+#kc-registration span {
+  color: #8e97bd;
+}
+#kc-registration a {
+  display: block;
+  margin-top: 8px;
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 140, 90, 0.55);
+  border-radius: 12px;
+  text-align: center;
+  text-decoration: none !important;
+  font-weight: 800;
+}
+
+/* Quiet the extras. */
+#kc-info,
+.login-pf-page .login-pf-signup {
+  color: #8e97bd;
+}
+.checkbox label,
+#rememberMe + label {
+  color: #8e97bd !important;
+}
+
+/* Alerts readable on dark. */
+.alert-error,
+div[class*="alert"][class*="danger"] {
+  background: rgba(253, 164, 175, 0.1) !important;
+  border-color: rgba(253, 164, 175, 0.4) !important;
+  color: #fda4af !important;
+  border-radius: 12px !important;
+}
+.alert-error *,
+div[class*="alert"][class*="danger"] * {
+  color: #fda4af !important;
+}
+
+/* Footer locale picker etc. */
+#kc-locale,
+footer {
+  color: #5d6890;
+}

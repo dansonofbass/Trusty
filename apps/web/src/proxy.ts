@@ -10,7 +10,19 @@ import { SESSION_COOKIE } from "@/lib/auth/constants";
  */
 export function proxy(req: NextRequest) {
   if (!req.cookies.has(SESSION_COOKIE)) {
-    return NextResponse.redirect(new URL("/api/auth/login", req.url));
+    const login = new URL("/api/auth/login", req.url);
+    // Deep links survive auth: a camera-scanned QR (/?connect=<id>) or a
+    // register share link comes back to exactly where it pointed.
+    const { pathname, searchParams } = req.nextUrl;
+    for (const k of ["register", "invite", "waitlist"] as const) {
+      const v = searchParams.get(k);
+      if (v) login.searchParams.set(k, v);
+    }
+    const rest = new URLSearchParams(searchParams);
+    rest.delete("register");
+    const next = `${pathname}${rest.size ? `?${rest.toString()}` : ""}`;
+    if (next !== "/") login.searchParams.set("next", next.slice(0, 400));
+    return NextResponse.redirect(login);
   }
   return NextResponse.next();
 }

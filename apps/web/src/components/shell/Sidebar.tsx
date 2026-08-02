@@ -29,10 +29,15 @@ import { SPACE_META, SPACE_SLUGS, homeUrl, spaceFromHost, spaceUrl } from "@/lib
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
 
-const NAV: { href: string; label: string; icon: React.ElementType }[] = [
+type NavItem = { href: string; label: string; icon: React.ElementType };
+// Newcomer-calm nav: three primary surfaces; the power tools live behind
+// "More" (remembered per browser) so a first-timer sees three words, not six.
+const PRIMARY_NAV: NavItem[] = [
   { href: "/", label: "Chat", icon: MessageCircle },
   { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/discover", label: "Discover", icon: Radio },
+];
+const SECONDARY_NAV: NavItem[] = [
   { href: "/graph", label: "Graph", icon: Orbit },
   { href: "/asks", label: "Asks", icon: Megaphone },
   { href: "/decisions", label: "Decisions", icon: Scale },
@@ -127,6 +132,18 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   }, [docsNonce]);
 
   const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const [moreOpen, setMoreOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    // Auto-open when the user is ON a secondary surface, else remembered.
+    return localStorage.getItem("trusty-nav-more") === "1";
+  });
+  const onSecondary = SECONDARY_NAV.some((n) => pathname.startsWith(n.href));
+  const toggleMore = () => {
+    setMoreOpen((v) => {
+      localStorage.setItem("trusty-nav-more", v ? "0" : "1");
+      return !v;
+    });
+  };
 
   return (
     <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-line bg-[color-mix(in_srgb,var(--color-card)_70%,transparent)] backdrop-blur-md max-md:w-full max-md:bg-[var(--color-card)]">
@@ -152,7 +169,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </button>
 
       <nav className="px-2" aria-label="Workspace">
-        {NAV.map((n) => (
+        {[...PRIMARY_NAV, ...((moreOpen || onSecondary) ? SECONDARY_NAV : [])].map((n) => (
           <Link
             key={n.href}
             href={n.href}
@@ -184,6 +201,25 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={toggleMore}
+          className="mb-0.5 flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-[12px] font-medium text-[var(--color-faint)] transition hover:text-ink"
+        >
+          <ChevronDown
+            size={13}
+            className={`transition-transform ${(moreOpen || onSecondary) ? "rotate-180" : ""}`}
+          />
+          <span className="flex-1 text-left">{(moreOpen || onSecondary) ? "Less" : "More"}</span>
+          {!(moreOpen || onSecondary) && unreadAsks > 0 && (
+            <span
+              className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"
+              style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+            >
+              {unreadAsks > 9 ? "9+" : unreadAsks}
+            </span>
+          )}
+        </button>
       </nav>
 
       {/* Spaces — community front doors (subdomains). Current one highlighted. */}

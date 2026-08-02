@@ -21,7 +21,10 @@ export function QRShare({ nodeId, label, onClose, path = "/summit", brand = "Tru
   brand?: string;
 }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const link = typeof window !== "undefined" ? `${window.location.origin}${path}?connect=${encodeURIComponent(nodeId)}` : "";
+  // register=1: a logged-out phone-camera scan lands on SIGN-UP, and after
+  // registering the app opens straight onto this person's card (proxy carries
+  // the connect param through auth as `next`).
+  const link = typeof window !== "undefined" ? `${window.location.origin}${path}?connect=${encodeURIComponent(nodeId)}&register=1` : "";
 
   useEffect(() => {
     if (!link) return;

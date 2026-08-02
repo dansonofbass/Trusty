@@ -29,3 +29,9 @@ services:
 
   recommender:
     command: npm run start --workspace @constellation/recommender
+
+  # Production Keycloak: precompiled pages (start-dev recompiles per request —
+  # the login slowness). First boot auto-builds (~2 min); hostname/proxy env
+  # is already prod-correct in the base file.
+  keycloak:
+    command: ["start", "--import-realm", "--http-port=8080"]

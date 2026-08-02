@@ -222,6 +222,7 @@ services:
       - "8080:8080"
     volumes:
       - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./infra/keycloak/themes/trusty:/opt/keycloak/themes/trusty:ro
       - keycloak-data:/opt/keycloak/data
     healthcheck:
       # Keycloak 26 serves health on the management port 9000.

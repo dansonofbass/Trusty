@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
   if (!code || !state || !pkceRaw) {
     return NextResponse.redirect(`${appBase}/api/auth/login`);
   }
-  let pkce: { state: string; verifier: string; invite?: string; waitlist?: boolean; returnHost?: string };
+  let pkce: { state: string; verifier: string; invite?: string; waitlist?: boolean; returnHost?: string; next?: string };
   try {
     pkce = JSON.parse(pkceRaw);
   } catch {
@@ -114,14 +114,18 @@ export async function GET(req: NextRequest) {
       } catch { /* fall through */ }
       return appBase;
     })();
+    // Same-origin deep link captured before auth (QR connect, shared pages) —
+    // honored for full-access landings; gated users still go to their gate.
+    const next =
+      pkce.next && pkce.next.startsWith("/") && !pkce.next.startsWith("//") ? pkce.next : "";
     const landing =
       status === "active"
-        ? returnBase
+        ? `${returnBase}${next}`
         : status === "pending_onboarding"
           ? `${returnBase}/onboarding`
           : status === "waitlisted"
             ? `${returnBase}/waitlist`
-            : returnBase; // gating disabled (open mode) → straight to Home
+            : `${returnBase}${next}`; // gating disabled (open mode) → straight in
 
     emitWebEvent("auth.login", session.sub, { landing: status ?? "open", invited: !!pkce.invite });
     const res = NextResponse.redirect(landing);

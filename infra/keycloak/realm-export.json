@@ -4,7 +4,7 @@
   "displayName": "Trusty",
   "sslRequired": "none",
   "registrationAllowed": true,
-  "registrationEmailAsUsername": false,
+  "registrationEmailAsUsername": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
@@ -18,7 +18,7 @@
     "realm": [
       {
         "name": "admin",
-        "description": "Trusty administrator — may set the extraction model."
+        "description": "Trusty administrator \u2014 may set the extraction model."
       }
     ]
   },
@@ -31,9 +31,15 @@
       "firstName": "Admin",
       "lastName": "User",
       "credentials": [
-        { "type": "password", "value": "admin", "temporary": false }
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
       ],
-      "realmRoles": ["admin"]
+      "realmRoles": [
+        "admin"
+      ]
     }
   ],
   "clients": [
@@ -72,5 +78,6 @@
         "email"
       ]
     }
-  ]
+  ],
+  "loginTheme": "trusty"
 }
