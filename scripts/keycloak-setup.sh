@@ -21,6 +21,25 @@ if [ -n "${KC_ADMIN:-}" ] && [ -n "${KC_PASS:-}" ]; then
   ADMIN_ARGS="--user '${KC_ADMIN}' --password '${KC_PASS}'"
 fi
 
+# Keycloak needs ~10-40s after `up -d` before it accepts connections; the same
+# bash/dev-tcp probe the compose healthcheck uses (no curl in the KC image).
+echo "→ waiting for Keycloak to be ready…"
+for i in $(seq 1 60); do
+  if $KC bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000; echo -e "GET /health/ready HTTP/1.1
+Host: localhost
+Connection: close
+
+" >&3; grep -q "200 OK" <&3' 2>/dev/null; then
+    echo "  ready after ${i}s-ish"
+    break
+  fi
+  if [ "$i" = 60 ]; then
+    echo "✗ Keycloak never became ready — check: docker compose logs keycloak" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
 echo "→ authenticating against realm master…"
 $KC bash -c "/opt/keycloak/bin/kcadm.sh config credentials \
   --server http://localhost:8080/auth --realm master ${ADMIN_ARGS}"
