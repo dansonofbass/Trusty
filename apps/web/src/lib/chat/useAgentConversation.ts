@@ -7,7 +7,8 @@ import type {
   ResolvedMention,
   ThoughtExtraction,
 } from "@constellation/graph-core";
-import { AgentUnavailableError, streamAgentTurn } from "@/lib/agentClient";
+import type { QuotaExceeded } from "@/lib/billingClient";
+import { AgentUnavailableError, OutOfCreditsError, streamAgentTurn } from "@/lib/agentClient";
 import { TOOL_LABEL, type AgentChatEntry, type TrustToolData } from "@/components/composer/AgentChat";
 import { useUI } from "@/lib/store";
 import {
@@ -34,6 +35,8 @@ export function useAgentConversation(opts?: {
   const [agentMode, setAgentMode] = useState(true);
   const [chat, setChat] = useState<AgentChatEntry[]>([]);
   const [sending, setSending] = useState(false);
+  /** Set when a turn is refused for lack of chat credits — renders the paywall. */
+  const [quota, setQuota] = useState<QuotaExceeded | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const transcriptRef = useRef<AgentMessage[]>([]);
   const conversationIdRef = useRef<string | null>(null);
@@ -172,7 +175,12 @@ export function useAgentConversation(opts?: {
         optsRef.current?.onAfterTurn?.();
         return true;
       } catch (err) {
-        if (err instanceof AgentUnavailableError) {
+        if (err instanceof OutOfCreditsError) {
+          // Nothing was spent and no turn ran — drop the optimistic bubbles and
+          // let the paywall explain, rather than showing a scary error trace.
+          setChat((prev) => prev.slice(0, input.text ? -2 : -1));
+          setQuota(err.payload);
+        } else if (err instanceof AgentUnavailableError) {
           // Drop the optimistic entries and fall back to quick mode for the session.
           setChat((prev) => prev.slice(0, input.text ? -2 : -1));
           setAgentMode(false);
@@ -218,5 +226,5 @@ export function useAgentConversation(opts?: {
     setChat([]);
   }, []);
 
-  return { agentMode, chat, sending, runTurn, decide, newChat, conversationId, loadConversation };
+  return { agentMode, chat, sending, runTurn, decide, newChat, conversationId, loadConversation, quota, clearQuota: () => setQuota(null) };
 }

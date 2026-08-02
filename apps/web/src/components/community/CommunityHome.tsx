@@ -14,14 +14,16 @@ import { QRShare, QRScan } from "@/components/summit/QRConnect";
 import { fetchCircles, joinCircle, type CircleSummary } from "@/lib/socialClient";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useUI } from "@/lib/store";
+import { useT } from "@/lib/i18n";
 
-const EXAMPLES: { en: string; fa: string; prompt: string }[] = [
-  { en: "Residency documents", fa: "مدارک اقامت", prompt: "What documents do I need for the residency application?" },
-  { en: "A trusted accountant", fa: "حسابدار قابل‌اعتماد", prompt: "Find a trusted accountant for my IE" },
-  { en: "Which bank works now?", fa: "کدام بانک حساب باز می‌کند؟", prompt: "Which bank is currently opening accounts for Iranians?" },
+const EXAMPLES: { key: "community.exResidency" | "community.exAccountant" | "community.exBank"; prompt: string }[] = [
+  { key: "community.exResidency", prompt: "What documents do I need for the residency application?" },
+  { key: "community.exAccountant", prompt: "Find a trusted accountant for my IE" },
+  { key: "community.exBank", prompt: "Which bank is currently opening accounts for Iranians?" },
 ];
 
 export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => void }) {
+  const t = useT();
   const router = useRouter();
   const { data } = useGraphData();
   const select = useUI((s) => s.select);
@@ -54,7 +56,7 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
     }
   };
 
-  const bigBtn = (icon: React.ReactNode, en: string, fa: string, onClick: () => void, accent = false) => (
+  const bigBtn = (icon: React.ReactNode, label: string, sub: string, onClick: () => void, accent = false) => (
     <button
       type="button"
       onClick={onClick}
@@ -65,8 +67,8 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
     >
       <span style={{ color: accent ? "var(--color-accent)" : "var(--color-dim)" }}>{icon}</span>
       <span className="w-full">
-        <span className="block text-[13.5px] font-bold leading-tight text-ink">{en}</span>
-        <span dir="rtl" className="block text-[11.5px] leading-tight text-[var(--color-faint)]">{fa}</span>
+        <span className="block text-[13.5px] font-bold leading-tight text-ink">{label}</span>
+        <span className="block text-[11.5px] leading-tight text-[var(--color-faint)]">{sub}</span>
       </span>
     </button>
   );
@@ -74,29 +76,26 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
   return (
     <div className="mx-auto w-full max-w-[560px]">
       <h1 className="text-center text-[22px] font-bold leading-tight text-ink md:text-[26px]" style={{ fontFamily: "var(--font-display)" }}>
-        🤝 Iranians in Armenia
+        🤝 {t("community.title")}
       </h1>
-      <p dir="rtl" className="mt-1 text-center text-[13.5px] leading-relaxed text-[var(--color-dim)]">
-        سوال‌هایت را از کسانی بپرس که خودشان تجربه کرده‌اند
-      </p>
-      <p className="mb-4 text-center text-[11.5px] text-[var(--color-faint)]">
-        Ask people who've actually been through it.
+      <p className="mb-4 mt-1 text-center text-[13.5px] leading-relaxed text-[var(--color-dim)]">
+        {t("community.tagline")}
       </p>
 
       <div className="grid grid-cols-2 gap-2">
-        {bigBtn(<MessagesSquare size={20} />, "Join circles", "حلقه‌ها — اقامت، مالیات، بانک…", () => setCirclesOpen((v) => !v), true)}
-        {bigBtn(<MessageCircle size={20} />, "Ask anything", "هر سوالی بپرس", () => onAsk(""))}
-        {bigBtn(<QrCode size={20} />, "My QR", "کارت من", () => setQr("share"))}
-        {bigBtn(<ScanLine size={20} />, "Scan someone", "اسکن", () => setQr("scan"))}
-        {bigBtn(<UserPlus size={20} />, "Invite friends", "دعوت دوستان", () => setRightPanel("invite"))}
-        {bigBtn(<MessagesSquare size={20} />, "My groups", "گروه‌های من", () => router.push("/messages"))}
+        {bigBtn(<MessagesSquare size={20} />, t("community.joinCircles"), t("community.joinCirclesSub"), () => setCirclesOpen((v) => !v), true)}
+        {bigBtn(<MessageCircle size={20} />, t("community.askAnything"), t("community.askAnythingSub"), () => onAsk(""))}
+        {bigBtn(<QrCode size={20} />, t("community.myQr"), t("community.myQrSub"), () => setQr("share"))}
+        {bigBtn(<ScanLine size={20} />, t("community.scan"), t("community.scanSub"), () => setQr("scan"))}
+        {bigBtn(<UserPlus size={20} />, t("community.invite"), t("community.inviteSub"), () => setRightPanel("invite"))}
+        {bigBtn(<MessagesSquare size={20} />, t("community.myGroups"), t("community.myGroupsSub"), () => router.push("/messages"))}
       </div>
 
       {/* Circles inline list — the #1 first action */}
       {circlesOpen && (
         <div className="mt-3 rounded-2xl border border-line bg-[var(--color-surface)] p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--color-faint)]">Circles · حلقه‌ها</span>
+            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--color-faint)]">{t("community.circles")}</span>
             <button type="button" onClick={() => setCirclesOpen(false)} aria-label="Close">
               <X size={14} className="text-[var(--color-faint)]" />
             </button>
@@ -104,7 +103,7 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
           {!circles ? (
             <p className="py-3 text-center text-[12px] text-[var(--color-faint)]"><Loader2 size={14} className="inline animate-spin" /></p>
           ) : circles.length === 0 ? (
-            <p className="py-2 text-[12px] text-[var(--color-dim)]">No circles yet — be the first to create one in Messages.</p>
+            <p className="py-2 text-[12px] text-[var(--color-dim)]">{t("community.circlesEmpty")}</p>
           ) : (
             <ul className="space-y-1.5">
               {circles.map((c) => (
@@ -127,7 +126,7 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
                       ? { background: "rgba(146,166,255,0.12)", color: "var(--color-ink)" }
                       : { background: "var(--color-accent)", color: "var(--color-on-accent)" }}
                   >
-                    {c.mine ? "Open" : c.open ? (busyId === c.id ? "…" : "Join") : "Invite-only"}
+                    {c.mine ? t("circle.open_") : c.open ? (busyId === c.id ? t("circle.joining") : t("circle.join")) : t("circle.inviteOnly")}
                   </button>
                 </li>
               ))}
@@ -140,19 +139,19 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
       <div className="mt-3 space-y-1.5">
         {EXAMPLES.map((e) => (
           <button
-            key={e.en}
+            key={e.key}
             type="button"
             onClick={() => onAsk(e.prompt)}
-            className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-2.5 text-left transition hover:border-[var(--color-accent-line)]"
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-2.5 text-start transition hover:border-[var(--color-accent-line)]"
           >
-            <span className="text-[12.5px] font-semibold text-ink">{e.en}</span>
-            <span dir="rtl" className="text-[12px] text-[var(--color-faint)]">{e.fa}</span>
+            <span className="text-[12.5px] font-semibold text-ink">{t(e.key)}</span>
+            <span className="text-[12px] text-[var(--color-faint)]">→</span>
           </button>
         ))}
       </div>
 
       <p className="mt-4 text-center text-[11px] text-[var(--color-faint)]">
-        Or type below — Persian works. · فارسی هم می‌فهمد
+        {t("community.typeBelow")}
       </p>
 
       {qr === "share" && meId && <QRShare nodeId={meId} label={meLabel} onClose={() => setQr(null)} path="/" brand="Trusty" />}

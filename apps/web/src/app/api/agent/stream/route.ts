@@ -13,6 +13,33 @@ export async function POST(req: NextRequest) {
   const rl = extractionRateLimit(session.sub);
   if (!rl.ok) return rateLimited(rl);
 
+  // Chat credits: charge one AI message BEFORE the turn starts. A 402 carries
+  // balance + packs + payment contact, which the client renders as the paywall
+  // (no LLM spend on a turn the user can't pay for). Unmetered deployments
+  // (no DB) answer ok:true.
+  const GRAPH = process.env.GRAPH_SERVICE_INTERNAL_URL ?? "http://graph-service:4001";
+  try {
+    const quota = await fetch(`${GRAPH}/api/billing/consume`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-user-id": session.sub,
+        ...((() => {
+          const sp = spaceFromHost(req.headers.get("host") ?? undefined);
+          return sp ? { "x-app": sp } : {};
+        })()),
+      },
+      body: "{}",
+      cache: "no-store",
+    });
+    if (quota.status === 402) {
+      const payload = await quota.json().catch(() => ({}));
+      return NextResponse.json(payload, { status: 402 });
+    }
+  } catch {
+    // Billing unreachable must never block the product — fail open.
+  }
+
   const body = await req.text();
   let upstream: Response;
   try {

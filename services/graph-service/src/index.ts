@@ -243,6 +243,11 @@ import { initAnswers, listRoomAnswers, saveAnswer, searchAnswers } from "./answe
 import type { DomainEvent } from "@constellation/graph-core";
 import { getSetting, initSettings, openAccessEnabled, setSetting } from "./settings";
 import {
+  BILLING_CONFIG, allInvoices, billingEnabled, cancelInvoice, chatBalance, createInvoice,
+  ensureMonthlyAllowance, getInvoice, initBilling, listInvoices, markInvoicePaid,
+  messagesUsedThisMonth, planById, plans, spendForMessage,
+} from "./billing";
+import {
   conversationsEnabled,
   createConversation,
   deleteConversation,
@@ -4008,6 +4013,167 @@ app.get("/api/credits", async (req, res) => {
   }
 });
 
+/* --------------------------- chat credits & billing -------------------------- */
+
+/** The viewer's chat allowance: balance, usage, plans, and how to pay. */
+app.get("/api/billing/me", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    await ensureMonthlyAllowance(userId);
+    const earned = earnedCredits(await contributionValueFor(userId, shared.nodes));
+    res.json({
+      enabled: billingEnabled(),
+      balance: await chatBalance(userId, earned),
+      usedThisMonth: await messagesUsedThisMonth(userId),
+      freeMonthly: BILLING_CONFIG.freeMonthly,
+      costPerMessage: BILLING_CONFIG.costPerMessage,
+      earned,
+      plans: plans(),
+      payment: {
+        whatsapp: getSetting("payment_whatsapp", process.env.PAYMENT_WHATSAPP ?? ""),
+        note: getSetting("payment_note", ""),
+      },
+      invoices: await listInvoices(userId, 10),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * Charge one AI message. Called by the BFF before it starts an agent turn —
+ * a 402 carries everything the paywall needs to render.
+ */
+app.post("/api/billing/consume", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    if (!billingEnabled()) return res.json({ ok: true, balance: null, enabled: false });
+    await ensureMonthlyAllowance(userId);
+    const earned = earnedCredits(await contributionValueFor(userId, shared.nodes));
+    const r = await spendForMessage(userId, earned, { app: appOf(req) });
+    if (!r.ok) {
+      emitEvent("wallet.spent", { userId, payload: { kind: "chat_message", ok: false } });
+      return res.status(402).json({
+        error: "insufficient_credits",
+        balance: r.balance,
+        plans: plans(),
+        payment: {
+          whatsapp: getSetting("payment_whatsapp", process.env.PAYMENT_WHATSAPP ?? ""),
+          note: getSetting("payment_note", ""),
+        },
+      });
+    }
+    emitEvent("wallet.spent", { userId, payload: { kind: "chat_message", ok: true } });
+    res.json({ ok: true, balance: r.balance, enabled: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Issue an invoice for a pack (manual settlement — admin marks it paid). */
+app.post("/api/billing/invoice", async (req, res) => {
+  const { userId } = auth(req);
+  const plan = planById(str(req.body?.planId, 40));
+  if (!plan) return res.status(400).json({ error: "unknown plan" });
+  try {
+    const label = shared.nodes.find((n) => n.id === userId)?.label ?? userId;
+    const invoice = await createInvoice(userId, label, plan);
+    emitEvent("credits.boost_purchased", {
+      userId,
+      payload: { planId: plan.id, credits: plan.credits, invoiceId: invoice.id, status: "pending" },
+    });
+    res.json({
+      invoice,
+      payment: {
+        whatsapp: getSetting("payment_whatsapp", process.env.PAYMENT_WHATSAPP ?? ""),
+        note: getSetting("payment_note", ""),
+      },
+    });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+app.get("/api/billing/invoices/:id", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    const invoice = await getInvoice(Number(req.params.id), userId);
+    if (!invoice) return res.status(404).json({ error: "not found" });
+    res.json({
+      invoice,
+      payment: {
+        whatsapp: getSetting("payment_whatsapp", process.env.PAYMENT_WHATSAPP ?? ""),
+        note: getSetting("payment_note", ""),
+      },
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/billing/invoices/:id/cancel", async (req, res) => {
+  const { userId } = auth(req);
+  try {
+    res.json({ ok: await cancelInvoice(Number(req.params.id), userId) });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/* admin: the invoice desk + payment contact settings */
+
+app.get("/api/admin/invoices", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  try {
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    res.json({ invoices: await allInvoices(status), plans: plans(), enabled: billingEnabled() });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/admin/invoices/:id/pay", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  try {
+    const invoice = await markInvoicePaid(Number(req.params.id), userId);
+    if (!invoice) return res.status(400).json({ error: "invoice not pending" });
+    emitEvent("credits.granted", {
+      userId: invoice.userId,
+      payload: { credits: invoice.credits, invoiceId: invoice.id, by: userId },
+    });
+    res.json({ invoice });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+app.post("/api/admin/invoices/:id/cancel", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  try {
+    res.json({ ok: await cancelInvoice(Number(req.params.id)) });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
+/** Payment contact shown on invoices — admin-editable, no redeploy. */
+app.put("/api/admin/settings/payment", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  try {
+    const whatsapp = str(req.body?.whatsapp, 40).replace(/[^\d+]/g, "");
+    const note = str(req.body?.note, 400);
+    await setSetting("payment_whatsapp", whatsapp, userId);
+    await setSetting("payment_note", note, userId);
+    res.json({ ok: true, whatsapp, note });
+  } catch (e) {
+    res.status(400).json(asError(e));
+  }
+});
+
 /** Spend credits on a temporary Listen-capacity boost (atomic guard). */
 app.post("/api/credits/boost", async (req, res) => {
   const { userId } = auth(req);
@@ -5536,6 +5702,9 @@ async function main() {
   );
   await initSettings().catch((e) =>
     console.error("graph-service: settings init failed:", e instanceof Error ? e.message : e),
+  );
+  await initBilling().catch((e) =>
+    console.error("graph-service: billing init failed:", e instanceof Error ? e.message : e),
   );
   await initNotifications().catch((e) =>
     console.error("graph-service: notifications init failed:", e instanceof Error ? e.message : e),

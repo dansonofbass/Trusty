@@ -6,6 +6,8 @@ import { useState } from "react";
 import { LogOut, MapPin, Sparkles, UserPlus } from "lucide-react";
 import GeoSelect from "@/components/GeoSelect";
 import WalletPanel from "@/components/WalletPanel";
+import ChatCreditsChip from "@/components/billing/ChatCreditsChip";
+import LanguageToggle from "./LanguageToggle";
 import ContributionPanel from "@/components/ContributionPanel";
 import { useUI } from "@/lib/store";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
@@ -36,6 +38,8 @@ export default function SidebarFooter() {
       />
       <QRConnectHost />
       <div className="mb-2"><FeedbackButton /></div>
+      <div className="mb-2"><ChatCreditsChip /></div>
+      <div className="mb-2"><LanguageToggle /></div>
 
       <div className="flex items-center gap-1.5">
         <div className="relative">

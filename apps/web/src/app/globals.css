@@ -498,3 +498,22 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .drawer-in { animation: none; }
 }
+
+/* Persian: Vazirmatn for body text; the display font has no Arabic script.
+   Applied by :lang so it follows the <html lang> the i18n provider sets. */
+:root:lang(fa) body,
+:root:lang(fa) input,
+:root:lang(fa) textarea,
+:root:lang(fa) button {
+  font-family: "Vazirmatn", var(--font-body, system-ui), sans-serif;
+}
+:root:lang(fa) [style*="--font-display"],
+:root:lang(fa) h1,
+:root:lang(fa) h2 {
+  font-family: "Vazirmatn", var(--font-body, system-ui), sans-serif;
+  letter-spacing: 0;
+}
+/* Persian digits read better with tabular alignment in counters/badges. */
+:root:lang(fa) .tabular {
+  font-variant-numeric: tabular-nums;
+}

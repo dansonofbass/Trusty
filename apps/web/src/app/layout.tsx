@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AccessGuard from "@/components/AccessGuard";
+import { I18nProvider } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Trusty — your social universe as a graph",
@@ -32,8 +33,12 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <div className="nebula" aria-hidden />
-        <AccessGuard />
-        {children}
+        {/* Locale + direction live here: the provider stamps lang/dir on <html>,
+            so every surface flips to RTL without per-component branching. */}
+        <I18nProvider>
+          <AccessGuard />
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );

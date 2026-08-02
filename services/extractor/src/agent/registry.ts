@@ -339,6 +339,68 @@ const searchAnswersTool: AgentTool = {
   },
 };
 
+const webSearch: AgentTool = {
+  name: "web_search",
+  description:
+    "Search the public web for CURRENT facts the community graph can't know: official rules and procedures, government/bank announcements, prices, opening hours, news, or anything time-sensitive. Use AFTER search_answers when the community has no saved answer, or to CHECK whether a saved answer is still current. Always tell the user what you found came from the web (with the source name) rather than from their trusted network.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      query: { type: "string", description: "Search query, e.g. 'Armenia residence permit application 2026 permit.am'" },
+      site: { type: "string", description: "Optional domain to restrict to, e.g. 'e-gov.am'" },
+    },
+    required: ["query"],
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const query = str(args.query, 200);
+    if (!query) return { ok: false, summary: "query required" };
+    const site = str(args.site, 80);
+    const key = (process.env.SERPAPI_KEYS ?? "").split(",")[0]?.trim();
+    if (!key) return { ok: false, summary: "web search is not configured on this deployment" };
+    const qs = new URLSearchParams({
+      engine: "google",
+      q: site ? `site:${site} ${query}` : query,
+      num: "6",
+      api_key: key,
+    });
+    let results: { title?: string; link?: string; snippet?: string; date?: string }[] = [];
+    let answerBox: { answer?: string; snippet?: string } | undefined;
+    try {
+      const r = await fetch(`https://serpapi.com/search.json?${qs}`, { signal: ctx.signal });
+      const body = (await r.json()) as {
+        organic_results?: typeof results;
+        answer_box?: typeof answerBox;
+        error?: string;
+      };
+      if (body.error) return { ok: false, summary: `web search failed: ${body.error}` };
+      results = (body.organic_results ?? []).slice(0, 6);
+      answerBox = body.answer_box;
+    } catch {
+      return { ok: false, summary: "web search unreachable" };
+    }
+    if (!results.length && !answerBox) {
+      return { ok: true, summary: `the web has nothing useful for "${query}"` };
+    }
+    const lines = [
+      ...(answerBox?.answer || answerBox?.snippet ? [`Featured: ${answerBox.answer ?? answerBox.snippet}`] : []),
+      ...results.map((x) => {
+        const host = (() => {
+          try { return new URL(x.link ?? "").hostname.replace(/^www\./, ""); } catch { return "web"; }
+        })();
+        return `${x.title ?? "(untitled)"} — ${host}${x.date ? ` (${x.date})` : ""}: ${(x.snippet ?? "").slice(0, 220)}`;
+      }),
+    ];
+    return {
+      ok: true,
+      summary: lines.join("
+"),
+      data: { query, results: results.map((x) => ({ title: x.title, link: x.link, snippet: x.snippet })) },
+    };
+  },
+};
+
 const createAsk: AgentTool = {
   name: "create_ask",
   description:
@@ -482,6 +544,7 @@ export function buildComposerRegistry(extra: AgentTool[] = []): ToolRegistry {
     trustSearch,
     entitySearch,
     searchAnswersTool,
+    webSearch,
     saveNote,
     updateJourney,
     recordDecision,

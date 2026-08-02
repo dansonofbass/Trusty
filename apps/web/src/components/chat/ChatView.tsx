@@ -12,6 +12,7 @@ import { useUI } from "@/lib/store";
 import { spaceFromHost } from "@/lib/space";
 import SummitHome from "@/components/summit/SummitHome";
 import CommunityHome from "@/components/community/CommunityHome";
+import CreditsPaywall from "@/components/billing/CreditsPaywall";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useChat } from "@/lib/chat/ChatProvider";
 import { resolveScope, trustSearch as runTrustSearch, type TrustRec } from "@/lib/trustClient";
@@ -68,7 +69,7 @@ const KIND_FOR_INTENT: Record<string, string> = {
 export default function ChatView() {
   const router = useRouter();
   const { dataset, mode, pending, handleExtract, handleWeave } = useGraphData();
-  const { chat, sending, agentMode, runTurn, decide, newChat } = useChat();
+  const { chat, sending, agentMode, runTurn, decide, newChat, quota, clearQuota } = useChat();
 
   const select = useUI((s) => s.select);
   const setTrustSearch = useUI((s) => s.setTrustSearch);
@@ -180,6 +181,10 @@ export default function ChatView() {
     </div>
   );
 
+  const paywall = quota ? (
+    <CreditsPaywall plans={quota.plans} payment={quota.payment} onClose={clearQuota} />
+  ) : null;
+
   const input = (
     <ChatInput
       nodes={dataset.nodes}
@@ -207,6 +212,7 @@ export default function ChatView() {
           <div className="mt-4">{input}</div>
           {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
           {toast && <p className="mt-3 text-center text-[11.5px] text-[#54d26e]">{toast}</p>}
+          {paywall}
         </div>
       </div>
     );
@@ -226,6 +232,7 @@ export default function ChatView() {
           <div className="mt-4">{input}</div>
           {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
           {toast && <p className="mt-3 text-center text-[11.5px] text-[#54d26e]">{toast}</p>}
+          {paywall}
         </div>
       </div>
     );
@@ -280,6 +287,7 @@ export default function ChatView() {
           {toast && (
             <p className="mt-3 text-center text-[11.5px] text-[#54d26e]">{toast}</p>
           )}
+          {paywall}
         </div>
       </div>
     );
@@ -345,6 +353,7 @@ export default function ChatView() {
           {input}
         </div>
       </div>
+      {paywall}
     </div>
   );
 }

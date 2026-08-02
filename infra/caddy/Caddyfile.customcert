@@ -23,6 +23,12 @@ summit.{$PUBLIC_DOMAIN:localhost}, irham.{$PUBLIC_DOMAIN:localhost} {
 	reverse_proxy web:3000
 }
 
+# Langfuse — LLM tracing/eval console. Has its own login (NEXTAUTH), so no
+# basic-auth layer here; NEXTAUTH_URL must match this public URL.
+langfuse.{$PUBLIC_DOMAIN:localhost} {
+	reverse_proxy langfuse:3000
+}
+
 # Kibana (observability profile) — basic-auth protected; hash generated with
 # `docker compose run --rm caddy caddy hash-password`. No-op until the DNS
 # record for kibana.<domain> exists and KIBANA_PASS_HASH is set.

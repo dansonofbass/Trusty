@@ -28,19 +28,20 @@ import NotificationBell from "@/components/NotificationBell";
 import { SPACE_META, SPACE_SLUGS, homeUrl, spaceFromHost, spaceUrl } from "@/lib/space";
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
+type NavItem = { href: string; labelKey: TranslationKey; icon: React.ElementType };
 // Newcomer-calm nav: three primary surfaces; the power tools live behind
 // "More" (remembered per browser) so a first-timer sees three words, not six.
 const PRIMARY_NAV: NavItem[] = [
-  { href: "/", label: "Chat", icon: MessageCircle },
-  { href: "/messages", label: "Messages", icon: MessagesSquare },
-  { href: "/discover", label: "Discover", icon: Radio },
+  { href: "/", labelKey: "nav.chat", icon: MessageCircle },
+  { href: "/messages", labelKey: "nav.messages", icon: MessagesSquare },
+  { href: "/discover", labelKey: "nav.discover", icon: Radio },
 ];
 const SECONDARY_NAV: NavItem[] = [
-  { href: "/graph", label: "Graph", icon: Orbit },
-  { href: "/asks", label: "Asks", icon: Megaphone },
-  { href: "/decisions", label: "Decisions", icon: Scale },
+  { href: "/graph", labelKey: "nav.graph", icon: Orbit },
+  { href: "/asks", labelKey: "nav.asks", icon: Megaphone },
+  { href: "/decisions", labelKey: "nav.decisions", icon: Scale },
 ];
 
 /**
@@ -49,6 +50,7 @@ const SECONDARY_NAV: NavItem[] = [
  * history joins in Phase 2 (conversations are session-ephemeral today).
  */
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const setRightPanel = useUI((s) => s.setRightPanel);
@@ -164,7 +166,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         className="mx-3 mb-3 flex items-center gap-2 rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] px-3 py-2 text-[12.5px] text-[var(--color-faint)] transition hover:border-[rgba(146,166,255,0.35)] hover:text-ink"
       >
         <Search size={14} />
-        <span className="flex-1 text-left">Search…</span>
+        <span className="flex-1 text-start">{t("nav.search")}</span>
         <kbd className="rounded bg-[rgba(146,166,255,0.12)] px-1.5 py-0.5 text-[10px]">⌘K</kbd>
       </button>
 
@@ -182,7 +184,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             }
           >
             <n.icon size={15} strokeWidth={2.2} />
-            <span className="flex-1">{n.label}</span>
+            <span className="flex-1">{t(n.labelKey)}</span>
             {n.href === "/messages" && unreadMsgs > 0 && (
               <span
                 className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"
@@ -210,7 +212,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             size={13}
             className={`transition-transform ${(moreOpen || onSecondary) ? "rotate-180" : ""}`}
           />
-          <span className="flex-1 text-left">{(moreOpen || onSecondary) ? "Less" : "More"}</span>
+          <span className="flex-1 text-start">{(moreOpen || onSecondary) ? t("nav.less") : t("nav.more")}</span>
           {!(moreOpen || onSecondary) && unreadAsks > 0 && (
             <span
               className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"
@@ -225,7 +227,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {/* Spaces — community front doors (subdomains). Current one highlighted. */}
       <div className="mt-3 px-2">
         <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
-          Spaces
+          {t("nav.spaces")}
         </div>
         {(() => {
           const current = spaceFromHost();
@@ -238,7 +240,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] text-[var(--color-dim)] transition hover:bg-[var(--color-tint)] hover:text-ink"
                   >
                     <span>🏠</span>
-                    <span className="min-w-0 flex-1 truncate">Trusty home</span>
+                    <span className="min-w-0 flex-1 truncate">{t("nav.home")}</span>
                   </a>
                 </li>
               )}
@@ -268,11 +270,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="mt-3 px-2">
         <div className="mb-1 flex items-center justify-between px-3">
           <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
-            <MessageCircle size={11} /> Chats
+            <MessageCircle size={11} /> {t("nav.chats")}
           </span>
           <button
             type="button"
-            title="New chat"
+            title={t("nav.newChat")}
             onClick={startNewChat}
             className="rounded p-1 text-[var(--color-faint)] transition hover:text-ink"
           >
@@ -281,7 +283,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         {chats.length === 0 ? (
           <p className="px-3 py-1 text-[11px] leading-snug text-[var(--color-faint)]">
-            Conversations you start will resume from here.
+            {t("nav.chatsEmpty")}
           </p>
         ) : (
           <ul className="max-h-[168px] overflow-y-auto scroll-quiet">
@@ -314,11 +316,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)] transition hover:text-ink"
           >
-            <FileText size={11} /> Docs
+            <FileText size={11} /> {t("nav.docs")}
           </Link>
           <button
             type="button"
-            title="New doc"
+            title={t("nav.newDoc")}
             onClick={() => {
               router.push("/docs?new=1");
               onNavigate?.();
@@ -330,7 +332,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         {docs.length === 0 && folders.length === 0 ? (
           <p className="px-3 py-1 text-[11px] leading-snug text-[var(--color-faint)]">
-            Your notes and drafts will appear here.
+            {t("nav.docsEmpty")}
           </p>
         ) : (
           <ul>
@@ -401,7 +403,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           }}
           className="mt-3 flex w-full items-center gap-2 rounded-xl border border-dashed border-[var(--color-line)] px-3 py-2 text-[12px] text-[var(--color-faint)] transition hover:border-[var(--color-accent-line)] hover:text-ink"
         >
-          <Plus size={13} /> Add an entity
+          <Plus size={13} /> {t("nav.addEntity")}
         </button>
       </div>
 

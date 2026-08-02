@@ -131,7 +131,9 @@ services:
     image: langfuse/langfuse:2
     environment:
       DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
-      NEXTAUTH_URL: http://localhost:3001
+      # Public URL when deployed behind Caddy (langfuse.<domain>); falls back
+      # to the local port for dev. NextAuth rejects logins if this is wrong.
+      NEXTAUTH_URL: ${LANGFUSE_PUBLIC_URL:-http://localhost:3001}
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-langfuse-dev-secret-change-me}
       SALT: ${LANGFUSE_SALT:-langfuse-dev-salt-change-me}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}

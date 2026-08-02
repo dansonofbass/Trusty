@@ -12,6 +12,8 @@ import type {
   ResolvedMention,
 } from "@constellation/graph-core";
 
+import type { QuotaExceeded } from "@/lib/billingClient";
+
 const AGENT_STREAM_URL = "/api/agent/stream";
 
 /** The agent needs LiteLLM or an Anthropic key server-side — 503 means "use quick mode". */
@@ -19,6 +21,16 @@ export class AgentUnavailableError extends Error {
   constructor(message = "agent unavailable") {
     super(message);
     this.name = "AgentUnavailableError";
+  }
+}
+
+/** Out of chat credits (402) — carries what the paywall needs to render. */
+export class OutOfCreditsError extends Error {
+  readonly payload: QuotaExceeded;
+  constructor(payload: QuotaExceeded) {
+    super("insufficient_credits");
+    this.name = "OutOfCreditsError";
+    this.payload = payload;
   }
 }
 
@@ -60,6 +72,12 @@ export async function streamAgentTurn(
     }),
   });
   if (r.status === 503) throw new AgentUnavailableError();
+  if (r.status === 402) {
+    const payload = (await r.json().catch(() => null)) as QuotaExceeded | null;
+    throw new OutOfCreditsError(
+      payload ?? { error: "insufficient_credits", balance: 0, plans: [], payment: { whatsapp: "", note: "" } },
+    );
+  }
   if (!r.ok) {
     const body = (await r.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? `agent stream ${r.status}`);
