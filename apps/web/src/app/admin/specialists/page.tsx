@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Check, Loader2, X, Mail, Phone, FileBadge, Globe, Building2, MessageSquareQuote } from "lucide-react";
+import { BadgeCheck, Check, Loader2, X, Mail, Phone, FileBadge, Globe, Building2, MessageSquareQuote, Search, Tags } from "lucide-react";
+import { TOPIC_TAXONOMY } from "@constellation/graph-core";
 
 interface Claim {
   id: string;
@@ -105,6 +106,8 @@ export default function SpecialistsAdminPage() {
           claimant becomes owner. It never verifies every profile claim and never creates trust.
         </p>
       </header>
+
+      <TopicTagEditor />
 
       <div className="mb-5 flex gap-1 rounded-full border border-line bg-surface p-1 text-[12.5px]">
         {TABS.map((t) => (
@@ -269,6 +272,173 @@ export default function SpecialistsAdminPage() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+interface SpecialistSearchHit {
+  nodeId: string;
+  label: string;
+  nodeType: string;
+}
+
+/** Admin-only topic tagging — separate from claim review. Most specialists
+ *  are unclaimed catalog entries, so this searches ALL specialist-type nodes,
+ *  not just claimed ones. Tags feed the market-test survey's "best experts
+ *  for this need" matches and in-app topic search; a specialist can never
+ *  set these on their own profile. */
+function TopicTagEditor() {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<SpecialistSearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<SpecialistSearchHit | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (q.trim().length < 2) {
+        setResults([]);
+        return;
+      }
+      setSearching(true);
+      try {
+        const r = await fetch(`/api/admin/specialists/search?q=${encodeURIComponent(q.trim())}`, { cache: "no-store" });
+        const data = (await r.json()) as { nodes: SpecialistSearchHit[] };
+        setResults(data.nodes ?? []);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const select = async (hit: SpecialistSearchHit) => {
+    setSelected(hit);
+    setSaved(false);
+    setLoadingTags(true);
+    try {
+      const r = await fetch(`/api/specialists/${encodeURIComponent(hit.nodeId)}`, { cache: "no-store" });
+      const data = (await r.json()) as { topicTags?: string[] };
+      setTags(data.topicTags ?? []);
+    } catch {
+      setTags([]);
+    } finally {
+      setLoadingTags(false);
+    }
+  };
+
+  const toggle = (t: string) => setTags((xs) => (xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t]));
+
+  const save = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/admin/specialists/${encodeURIComponent(selected.nodeId)}/topic-tags`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tags }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `save failed (${r.status})`);
+      setSaved(true);
+    } catch {
+      setSaved(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mb-6 rounded-2xl border border-line bg-surface p-4 backdrop-blur-md">
+      <div className="flex items-center gap-2">
+        <Tags size={15} className="text-faint" />
+        <h2 className="text-[14px] font-bold text-ink">Topic tags</h2>
+      </div>
+      <p className="mt-1 text-[12.5px] text-dim">
+        Tag a specialist with the topics they cover. This is what the market-test survey and in-app topic search use
+        to find &ldquo;the best expert for this need&rdquo; — a specialist can never set this themselves.
+      </p>
+
+      <div className="relative mt-3">
+        <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search specialists by name…"
+          className="w-full rounded-lg border border-line bg-transparent py-2 pl-8 pr-3 text-[12.5px] text-ink outline-none placeholder:text-faint"
+        />
+      </div>
+
+      {searching && <div className="mt-2 flex items-center gap-1.5 text-[12px] text-faint"><Loader2 size={12} className="animate-spin" /> Searching…</div>}
+
+      {!selected && results.length > 0 && (
+        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-lg border border-line">
+          {results.map((r) => (
+            <li key={r.nodeId}>
+              <button
+                onClick={() => void select(r)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-[12.5px] text-ink hover:bg-[var(--color-tint)]"
+              >
+                <span>{r.label}</span>
+                <span className="text-[11px] capitalize text-faint">{r.nodeType.replace(/_/g, " ")}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {selected && (
+        <div className="mt-3 rounded-lg border border-line p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[13px] font-semibold text-ink">
+              {selected.label} <span className="font-normal capitalize text-faint">· {selected.nodeType.replace(/_/g, " ")}</span>
+            </div>
+            <button onClick={() => setSelected(null)} className="text-[11.5px] text-faint hover:text-ink">
+              Change
+            </button>
+          </div>
+
+          {loadingTags ? (
+            <div className="mt-3 flex items-center gap-1.5 text-[12px] text-faint"><Loader2 size={12} className="animate-spin" /> Loading current tags…</div>
+          ) : (
+            <>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {TOPIC_TAXONOMY.map((t) => {
+                  const on = tags.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => toggle(t)}
+                      className={`rounded-full border px-2.5 py-1 text-[11.5px] font-medium capitalize transition ${
+                        on
+                          ? "border-transparent bg-[var(--color-accent)] text-space"
+                          : "border-line text-dim hover:border-[var(--color-accent)]/60"
+                      }`}
+                    >
+                      {t.replace(/_/g, " ")}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  disabled={saving}
+                  onClick={() => void save()}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-space disabled:opacity-50"
+                  style={{ background: "var(--color-accent)" }}
+                >
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save tags
+                </button>
+                {saved && <span className="text-[11.5px] text-emerald-400">Saved</span>}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

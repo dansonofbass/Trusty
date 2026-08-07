@@ -116,6 +116,8 @@ export async function initSpecialists(): Promise<void> {
       ends_at     TIMESTAMPTZ,
       updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  await p.query(`ALTER TABLE specialist_profiles ADD COLUMN IF NOT EXISTS topic_tags JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await p.query(`CREATE INDEX IF NOT EXISTS specialist_profiles_topic_tags_idx ON specialist_profiles USING GIN (topic_tags)`);
   pool = p;
   console.log("graph-service: specialists ready (postgres)");
 }
@@ -195,6 +197,9 @@ export interface SpecialistView {
   nodeId: string;
   state: SpecialistState;
   layers: SpecialistLayers;
+  /** Admin-assigned topic tags (TOPIC_TAXONOMY values) — not provider-editable,
+   *  so a specialist can never make themselves more discoverable by topic. */
+  topicTags: string[];
   /** viewer-specific */
   isManager: boolean;
   permissions: SpecialistPermissions | null;
@@ -209,7 +214,7 @@ export async function getSpecialist(nodeId: string, viewerId: string, viewerIsAd
   if (!pool) throw new Error("specialists disabled");
   await ensureSpecialist(nodeId);
   const r = await pool.query(
-    `SELECT state, layers, created_at, updated_at FROM specialist_profiles WHERE node_id = $1`,
+    `SELECT state, layers, topic_tags, created_at, updated_at FROM specialist_profiles WHERE node_id = $1`,
     [nodeId],
   );
   const row = r.rows[0];
@@ -222,6 +227,7 @@ export async function getSpecialist(nodeId: string, viewerId: string, viewerIsAd
     nodeId,
     state: row.state as SpecialistState,
     layers: (row.layers ?? {}) as SpecialistLayers,
+    topicTags: Array.isArray(row.topic_tags) ? row.topic_tags.map(String) : [],
     isManager: !!permissions,
     permissions,
     pendingClaim: !!pending.rowCount,
@@ -264,6 +270,42 @@ export async function subscriptionStates(
     out[String(row.node_id)] = { plan: row.plan as SubscriptionPlan, state };
   }
   return out;
+}
+
+/* --------------------------- topic tags ----------------------------- */
+/* Admin-only, structured (TOPIC_TAXONOMY-valued) tags — separate from the
+ * specialist's own free-text taxonomy layer so a profile can't self-promote
+ * its topic reach. These are what "find the best expert for topic X" and the
+ * public market-test survey's results screen both query against. */
+
+export async function setSpecialistTopicTags(
+  nodeId: string,
+  adminId: string,
+  tags: string[],
+): Promise<{ ok: true; topicTags: string[] } | { ok: false; error: string }> {
+  if (!pool) return { ok: false, error: "specialists disabled" };
+  const clean = [...new Set(tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 20);
+  await ensureSpecialist(nodeId);
+  await pool.query(
+    `UPDATE specialist_profiles SET topic_tags = $2::jsonb, updated_at = now() WHERE node_id = $1`,
+    [nodeId, JSON.stringify(clean)],
+  );
+  await appendEvent(pool, nodeId, adminId, "field_updated", { layer: "topic_tags", tags: clean });
+  return { ok: true, topicTags: clean };
+}
+
+/** Node ids of specialists admin-tagged with `topic`, most recently updated
+ *  first. Ranking by trust evidence happens in the caller, which has access
+ *  to the graph (this module only knows Postgres). */
+export async function nodeIdsByTopicTag(topic: string, limit = 50): Promise<string[]> {
+  if (!pool) return [];
+  const r = await pool.query(
+    `SELECT node_id FROM specialist_profiles
+       WHERE topic_tags @> $1::jsonb AND state NOT IN ('closed', 'merged')
+       ORDER BY updated_at DESC LIMIT $2`,
+    [JSON.stringify([topic.trim().toLowerCase()]), limit],
+  );
+  return r.rows.map((row) => String(row.node_id));
 }
 
 /* ------------------------------ claims ----------------------------- */

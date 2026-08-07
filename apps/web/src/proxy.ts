@@ -29,9 +29,10 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   // Match everything except API routes, Next internals, and files with an
-  // extension (static assets). Page routes like "/" are gated. `/invite/*` and
-  // `/a/*` (shared answer pages) are excluded so logged-out visitors — and
-  // Telegram's link-preview fetcher — can read them; their CTAs then send
-  // people into the auth flow.
-  matcher: ["/((?!api|invite|a/|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  // extension (static assets). Page routes like "/" are gated. `/invite/*`,
+  // `/a/*` (shared answer pages), and `/survey` (the public market-test
+  // survey — shared as a link, no account needed to answer it) are excluded
+  // so logged-out visitors — and Telegram's link-preview fetcher — can read
+  // them; their CTAs then send people into the auth flow.
+  matcher: ["/((?!api|invite|a/|survey|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

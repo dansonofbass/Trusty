@@ -280,9 +280,11 @@ import {
   initSpecialists,
   listClaims,
   listVerifications,
+  nodeIdsByTopicTag,
   removeManager,
   reviewClaim,
   revokeVerification,
+  setSpecialistTopicTags,
   specialistStates,
   specialistsEnabled,
   specialistTimeline,
@@ -306,6 +308,15 @@ import {
   type MeetingNote, type NoteVisibility,
 } from "./meetingNotes";
 import { initEventLocations, locationsEnabled, listLocations, upsertLocation, deleteLocation } from "./eventLocations";
+import {
+  initSurvey,
+  markJoined,
+  markMatchesShown,
+  submitSurveyResponse,
+  surveyEnabled,
+  surveySummary,
+  validateSurveyAnswers,
+} from "./survey";
 
 /** Reload the admin-defined ontology overlay into graph-core (boot + after edits). */
 async function reloadOntology(): Promise<void> {
@@ -664,6 +675,7 @@ app.get("/health", (_req, res) => {
     access: accessEnabled() ? "postgres" : "disabled",
     waitlist: waitlistEnabled() ? "postgres" : "disabled",
     onboarding: onboardingEnabled() ? "postgres" : "disabled",
+    survey: surveyEnabled() ? "postgres" : "disabled",
     outcomePrompts: outcomePromptsEnabled() ? "postgres" : "disabled",
     asks: asksEnabled() ? "postgres" : "disabled",
     embeddings: embeddingsEnabled() ? "pgvector" : "disabled",
@@ -724,6 +736,89 @@ app.get("/public/answers/:id", async (req, res) => {
       /** How much more the community has on this topic — the reason to join. */
       moreInCircle: Math.max(0, (await listRoomAnswers(answer.roomId, 100)).length - 1),
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * Public market-test survey (no login). Five 4-option questions; the payoff
+ * is real circles + real admin-tagged, trust-ranked specialists for the
+ * respondent's stated need — not a mockup. See survey.ts.
+ */
+/** Fired when the survey first renders — the funnel's numerator vs. completed. */
+app.post("/public/survey/started", (_req, res) => {
+  emitEvent("survey.started", {});
+  res.json({ ok: true });
+});
+
+app.post("/public/survey", async (req, res) => {
+  const answers = validateSurveyAnswers(req.body);
+  if (!answers) return res.status(400).json({ error: "invalid or incomplete answers" });
+  try {
+    const { id, topic } = await submitSurveyResponse(answers);
+    emitEvent("survey.completed", { targetId: id, payload: { topic, ...answers } });
+    res.json({ ok: true, id, topic });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Real circles for the survey's results screen — only OPEN circles, capped
+ *  fields, same restraint as /public/answers/:id. */
+app.get("/public/circles", async (req, res) => {
+  const topic = str(req.query.topic as unknown, 60);
+  const space = appOf(req);
+  if (!topic) return res.status(400).json({ error: "topic required" });
+  try {
+    const circles = circleNodes()
+      .filter((n) => String(circleProps(n).app ?? BUILTIN_APP) === space)
+      .filter((n) => circleProps(n).open !== false)
+      .filter((n) => circleTopicTags(n).includes(topic))
+      .map((n) => ({
+        id: n.id,
+        label: n.label,
+        description: String(circleProps(n).description ?? ""),
+        category: String(circleProps(n).category ?? "topic"),
+        memberCount: squadMembers(n.id).length,
+      }))
+      .sort((a, b) => b.memberCount - a.memberCount)
+      .slice(0, 6);
+    res.json({ circles });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Real, trust-ranked specialists for the survey's results screen. */
+app.get("/public/specialists", async (req, res) => {
+  const topic = str(req.query.topic as unknown, 60);
+  if (!topic) return res.status(400).json({ error: "topic required" });
+  if (!specialistsEnabled()) return res.json({ specialists: [] });
+  try {
+    res.json({ specialists: await findSpecialistsByTopic(topic, Number(req.query.limit) || 3) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Mark that the results screen actually rendered matches / that the visitor
+ *  clicked through to join — cheap funnel signal, no PII. */
+app.post("/public/survey/:id/matches-shown", async (req, res) => {
+  try {
+    await markMatchesShown(String(req.params.id));
+    emitEvent("survey.matches_shown", { targetId: String(req.params.id) });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/public/survey/:id/join-clicked", async (req, res) => {
+  try {
+    await markJoined(String(req.params.id));
+    emitEvent("survey.join_clicked", { targetId: String(req.params.id) });
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -2079,12 +2174,19 @@ const circleNodes = () =>
 const circleProps = (n: (typeof shared.nodes)[number]) =>
   ((n as { properties?: Record<string, unknown> }).properties ?? {}) as Record<string, unknown>;
 
+const circleTopicTags = (n: (typeof shared.nodes)[number]): string[] => {
+  const raw = circleProps(n).topicTags;
+  return Array.isArray(raw) ? raw.map(String) : [];
+};
+
 app.get("/api/circles", async (req, res) => {
   const { userId } = auth(req);
   const space = appOf(req);
+  const topic = str(req.query.topic as unknown, 60);
   try {
     const circles = circleNodes()
       .filter((n) => String(circleProps(n).app ?? BUILTIN_APP) === space)
+      .filter((n) => !topic || circleTopicTags(n).includes(topic))
       .map((n) => {
         const members = squadMembers(n.id);
         return {
@@ -2092,6 +2194,7 @@ app.get("/api/circles", async (req, res) => {
           label: n.label,
           description: String(circleProps(n).description ?? ""),
           category: String(circleProps(n).category ?? "topic"),
+          topicTags: circleTopicTags(n),
           open: circleProps(n).open !== false,
           memberCount: members.length,
           mine: members.includes(userId),
@@ -2111,6 +2214,9 @@ app.post("/api/circles", async (req, res) => {
   const description = str(req.body?.description, 280);
   const category = CIRCLE_CATEGORIES.has(String(req.body?.category ?? "")) ? String(req.body?.category) : "topic";
   const open = req.body?.open !== false;
+  const topicTags = Array.isArray(req.body?.topicTags)
+    ? [...new Set(req.body.topicTags.map((t: unknown) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 10)
+    : [];
   const space = appOf(req);
   if (!name) return res.status(400).json({ error: "name required" });
   try {
@@ -2124,7 +2230,7 @@ app.post("/api/circles", async (req, res) => {
       const r = createEntity(ws, {
         entityType: "circle",
         label: name,
-        properties: { description, category, open, app: space, createdBy: userId },
+        properties: { description, category, open, topicTags, app: space, createdBy: userId },
         now: Date.now(),
       });
       ws = r.dataset;
@@ -3317,6 +3423,83 @@ function specialistEvidence(viewerId: string, nodeId: string) {
   };
 }
 
+const TRUST_RANK: Record<string, number> = {
+  highly_reliable: 4, reliable: 3, established: 2, emerging: 1, limited_evidence: 0,
+};
+
+/** Public-safe specialist summary — no contact/claim internals. Used by both
+ *  the in-app topic search and the unauthenticated market-test survey. */
+interface SpecialistCard {
+  nodeId: string;
+  label: string;
+  nodeType: string;
+  verified: boolean;
+  trustLabel: string;
+  trustLabelText: string;
+}
+
+/** Admin-tagged specialists for `topic`, ranked by independent trust evidence
+ *  (never by anything the specialist controls). */
+function specialistsForTopic(topicIds: string[], limit: number): SpecialistCard[] {
+  const cards: SpecialistCard[] = [];
+  for (const nodeId of topicIds) {
+    const node = shared.nodes.find((n) => n.id === nodeId);
+    if (!node) continue;
+    const evidence = specialistEvidence("__topic_search__", nodeId);
+    cards.push({
+      nodeId,
+      label: node.label,
+      nodeType: specialistTypeOf(node),
+      verified: false, // filled in by caller once state is known
+      trustLabel: evidence.label,
+      trustLabelText: evidence.labelText,
+    });
+  }
+  return cards.sort((a, b) => TRUST_RANK[b.trustLabel] - TRUST_RANK[a.trustLabel]).slice(0, limit);
+}
+
+async function findSpecialistsByTopic(topic: string, limit: number): Promise<SpecialistCard[]> {
+  const ids = await nodeIdsByTopicTag(topic, 50);
+  if (!ids.length) return [];
+  const states = await specialistStates(ids);
+  const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
+  const cards = specialistsForTopic(live, limit);
+  for (const c of cards) c.verified = states[c.nodeId] === "verified";
+  return cards;
+}
+
+/** Topic search — admin-tagged, trust-ranked. Backs "find an expert" in-app
+ *  and the public market-test survey's results screen. */
+app.get("/api/specialists", async (req, res) => {
+  auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const topic = str(req.query.topic as unknown, 60);
+  if (!topic) return res.status(400).json({ error: "topic required" });
+  try {
+    res.json({ specialists: await findSpecialistsByTopic(topic, Number(req.query.limit) || 8) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: set the structured topic tags used for topic search (separate from
+ *  the specialist's own free-text taxonomy layer — never provider-editable). */
+app.patch("/api/admin/specialists/:nodeId/topic-tags", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const tags = Array.isArray(req.body?.tags) ? req.body.tags.map(String) : null;
+  if (!tags) return res.status(400).json({ error: "tags (string[]) required" });
+  try {
+    const r = await setSpecialistTopicTags(String(req.params.nodeId), userId, tags);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("specialist.topic_tags_set", { userId, targetId: String(req.params.nodeId), payload: { count: r.topicTags.length } });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** Public specialist view: profile layers + lifecycle + derived evidence. */
 app.get("/api/specialists/:nodeId", async (req, res) => {
   const { userId } = auth(req);
@@ -3590,6 +3773,42 @@ app.get("/api/specialists/:nodeId/intelligence", async (req, res) => {
 });
 
 /** Admin claim queue (BFF sends x-user-admin only for verified admins). */
+/** Admin: market-test survey results — funnel, per-question breakdowns, and
+ *  which topics get asked about but have zero tagged specialists/circles yet
+ *  (where to recruit next). */
+app.get("/api/admin/survey/summary", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!surveyEnabled()) return res.status(503).json({ error: "survey unavailable" });
+  try {
+    const summary = await surveySummary();
+    const coverage: Record<string, { specialists: number; circles: number }> = {};
+    for (const topic of Object.keys(summary.topicCounts)) {
+      const specialists = await findSpecialistsByTopic(topic, 50);
+      const circles = circleNodes().filter((n) => circleProps(n).open !== false && circleTopicTags(n).includes(topic));
+      coverage[topic] = { specialists: specialists.length, circles: circles.length };
+    }
+    res.json({ ...summary, coverage });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: search specialist-type nodes (any profession) by label — feeds the
+ *  topic-tag editor, since most specialists are unclaimed catalog entries and
+ *  never show up in the claims tabs. */
+app.get("/api/admin/specialists/search", (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const q = String(req.query.q ?? "").trim().toLowerCase();
+  const nodes = shared.nodes
+    .filter((n) => isSpecialistType(specialistTypeOf(n)))
+    .filter((n) => !q || n.label.toLowerCase().includes(q))
+    .slice(0, 30)
+    .map((n) => ({ nodeId: n.id, label: n.label, nodeType: specialistTypeOf(n) }));
+  res.json({ nodes });
+});
+
 app.get("/api/admin/specialists/claims", async (req, res) => {
   auth(req);
   if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
@@ -5845,6 +6064,9 @@ async function main() {
   );
   await initSpecialists().catch((e) =>
     console.error("graph-service: specialists init failed:", e instanceof Error ? e.message : e),
+  );
+  await initSurvey().catch((e) =>
+    console.error("graph-service: survey init failed:", e instanceof Error ? e.message : e),
   );
   await initConversations().catch((e) =>
     console.error("graph-service: conversations init failed:", e instanceof Error ? e.message : e),
