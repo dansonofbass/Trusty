@@ -43,6 +43,7 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
   const [faq, setFaq] = useState(() => s(layers, "content", "faq"));
   const [officeAddress, setOfficeAddress] = useState(() => s(layers, "operational", "officeAddress"));
   const [bookingUrl, setBookingUrl] = useState(() => s(layers, "operational", "bookingUrl"));
+  const [telegramHandle, setTelegramHandle] = useState(() => s(layers, "operational", "telegramHandle"));
   const [languages, setLanguages] = useState(() => list(layers, "communication", "languages").join(", "));
   const [services, setServices] = useState<string[]>(() => list(layers, "taxonomy", "services"));
   const [contexts, setContexts] = useState<string[]>(() => list(layers, "taxonomy", "clientContexts"));
@@ -58,7 +59,11 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
     });
     patches.push({
       layer: "operational",
-      fields: { officeAddress: officeAddress.trim(), bookingUrl: bookingUrl.trim() },
+      fields: {
+        officeAddress: officeAddress.trim(),
+        bookingUrl: bookingUrl.trim(),
+        telegramHandle: telegramHandle.trim().replace(/^@/, ""),
+      },
     });
     patches.push({
       layer: "communication",
@@ -66,7 +71,7 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
     });
     patches.push({ layer: "taxonomy", fields: { services, clientContexts: contexts } });
     return patches;
-  }, [bio, website, faq, officeAddress, bookingUrl, languages, services, contexts]);
+  }, [bio, website, faq, officeAddress, bookingUrl, telegramHandle, languages, services, contexts]);
 
   const save = useCallback(async () => {
     setBusy(true);
@@ -167,6 +172,7 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
                 {input(officeAddress, setOfficeAddress, "Office address")}
                 {input(website, setWebsite, "Website (https://…)")}
                 {input(bookingUrl, setBookingUrl, "Booking link (https://…)")}
+                {input(telegramHandle, setTelegramHandle, "Telegram username (without @)")}
                 <div>
                   <div className="mb-1.5 text-[11.5px] font-semibold text-dim">FAQ</div>
                   <textarea

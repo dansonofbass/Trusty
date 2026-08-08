@@ -14,7 +14,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck, Globe, Landmark, Languages, Loader2, MapPin, MessageSquareQuote,
-  Radio, Scale, ThumbsUp, ArrowLeft, ExternalLink, CalendarClock, BarChart3,
+  Radio, Scale, ThumbsUp, ArrowLeft, ExternalLink, CalendarClock, BarChart3, Send,
 } from "lucide-react";
 import Brand from "@/components/Brand";
 import RecommendButton from "@/components/RecommendButton";
@@ -123,7 +123,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
   }, [id, nonce]);
 
   const contact = useCallback(
-    async (kind: "phone" | "website" | "booking", href: string) => {
+    async (kind: "phone" | "website" | "booking" | "telegram", href: string) => {
       if (!view) return;
       logClick(view.nodeId, view.evidence.topics[0]?.topic); // funnel: contact action
       if (!intentSent) {
@@ -164,6 +164,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
   const website = asStr(L.content?.website);
   const officeAddress = asStr(L.operational?.officeAddress);
   const bookingUrl = asStr(L.operational?.bookingUrl);
+  const telegramHandle = asStr(L.operational?.telegramHandle);
   const faq = asStr(L.content?.faq);
   const providerUpdated = Object.values(L.content ?? {})[0]?.updatedAt;
 
@@ -230,6 +231,14 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
               className="flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-[13px] font-semibold text-dim hover:text-ink"
             >
               <Globe size={14} /> Website <ExternalLink size={11} />
+            </button>
+          )}
+          {telegramHandle && (
+            <button
+              onClick={() => void contact("telegram", `https://t.me/${telegramHandle}`)}
+              className="flex items-center gap-1.5 rounded-xl border border-line px-3.5 py-2 text-[13px] font-semibold text-dim hover:text-ink"
+            >
+              <Send size={14} /> Telegram <ExternalLink size={11} />
             </button>
           )}
           {view.isManager && (

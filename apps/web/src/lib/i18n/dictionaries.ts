@@ -52,6 +52,12 @@ export const en = {
   "community.exResidency": "Residency documents",
   "community.exAccountant": "A trusted accountant",
   "community.exBank": "Which bank works now?",
+  "community.experts": "Ask an expert",
+  "community.expertsSub": "Vetted lawyers, brokers, accountants",
+  "community.expertsIntro": "People the community trusts for these topics.",
+  "community.expertsEmpty": "No tagged experts yet — check back soon.",
+  "expert.telegram": "Message on Telegram",
+  "expert.verified": "Verified",
 
   // ── messages / circles ───────────────────────────────────────────
   "messages.title": "Messages",
@@ -173,6 +179,12 @@ export const fa: Dictionary = {
   "community.exResidency": "مدارک اقامت",
   "community.exAccountant": "حسابدار قابل‌اعتماد",
   "community.exBank": "کدام بانک حساب باز می‌کند؟",
+  "community.experts": "پرسیدن از متخصص",
+  "community.expertsSub": "وکیل، مشاور املاک، حسابدار تاییدشده",
+  "community.expertsIntro": "کسانی که جمع بهشان اعتماد دارد.",
+  "community.expertsEmpty": "هنوز متخصصی ثبت نشده — به‌زودی اضافه می‌شود.",
+  "expert.telegram": "پیام در تلگرام",
+  "expert.verified": "تایید شده",
 
   "messages.title": "پیام‌ها",
   "messages.subtitle": "گروه‌ها و حلقه‌های تو",

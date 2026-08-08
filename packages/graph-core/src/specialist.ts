@@ -194,7 +194,7 @@ export const SPECIALIST_EDITABLE_FIELDS: Record<SpecialistLayerName, readonly st
   taxonomy: ["services", "caseTypes", "clientContexts", "specializations", "serviceAreas"],
   operational: [
     "officeAddress", "serviceArea", "remoteAvailable", "officeHours",
-    "consultationMethods", "bookingUrl", "availability", "responseExpectation",
+    "consultationMethods", "bookingUrl", "telegramHandle", "availability", "responseExpectation",
   ],
   credential: [],
   communication: ["languages", "translationSupport", "channels", "preferredContact"],

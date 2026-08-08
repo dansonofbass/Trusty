@@ -1,98 +1,186 @@
 {
-  "_note": "Starter knowledge for the Iranians-in-Armenia space, distilled from the community's own Telegram threads. Seeded as REAL messages posted into circle chats and then saved as answers, so a newcomer's first question already has a credited, dated answer. Attribution is generic ('Community notes') until real members claim these topics — never put words in a named person's mouth.",
+  "_note": "Starter knowledge for the Iranians-in-Armenia space, distilled from the community's own Telegram threads (July–August 2026 exports, ~4,600 messages across Residency/Accounting/Banks/Home/Jobs/Health/Language/Products/Fun). Seeded as REAL messages posted into circle chats and then saved as answers, so a newcomer's first question already has a credited, dated answer. Written in Persian, in the community's own register. Attribution is generic ('یادداشت‌های جمع') until real members claim these topics — facts and numbers are real, but no named individual's exact words are quoted verbatim, to keep this a public, privacy-safe knowledge base rather than a leak of private group messages.",
   "circles": {
-    "Residency": [
+    "اقامت": [
       {
-        "body": "Document checklist that got validated in-thread: passport + translation of the passport, social-number certificate (+ copy), IE registration certificate (+ copy), health certificate (+ copy), passport photos, and your tax receipts as backup. You apply at Tairov 14; the card itself is collected at Vazgen Sargsyan 3, window 14.",
+        "body": "مهم‌ترین خبر همین الان: نوبت‌های appointment روی permit.am تا ۳۱ اکتبر ۲۰۲۶ پر شده. از ۱ نوامبر همه‌چیز کاملاً آنلاین می‌شه، شبانه‌روزی، از طریق permit.am. خبر خوب: جریمهٔ اورستی (ماده ۲۰۱) برای کسایی که اقامتشون بین ۱۵ ژوئن تا ۳۱ اکتبر ۲۰۲۶ منقضی می‌شه بخشیده می‌شه — به دو شرط: مبنای درخواستتون قبل از ۱ نوامبر وجود داشته، و بین ۱ نوامبر ۲۰۲۶ تا ۱ ژانویه ۲۰۲۷ از داخل ارمنستان از طریق permit.am ثبت‌نام کنید. اگه قبل از ثبت‌نام از کشور خارج بشید، جریمهٔ اورستی عادی حساب می‌شه.",
+        "topics": ["residency", "urgent"]
+      },
+      {
+        "body": "لیست مدارکی که جواب داده: پاسپورت، ترجمهٔ پاسپورت، گواهی سوشال نامبر (+کپی)، گواهی ثبت IE (+کپی)، گواهی سلامت (+کپی)، عکس پرسنلی، و رسیدهای مالیاتی به‌عنوان پشتوانه. محل درخواست: خیابان تایروف پلاک ۱۴؛ تحویل کارت: وازگن سارگسیان پلاک ۳، باجهٔ ۱۴.",
         "topics": ["residency", "documents"]
       },
       {
-        "body": "The 105,000 AMD fee is not paid in advance: on the day they give you an account number, you walk to the bank and pay, then come back. Bring cash — card payment for someone else's account is a common failure point.",
+        "body": "هزینهٔ ۱۰۵٬۰۰۰ درام از قبل پرداخت نمی‌شه: همون روز یه شمارهٔ حساب بهتون می‌دن، می‌رید بانک نقد پرداخت می‌کنید و برمی‌گردید. پرداخت با کارت از حساب یه نفر دیگه معمولاً مشکل‌ساز می‌شه.",
         "topics": ["residency", "fees"]
       },
       {
-        "body": "Everyone gets a phone call from an officer roughly 10-20 days after applying. Expect: do you live here, what is your work, what field, which language do you code in, is your home address the same as your company address, who is your roommate. Have your contract, company registration, tax receipts and rental agreement ready to send on WhatsApp. Some officers also do a home visit.",
+        "body": "حدود ۱۰ تا ۲۰ روز بعد از ثبت درخواست، یه افسر باهاتون تماس می‌گیره. سوالاتی که می‌پرسه: کجا زندگی می‌کنی، شغلت چیه، تو چه حوزه‌ای، چه زبون برنامه‌نویسی بلدی، آدرس خونه و شرکتت یکیه یا نه، هم‌خونه‌ات کیه. قرارداد کار، گواهی ثبت شرکت، رسیدهای مالیاتی و قرارداد اجاره رو آماده داشته باشید که بتونید همون‌جا از واتساپ بفرستید. بعضی افسرها بازدید حضوری هم می‌کنن.",
         "topics": ["residency", "process"]
       },
       {
-        "body": "Attach your spouse only AFTER your own card is issued — book their appointment about 2.5 months after yours. Several families learned this the hard way and lost months. If the spouse works, registering their own IE is usually the simpler path.",
+        "body": "همسرتون رو فقط بعد از اینکه کارت خودتون صادر شد بپیوندید — نوبتشون رو حدود ۲.۵ ماه بعد از خودتون بگیرید. چند خانواده این رو دیر فهمیدن و ماه‌ها عقب افتادن. اگه همسرتون هم کار می‌کنه، ثبت IE جدا براش معمولاً ساده‌تره.",
         "topics": ["residency", "family"]
       },
       {
-        "body": "After the card arrives you must update everything else: social number, IE certificate, bank records — and register your address at your district police station so it is stamped on the BACK of the card. Without that stamp many things silently fail (you cannot register a car in your own name, for example).",
+        "body": "بعد از اومدن کارت، باید همه‌چیز رو آپدیت کنید: سوشال نامبر، گواهی IE، مدارک بانکی — و آدرستون رو تو کلانتری منطقه‌تون رجیستر کنید تا پشت کارت مهر بخوره. بدون این مهر خیلی چیزها ساکت خراب می‌شه (مثلاً نمی‌تونید ماشین به اسم خودتون ثبت کنید).",
         "topics": ["residency", "documents"]
       },
       {
-        "body": "Renewals: book 2-3 months before expiry. Rescheduling inside the final month costs 50,000 AMD, then 100,000, and in bad cases carries a multi-year entry ban.",
+        "body": "تمدید: ۲ تا ۳ ماه قبل از انقضا اقدام کنید. جابه‌جا کردن نوبت توی یک ماه آخر ۵۰٬۰۰۰ درام هزینه داره، بار دوم ۱۰۰٬۰۰۰، و تو بدترین حالت می‌تونه چند سال ورود به کشور رو ببنده.",
         "topics": ["residency", "renewal"]
-      }
-    ],
-    "Accounting & Tax": [
-      {
-        "body": "After registering an IE you have about 20 days to register your tax regime at taxservice.am — and you cannot do it yourself without a digital signature, so line up an accountant BEFORE you register. Miss the window and you default to the general regime (20% VAT + profit tax) instead of the 1% turnover rate.",
-        "topics": ["tax", "accounting"]
       },
       {
-        "body": "Typical accountant pricing in the community runs from about 6,000 AMD/month at the low end to 12,000 for the widely used option, up to 30,000-40,000 for one-off registrations. Ask exactly what is included: monthly filing only, or also registration and correspondence.",
+        "body": "برای کارای اقامت، خیلی‌ها کارگزار می‌گیرن که هم ثبت شرکت (IE) رو انجام بده هم مسیر اقامت ۱، ۳ یا ۵ ساله رو پیش ببره. قبل از هرکاری از خود گروه بپرسید کسی تجربه داره یا نه — این حوزه شلوغه و تجربهٔ واقعی دوستان از هر تبلیغی معتبرتره.",
+        "topics": ["residency", "trust"]
+      }
+    ],
+    "حسابداری و مالیات": [
+      {
+        "body": "بعد از ثبت IE حدود ۲۰ روز فرصت دارید رژیم مالیاتی‌تون رو تو taxservice.am ثبت کنید — و بدون امضای دیجیتال خودتون نمی‌تونید، پس حسابدار رو قبل از ثبت شرکت جور کنید، نه بعدش. این ۲۰ روز رو از دست بدید می‌افتید رو رژیم عمومی (۲۰٪ مالیات بر ارزش‌افزوده + مالیات بر سود) به‌جای نرخ ۱٪ گردش مالی.",
+        "topics": ["tax", "accounting", "urgent"]
+      },
+      {
+        "body": "قیمت حسابدارها تو جمع معمولاً بین ۶٬۰۰۰ تا ۱۲٬۰۰۰ درام در ماه (گزینهٔ پراستفاده حدود ۱۲٬۰۰۰) تا ۳۰-۴۰ هزار درام برای ثبت یک‌باره‌ست. دقیق بپرسید فقط اظهارنامهٔ ماهانه‌ست یا ثبت و مکاتبات هم توشه.",
         "topics": ["accounting", "pricing"]
       },
       {
-        "body": "Cash is not accepted as a payment method on invoices — the business needs a real account, and the invoice needs an account number. If you are paid in crypto or cash, that is the single hardest problem to solve cleanly; talk to your accountant BEFORE issuing the invoice, not after.",
+        "body": "نقد به‌عنوان روش پرداخت روی فاکتور قبول نیست — کسب‌وکار به یه حساب واقعی نیاز داره و فاکتور باید شمارهٔ حساب داشته باشه. اگه دستمزدتون کریپتو یا نقده، قبل از صدور فاکتور با حسابدارتون هماهنگ کنید، نه بعدش.",
         "topics": ["accounting", "banking"]
       },
       {
-        "body": "Prepaid tax is paid to the Ministry of Finance account with the prepayment code (not the quarterly code). The community's rule of thumb: around 45-50k prepaid for a one-year application, around 150k for a five-year one. Prepaying does not change your quarterly invoices — you are just building credit.",
+        "body": "پیش‌پرداخت مالیاتی به حساب وزارت دارایی با کد پیش‌پرداخت واریز می‌شه (نه کد فصلی). قاعدهٔ رایج جمع: حدود ۴۵-۵۰ هزار درام برای اقامت یک‌ساله، حدود ۱۵۰ هزار برای پنج‌ساله. پیش‌پرداخت فاکتورهای فصلی رو تغییر نمی‌ده، فقط اعتبار جمع می‌کنه.",
         "topics": ["tax", "residency"]
       },
       {
-        "body": "Do not spend from the business card personally and do not send from it to another person's personal account: paying an individual from a business account triggers salary tax. Move money to your own personal account first, then spend.",
+        "body": "از کارت بیزینس خرج شخصی نکنید و به حساب شخصی یه نفر دیگه پول ازش واریز نکنید — پرداخت به یه فرد از حساب بیزینس مالیات حقوق (۲۸٪) رو فعال می‌کنه. اول به حساب شخصی خودتون منتقل کنید، بعد خرج کنید.",
         "topics": ["accounting", "banking"]
       },
       {
-        "body": "Two IEs are cheaper than one shared LLC for most people here: an LLC means pricier accounting, higher tax, more paperwork, and a real fee just to close it.",
+        "body": "برای اکثر آدم‌ها دو تا IE جدا ارزون‌تر از یه LLC مشترکه: LLC یعنی حسابداری گرون‌تر، مالیات بیشتر، کاغذبازی بیشتر، و حتی برای بستنش هم هزینهٔ واقعی داره.",
         "topics": ["accounting", "company"]
+      },
+      {
+        "body": "قانون تازه: باید حدود ۱ میلیون درام گردش مالی قبل از درخواست و ۱ میلیون در هر سه‌ماهه داشته باشید، وگرنه شرکت غیرفعال حساب می‌شه و اقامت می‌تونه لغو بشه. اگه گردش واقعی کم دارید، فاکتور خدمات نرم‌افزاری + مالیات پیش‌پرداخت‌شده می‌تونه کمک کنه، ولی این مرز بحث داغیه — بپرسید ببینید جدیدترین تجربه‌ها چی می‌گن.",
+        "topics": ["tax", "accounting"]
       }
     ],
-    "Banks & Money": [
+    "بانک و پول": [
       {
-        "body": "A foreign contract is fine for the immigration office, but showing one at the bank is often what kills an account opening. Keep the two conversations separate and ask the community which branch is currently opening accounts before you walk in.",
+        "body": "قرارداد خارجی برای ادارهٔ مهاجرت مشکلی نداره، ولی همون قرارداد رو به بانک نشون دادن معمولاً باعث رد شدن افتتاح حساب می‌شه. این دو تا مکالمه رو جدا نگه دارید، و قبل از رفتن به شعبه از گروه بپرسید الان کدوم شعبه داره برای ایرانی‌ها حساب باز می‌کنه.",
         "topics": ["banking"]
       },
       {
-        "body": "Payoneer rejects a plain bank statement because it lacks an address — ask your bank for a Bank Reference Letter instead. Fee reality check from someone who did it: the Payoneer route costs roughly 7-9% all-in, the crypto route roughly 3.5-5.5%.",
+        "body": "هیچ‌کدوم از بانک‌های ارمنستان به‌صورت مستقیم IBAN نمی‌دن، جز ID Bank که اونم فعلاً برای ایرانی‌ها حساب باز نمی‌کنه — این مال حساب‌های بیزینسه.",
+        "topics": ["banking"]
+      },
+      {
+        "body": "Payoneer فقط با استیتمنت ساده رد می‌کنه چون آدرس نداره — به‌جاش از بانکتون Bank Reference Letter بخواید. مقایسهٔ هزینه: مسیر Payoneer حدود ۷-۹٪ کل هزینه، مسیر کریپتو حدود ۳.۵-۵.۵٪.",
         "topics": ["banking", "payments"]
       },
       {
-        "body": "Instalment credit for Iranians was withdrawn by the main provider — plan purchases without it, and do not count on credit history you built earlier still being usable.",
+        "body": "اعتبار قسطی که قبلاً بانک‌های بزرگ به ایرانی‌ها می‌دادن قطع شده — دیگه رو این حساب نکنید، حتی اگه سابقهٔ اعتباری خوبی هم قبلاً ساخته باشید.",
         "topics": ["banking", "credit"]
+      },
+      {
+        "body": "برداشت نقدی درام از ATMهای صرافی امکان‌پذیره؛ فقط شبکهٔ ترون محدودیت داره، اتریوم مشکلی نداره. کارمزد تبدیل ارز + کارمزد بین‌المللی ویزا/مسترکارت رو هم حساب کنید، جدا از مالیاتی که ممکنه رو تراکنش‌های خارج از بیزینس بیفته.",
+        "topics": ["banking", "payments"]
+      },
+      {
+        "body": "اگه شرکت خارجی مستقیم بهتون حقوق واریز می‌کنه (مثلاً از طریق Deel)، یه سری حساب‌های شخصی (مثل Ameria) این قابلیت رو دارن و امتحان‌شده‌ست. اینویس Deel به‌عنوان حقوق معمولاً از مالیات شخصی معافه.",
+        "topics": ["banking", "payments"]
       }
     ],
-    "Health & Insurance": [
+    "کار و رفرال": [
       {
-        "body": "The residency health certificate does not need a polyclinic or a hospital: a clinic on Bashinjaghyan issues it from your passport, valid two months. It cost 5,000 AMD when this was written; one member was later quoted 10,000 with an X-ray added — ask the price first.",
-        "topics": ["health", "residency"]
-      },
-      {
-        "body": "You do not need a residence card to buy health insurance — at least one provider issues on a passport. Insurance becomes relevant for tax reasons once turnover passes 2.4M AMD.",
-        "topics": ["health", "insurance"]
-      },
-      {
-        "body": "Affordable care without insurance: there are Iranian-Armenian doctors reachable on WhatsApp, and a clinic in Davitashen where a visit including an ultrasound check runs about 10,000 AMD.",
-        "topics": ["health"]
-      },
-      {
-        "body": "Prescriptions from an Iranian doctor are usually not re-issued locally, and several common medications are unavailable or restricted in Armenia. Check availability BEFORE you run out, and be careful about carrying restricted medication across the border.",
-        "topics": ["health", "medication"]
-      }
-    ],
-    "Jobs & Referrals": [
-      {
-        "body": "Armenian jobs are posted where you would not expect: Facebook groups and staff.am carry more real openings than the apps most of us use. Note that hiring priority goes to Armenians and many roles need Armenian, sometimes Russian before English.",
+        "body": "شغل‌های واقعی ارمنستان بیشتر جای غیرمنتظره پیدا می‌شن: گروه‌های فیسبوک و staff.am واقعی‌تر از اپ‌هایی هستن که ما عادت داریم. اولویت استخدام با ارمنی‌هاست و خیلی از موقعیت‌ها ارمنی یا روسی می‌خوان، قبل از انگلیسی.",
         "topics": ["jobs"]
       },
       {
-        "body": "If someone offers paid job placement: meet in person, agree the fee is paid only after the job is confirmed, get a receipt, and put it in a short written agreement. Several people here have been approached by intermediaries with no track record.",
+        "body": "اگه کسی پیشنهاد کاریابی پولی داد: حضوری ملاقات کنید، فقط بعد از تایید شدن شغل پول بدید، رسید بگیرید، و یه قرارداد کوتاه کتبی ببندید. چند نفر تو جمع با واسطه‌های بدون سابقه مواجه شدن.",
         "topics": ["jobs", "trust"]
+      },
+      {
+        "body": "برای وریفای لینکدین از ارمنستان: با کارت اقامت یا گواهینامهٔ رانندگی امتحان کنید (نیاز به مدرک NFC-دار داره؛ کارت‌های ارمنی امسال NFC گرفتن).",
+        "topics": ["jobs", "verification"]
+      },
+      {
+        "body": "مسیر Upwork → Payoneer با کارت اقامت جواب می‌ده؛ اگه استیتمنت بانکی Payoneer رو رد کرد، Bank Reference Letter بگیرید. مسیر کریپتو (صرافی محلی) کارمزد کمتری داره ولی KYC نداره — ریسکش رو خودتون بسنجید.",
+        "topics": ["jobs", "payments"]
+      },
+      {
+        "body": "برای رزومهٔ سازگار با ATS، به‌جای تمپلیت‌های آماده، یه Google Docs ساده و تمیز معمولاً بهتر جواب می‌ده چون هر شرکت ATS خودش رو داره و تمپلیت‌ها فقط تا حدی کمک می‌کنن.",
+        "topics": ["jobs"]
+      }
+    ],
+    "سلامت و بیمه": [
+      {
+        "body": "گواهی سلامت اقامت نیازی به بیمارستان یا پلی‌کلینیک نداره: یه کلینیک ساده هم می‌تونه صادرش کنه، فقط با پاسپورت، تو چند دقیقه، اعتبار دو ماه. قیمت بین کلینیک‌ها فرق داره (بعضی‌ها فقط گواهی ساده، بعضی‌ها با آزمایش/رادیوگرافی اضافه) — قبل از رفتن قیمت رو بپرسید.",
+        "topics": ["health", "residency"]
+      },
+      {
+        "body": "برای بیمه لازم نیست کارت اقامت داشته باشید — بعضی شرکت‌ها با پاسپورت هم بیمه می‌دن. بیمه از نظر مالیاتی وقتی گردش مالی از ۲.۴ میلیون درام رد بشه مهم می‌شه.",
+        "topics": ["health", "insurance"]
+      },
+      {
+        "body": "بدون بیمه هم می‌شه ارزون درمان شد: چند دکتر ایرانی-ارمنی از طریق واتساپ در دسترسن، و یه ویزیت معمولی همراه با سونوگرافی حدود ۱۰٬۰۰۰ درام تموم می‌شه.",
+        "topics": ["health"]
+      },
+      {
+        "body": "نسخهٔ دکتر ایرانی معمولاً اینجا دوباره تجویز نمی‌شه، و چند تا داروی رایج ایران تو ارمنستان یا نیست یا محدوده. قبل از تموم شدن داروتون وضعیتش رو چک کنید، و برای عبور از مرز با داروی محدود‌شده مراقب باشید.",
+        "topics": ["health", "medication"]
+      }
+    ],
+    "خانه و اجاره": [
+      {
+        "body": "برای رجیستر آدرس (بعد از اومدن کارت اقامت) قرارداد اجاره لازمه، ولی خود رجیستر الزامی به تاریخ شروع/پایان دقیق نداره — پلیس چک می‌کنه که واقعاً اونجا زندگی می‌کنید. بانک‌ها قبل از رجیستر ممکنه قرارداد بخوان.",
+        "topics": ["housing", "residency"]
+      },
+      {
+        "body": "قرارداد اجاره لازم نیست حتماً با بروکر بسته بشه، ولی اگه آشنایی تو ارمنستان ندارید، بستن مستقیم با صاحبخونه بدون واسطه ریسک بیشتری داره.",
+        "topics": ["housing"]
+      },
+      {
+        "body": "برای افزایش کرایه موقع تمدید قرارداد قانون ثابتی نیست — بیشتر توافقیه بین شما و صاحبخونه، به رشد اقتصادی و منطقه بستگی داره.",
+        "topics": ["housing"]
+      },
+      {
+        "body": "قبل از قرارداد اجاره، مطمئن بشید ملک واقعاً مال کسیه که ادعا می‌کنه صاحبشه — سند یا مدرک مالکیت رو بخواید، مخصوصاً اگه از طریق آگهی آنلاین (نه بروکر شناخته‌شده) پیدا کردید.",
+        "topics": ["housing", "trust"]
+      }
+    ],
+    "زبان ارمنی": [
+      {
+        "body": "برای شروع، یه دیکشنری پایه از ضمایر، اعداد، روزهای هفته، رنگ‌ها و اسم غذا/ادویه با تلفظ فارسی‌نویسی‌شده خیلی کمک می‌کنه — دنبال محتوای صوتی + متنی با هم باشید تا کلمه‌ها رو هم بشنوید هم بخونید.",
+        "topics": ["language"]
+      },
+      {
+        "body": "اپ‌های پیشنهادی جمع: AYOlingo (پروژهٔ Birthright Armenia، کامل نیست ولی خوبه) و Lezugo. هر دو رایگان برای شروعن.",
+        "topics": ["language", "apps"]
+      }
+    ],
+    "خرید و فروش": [
+      {
+        "body": "برای خرید از آمازون/اپل/علی‌اکسپرس/Ozon/Temu/Trendyol از فورواردر استفاده کنید. زیر ۲۰۰ دلار معاف از عوارضه. وزن مهمه: ۲۰ کیلو معمولاً به‌صرفه نیست، ۵-۱۰ کیلو معمولاً بله. گزینه‌ها: ارزون‌تر ولی کندتر و فقط تحویل حضوری، یا گرون‌تر ولی با قیمت تمام‌شدهٔ شفاف و تحویل درب منزل.",
+        "topics": ["shopping"]
+      },
+      {
+        "body": "آوردن وسایل حجیم از ایران (مثل تلویزیون بزرگ یا فرش دست‌بافت) معمولاً دردسرساز و کند در گمرکه — ممکنه به مدرک اثبات مالکیت هم نیاز داشته باشید. برای وسایل خونه، فروختن تو ایران و خرید نو یا دست‌دوم اینجا معمولاً ساده‌تره.",
+        "topics": ["shopping", "moving"]
+      },
+      {
+        "body": "خرید و فروش داخل جمع (مبل، صندلی، لوازم آشپزخانه و غیره) رایجه — قیمت‌ها معمولاً پایین‌تر از فروشگاهه چون بین اعضای جمع رد و بدل می‌شه.",
+        "topics": ["shopping", "community"]
+      }
+    ],
+    "دورهمی": [
+      {
+        "body": "پینگ‌پنگ هفتگی: عصرها، هزینهٔ کم به‌ازای هر جلسه، بدون نیاز به نوبت قبلی یا ثبت‌نام — راکت رو خودتون بیارید بهتره. بیشتر مبتدی‌ان، جای خوبیه برای شروع.",
+        "topics": ["fun", "sports"]
+      },
+      {
+        "body": "دویدن دسته‌جمعی هم هست — چند گروه دویدن ایروان (بیشتر روسی‌زبان) هم فعالن، ولی ساعتشون معمولاً خیلی زوده. یه ایونت دویدن مخصوص جمع هم گاهی روی Luma ساخته می‌شه.",
+        "topics": ["fun", "sports"]
       }
     ]
   }

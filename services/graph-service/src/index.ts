@@ -289,6 +289,7 @@ import {
   specialistsEnabled,
   specialistTimeline,
   submitClaim,
+  telegramHandles,
   updateProfileFields,
 } from "./specialists";
 import { JSONCodec, type NatsConnection } from "nats";
@@ -3436,6 +3437,7 @@ interface SpecialistCard {
   verified: boolean;
   trustLabel: string;
   trustLabelText: string;
+  telegramHandle?: string;
 }
 
 /** Admin-tagged specialists for `topic`, ranked by independent trust evidence
@@ -3464,7 +3466,11 @@ async function findSpecialistsByTopic(topic: string, limit: number): Promise<Spe
   const states = await specialistStates(ids);
   const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
   const cards = specialistsForTopic(live, limit);
-  for (const c of cards) c.verified = states[c.nodeId] === "verified";
+  const handles = await telegramHandles(cards.map((c) => c.nodeId));
+  for (const c of cards) {
+    c.verified = states[c.nodeId] === "verified";
+    if (handles[c.nodeId]) c.telegramHandle = handles[c.nodeId];
+  }
   return cards;
 }
 

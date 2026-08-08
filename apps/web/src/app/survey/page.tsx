@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Brand from "@/components/Brand";
 import QuestionScreen from "@/components/survey/QuestionScreen";
 import { NEED_LABEL, SURVEY_QUESTIONS, submitSurvey, type QKey } from "@/lib/surveyQuestions";
+import { SPECIALIST_TYPE_FA, TRUST_LABEL_FA } from "@/lib/specialistClient";
 
 /**
  * Public market-test survey (no login — excluded from the proxy gate, see
@@ -20,26 +21,6 @@ import { NEED_LABEL, SURVEY_QUESTIONS, submitSurvey, type QKey } from "@/lib/sur
  * Copy is Persian throughout (see surveyQuestions.ts for why) — the results
  * screen and CTA are written the same way, not just the questions.
  */
-
-const SPECIALIST_TYPE_FA: Record<string, string> = {
-  lawyer: "وکیل",
-  broker: "مشاور املاک",
-  immigration_consultant: "مشاور مهاجرت",
-  accountant: "حسابدار",
-  doctor: "پزشک",
-  dentist: "دندون‌پزشک",
-  mechanic: "مکانیک",
-  plumber: "لوله‌کش",
-  electrician: "برق‌کار",
-};
-
-const TRUST_LABEL_FA: Record<string, string> = {
-  limited_evidence: "شواهد کم",
-  emerging: "در حال شکل‌گیری",
-  established: "شناخته‌شده",
-  reliable: "قابل‌اعتماد",
-  highly_reliable: "به‌شدت قابل‌اعتماد",
-};
 
 interface Circle {
   id: string;

@@ -36,12 +36,31 @@ async function call(method, path, body) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+// Circle names went English → Persian (#market-test Persian pass). This
+// script only CREATES circles that don't exist by exact label — it never
+// renames or deletes, so re-running after that change leaves the old
+// English circles in place alongside the new Persian ones. If this space
+// was seeded before, delete the stale English circles by hand (Directory
+// admin page) once members have migrated, or migrate their content first.
+const OLD_ENGLISH_NAMES = new Set([
+  "residency", "accounting & tax", "banks & money", "jobs & referrals",
+  "health & insurance", "language", "buy & sell", "hangouts",
+]);
+
 console.log(`seeding space "${fixture.app.slug}" @ ${GRAPH}`);
 await call("POST", "/api/admin/apps", fixture.app);
 console.log(`  app ${fixture.app.slug} ✓`);
 
 const { circles: existing } = await call("GET", "/api/circles");
 const have = new Set(existing.map((c) => c.label.toLowerCase()));
+const staleEnglish = existing.filter((c) => OLD_ENGLISH_NAMES.has(c.label.toLowerCase()));
+if (staleEnglish.length) {
+  console.warn(
+    `  ! ${staleEnglish.length} old English-named circle(s) found (${staleEnglish.map((c) => c.label).join(", ")}) — ` +
+      `not touched by this script. Migrate members/content and remove them from the admin Directory once ready.`,
+  );
+}
+
 let created = 0, skipped = 0;
 for (const c of fixture.circles) {
   if (have.has(c.name.toLowerCase())) { skipped++; continue; }

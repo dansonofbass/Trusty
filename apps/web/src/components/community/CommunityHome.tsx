@@ -9,12 +9,23 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MessageCircle, MessagesSquare, QrCode, ScanLine, UserPlus, X } from "lucide-react";
+import { BadgeCheck, Loader2, MessageCircle, MessagesSquare, QrCode, ScanLine, Send, UserPlus, X } from "lucide-react";
 import { QRShare, QRScan } from "@/components/summit/QRConnect";
 import { fetchCircles, joinCircle, type CircleSummary } from "@/lib/socialClient";
+import {
+  fetchSpecialistsByTopics,
+  telegramUrl,
+  SPECIALIST_TYPE_FA,
+  TRUST_LABEL_FA,
+  type SpecialistCard,
+} from "@/lib/specialistClient";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useUI } from "@/lib/store";
 import { useT } from "@/lib/i18n";
+
+/** Professions relevant to relocating to Armenia — the topics irham's own
+ *  circles are tagged with (see infra/fixtures/circles-iran.json). */
+const EXPERT_TOPICS = ["immigration", "accountant", "broker", "real_estate", "doctor", "dentist"];
 
 const EXAMPLES: { key: "community.exResidency" | "community.exAccountant" | "community.exBank"; prompt: string }[] = [
   { key: "community.exResidency", prompt: "What documents do I need for the residency application?" },
@@ -36,11 +47,18 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
   const [circlesOpen, setCirclesOpen] = useState(false);
   const [circles, setCircles] = useState<CircleSummary[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [expertsOpen, setExpertsOpen] = useState(false);
+  const [experts, setExperts] = useState<SpecialistCard[] | null>(null);
 
   useEffect(() => {
     if (!circlesOpen || circles) return;
     fetchCircles().then((r) => setCircles(r.circles)).catch(() => setCircles([]));
   }, [circlesOpen, circles]);
+
+  useEffect(() => {
+    if (!expertsOpen || experts) return;
+    fetchSpecialistsByTopics(EXPERT_TOPICS).then(setExperts).catch(() => setExperts([]));
+  }, [expertsOpen, experts]);
 
   const enterCircle = async (c: CircleSummary) => {
     if (c.mine) {
@@ -89,7 +107,63 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
         {bigBtn(<ScanLine size={20} />, t("community.scan"), t("community.scanSub"), () => setQr("scan"))}
         {bigBtn(<UserPlus size={20} />, t("community.invite"), t("community.inviteSub"), () => setRightPanel("invite"))}
         {bigBtn(<MessagesSquare size={20} />, t("community.myGroups"), t("community.myGroupsSub"), () => router.push("/messages"))}
+        {bigBtn(<BadgeCheck size={20} />, t("community.experts"), t("community.expertsSub"), () => setExpertsOpen((v) => !v), true)}
       </div>
+
+      {/* Experts — admin-tagged, trust-ranked specialists for irham's topics */}
+      {expertsOpen && (
+        <div className="mt-3 rounded-2xl border border-line bg-[var(--color-surface)] p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--color-faint)]">{t("community.experts")}</span>
+            <button type="button" onClick={() => setExpertsOpen(false)} aria-label="Close">
+              <X size={14} className="text-[var(--color-faint)]" />
+            </button>
+          </div>
+          {!experts ? (
+            <p className="py-3 text-center text-[12px] text-[var(--color-faint)]"><Loader2 size={14} className="inline animate-spin" /></p>
+          ) : experts.length === 0 ? (
+            <p className="py-2 text-[12px] text-[var(--color-dim)]">{t("community.expertsEmpty")}</p>
+          ) : (
+            <>
+              <p className="mb-2 text-[11px] text-[var(--color-faint)]">{t("community.expertsIntro")}</p>
+              <ul className="space-y-1.5">
+                {experts.map((e) => (
+                  <li key={e.nodeId} className="flex items-center gap-2.5 rounded-xl border border-line px-2.5 py-2">
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-[13px] font-semibold text-ink">{e.label}</span>
+                        {e.verified && <BadgeCheck size={12} style={{ color: "var(--color-accent)" }} />}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-[var(--color-dim)]">
+                        {SPECIALIST_TYPE_FA[e.nodeType] ?? e.nodeType} · {TRUST_LABEL_FA[e.trustLabel] ?? e.trustLabelText}
+                      </span>
+                    </span>
+                    {e.telegramHandle ? (
+                      <a
+                        href={telegramUrl(e.telegramHandle)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
+                        style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+                      >
+                        <Send size={12} /> {t("expert.telegram")}
+                      </a>
+                    ) : (
+                      <a
+                        href={`/s/${encodeURIComponent(e.nodeId)}`}
+                        className="shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
+                        style={{ background: "rgba(146,166,255,0.12)", color: "var(--color-ink)" }}
+                      >
+                        {t("circle.open_")}
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Circles inline list — the #1 first action */}
       {circlesOpen && (

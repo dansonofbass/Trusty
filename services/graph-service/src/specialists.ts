@@ -294,6 +294,20 @@ export async function setSpecialistTopicTags(
   return { ok: true, topicTags: clean };
 }
 
+/** Bulk telegramHandle lookup (operational layer) for topic-search cards —
+ *  avoids an N+1 fetch per card. */
+export async function telegramHandles(nodeIds: string[]): Promise<Record<string, string>> {
+  if (!pool || nodeIds.length === 0) return {};
+  const r = await pool.query(
+    `SELECT node_id, layers->'operational'->'telegramHandle'->>'value' AS handle
+       FROM specialist_profiles WHERE node_id = ANY($1)`,
+    [nodeIds],
+  );
+  const out: Record<string, string> = {};
+  for (const row of r.rows) if (row.handle) out[String(row.node_id)] = String(row.handle);
+  return out;
+}
+
 /** Node ids of specialists admin-tagged with `topic`, most recently updated
  *  first. Ranking by trust evidence happens in the caller, which has access
  *  to the graph (this module only knows Postgres). */
