@@ -287,6 +287,7 @@ import {
   removeManager,
   reviewClaim,
   revokeVerification,
+  setListed,
   setSpecialistTopicTags,
   specialistStates,
   specialistsEnabled,
@@ -327,6 +328,7 @@ import {
   answerAuthor,
   answerPost,
   circleContributors,
+  circleTags,
   createAnswer,
   createPost,
   createTopic,
@@ -2336,6 +2338,82 @@ app.delete("/api/admin/circles/:id/mentors/:specialistId", async (req, res) => {
   }
 });
 
+/** Admin: everything about ONE circle on a single page — settings, topics,
+ *  moderators, pinned mentors, and forum activity counts. */
+app.get("/api/admin/circles/:id/detail", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const circleId = String(req.params.id);
+  const circle = circleNodes().find((n) => n.id === circleId);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  try {
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const roles = forumEnabled() ? await rolesFor(circleId) : [];
+    const posts = forumEnabled() ? await listPosts({ circleId, viewerId: userId, sort: "new", limit: 100 }) : [];
+    res.json({
+      id: circle.id,
+      label: circle.label,
+      description: String(circleProps(circle).description ?? ""),
+      category: String(circleProps(circle).category ?? "topic"),
+      open: circleProps(circle).open !== false,
+      app: String(circleProps(circle).app ?? BUILTIN_APP),
+      topicTags: circleTopicTags(circle),
+      memberCount: squadMembers(circleId).length,
+      topics: forumEnabled() ? await listTopics(circleId) : [],
+      tags: forumEnabled() ? await circleTags(circleId) : [],
+      roles: roles.map((r) => ({ ...r, label: labelOf.get(r.userId) ?? r.userId })),
+      mentors: circleMentorIds(circle).map((id) => ({ nodeId: id, label: labelOf.get(id) ?? id })),
+      postCount: posts.length,
+      answerCount: posts.reduce((n, p) => n + p.answerCount, 0),
+      recentPosts: posts.slice(0, 10).map((p) => ({
+        id: p.id,
+        title: p.title,
+        answerCount: p.answerCount,
+        score: p.score,
+        tags: p.tags,
+        createdAt: p.createdAt,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: edit a circle's own settings (name, blurb, category, open). */
+app.patch("/api/admin/circles/:id", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const circleId = String(req.params.id);
+  const circle = circleNodes().find((n) => n.id === circleId);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  const label = str(req.body?.label, 60);
+  const description = str(req.body?.description, 280);
+  const category = CIRCLE_CATEGORIES.has(String(req.body?.category ?? "")) ? String(req.body.category) : undefined;
+  try {
+    await serialize(async () => {
+      const nodes = shared.nodes.map((n) =>
+        n.id === circleId
+          ? {
+              ...n,
+              label: label ?? n.label,
+              properties: {
+                ...(n.properties ?? {}),
+                ...(description !== undefined ? { description } : {}),
+                ...(category ? { category } : {}),
+                ...(req.body?.open != null ? { open: !!req.body.open } : {}),
+              },
+            }
+          : n,
+      );
+      return commitShared(refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] }));
+    });
+    emitEvent("admin.entity_updated", { userId, targetId: circleId, payload: { kind: "circle" } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** Admin: set a circle's topic tags after the fact (creation-time only
  *  otherwise) — lets old/stale circles get tagged without re-seeding. */
 app.patch("/api/admin/circles/:id/topic-tags", async (req, res) => {
@@ -2612,11 +2690,16 @@ app.get("/api/circles/:id/posts", async (req, res) => {
     const posts = await listPosts({
       circleId,
       topicId: str(req.query.topic as unknown, 40),
+      tag: str(req.query.tag as unknown, 40),
       viewerId: userId,
       sort: (str(req.query.sort as unknown, 10) as PostSort) ?? "hot",
       limit: Math.min(100, Number(req.query.limit) || 50),
     });
-    res.json({ posts, authors: await authorsFor(posts.map((p) => p.authorId), circleId) });
+    res.json({
+      posts,
+      authors: await authorsFor(posts.map((p) => p.authorId), circleId),
+      tags: await circleTags(circleId),
+    });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -2639,6 +2722,7 @@ app.post("/api/circles/:id/posts", async (req, res) => {
       authorId: userId,
       title: str(req.body?.title, 200) ?? "",
       body: str(req.body?.body, 20000) ?? "",
+      tags: Array.isArray(req.body?.tags) ? req.body.tags.map(String) : [],
     });
     if (!r.ok) return res.status(400).json({ error: r.error });
     emitEvent("forum.post_created", {
@@ -4115,6 +4199,74 @@ app.get("/api/specialists", async (req, res) => {
   if (!topic) return res.status(400).json({ error: "topic required" });
   try {
     res.json({ specialists: await findSpecialistsByTopic(topic, Number(req.query.limit) || 8) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: show/hide a specialist across every discovery surface. Keeps the
+ *  profile and its trust evidence intact — this is a visibility switch, not
+ *  a delete. */
+app.patch("/api/admin/specialists/:nodeId/listed", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const listed = req.body?.listed !== false;
+  try {
+    await setListed(String(req.params.nodeId), listed);
+    emitEvent("specialist.profile_updated", {
+      userId,
+      targetId: String(req.params.nodeId),
+      payload: { layer: "listed", listed },
+    });
+    res.json({ ok: true, listed });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: publish a session time on a specialist's behalf (they may not run
+ *  their own profile yet — most catalog entries are unclaimed). */
+app.post("/api/admin/specialists/:nodeId/slots", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const r = await publishSlot(nodeId, String(req.body?.startsAt ?? ""), String(req.body?.endsAt ?? ""));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("booking.slot_published", { userId, targetId: nodeId, payload: { slotId: r.id, byAdmin: true } });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: all slots for a specialist, including booked ones. */
+app.get("/api/admin/specialists/:nodeId/slots", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!bookingEnabled()) return res.json({ slots: [] });
+  try {
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    const slots = await listSlots(String(req.params.nodeId), { includeBooked: true });
+    res.json({
+      slots: slots.map((s) => ({ ...s, bookedByLabel: s.bookedBy ? labelOf.get(s.bookedBy) ?? s.bookedBy : undefined })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/admin/specialists/:nodeId/slots/:slotId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  try {
+    const r = await withdrawSlot(String(req.params.slotId), String(req.params.nodeId));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("booking.slot_withdrawn", { userId, targetId: String(req.params.nodeId) });
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
   }

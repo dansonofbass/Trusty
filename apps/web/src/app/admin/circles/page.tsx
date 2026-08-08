@@ -196,7 +196,13 @@ export default function AdminCirclesPage() {
             <li key={c.id} className="rounded-2xl border border-line bg-surface p-4 backdrop-blur-md">
               <div className="flex flex-wrap items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div dir="auto" className="text-[13.5px] font-semibold text-ink">{c.label}</div>
+                  <a
+                    href={`/admin/circles/${encodeURIComponent(c.id)}`}
+                    dir="auto"
+                    className="text-[13.5px] font-semibold text-ink hover:underline"
+                  >
+                    {c.label}
+                  </a>
                   {c.description && <div dir="auto" className="mt-0.5 text-[12px] text-faint">{c.description}</div>}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-faint">
                     <span className="flex items-center gap-1"><Users size={11} /> {c.memberCount}</span>

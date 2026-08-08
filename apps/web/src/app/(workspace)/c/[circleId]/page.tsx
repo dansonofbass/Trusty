@@ -41,6 +41,8 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
   const [posts, setPosts] = useState<Post[]>([]);
   const [authors, setAuthors] = useState<Record<string, Author>>({});
   const [topicId, setTopicId] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
+  const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [sort, setSort] = useState<PostSort>("hot");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +50,11 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
   const [newTopic, setNewTopic] = useState(false);
 
   const loadPosts = useCallback(async () => {
-    const r = await fetchPosts(circleId, { topicId: topicId ?? undefined, sort });
+    const r = await fetchPosts(circleId, { topicId: topicId ?? undefined, tag: tag ?? undefined, sort });
     setPosts(r.posts);
     setAuthors(r.authors);
-  }, [circleId, topicId, sort]);
+    setTags(r.tags ?? []);
+  }, [circleId, topicId, tag, sort]);
 
   useEffect(() => {
     let alive = true;
@@ -153,6 +156,36 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
               />
             )}
 
+            {/* tag filter — classification carried over from the source
+                answers, so migrated knowledge stays findable */}
+            {tags.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                {tag && (
+                  <button
+                    onClick={() => setTag(null)}
+                    className="rounded-full border border-line px-2.5 py-1 text-[11.5px] text-[var(--color-faint)] hover:text-ink"
+                  >
+                    ✕ {t("forum.clearTag")}
+                  </button>
+                )}
+                {tags.map((x) => (
+                  <button
+                    key={x.tag}
+                    onClick={() => setTag(tag === x.tag ? null : x.tag)}
+                    className="rounded-full border px-2.5 py-1 text-[11.5px] font-medium capitalize transition"
+                    style={
+                      tag === x.tag
+                        ? { borderColor: "var(--color-accent-line)", background: "var(--color-accent-soft)", color: "var(--color-accent)" }
+                        : { borderColor: "var(--color-line)", color: "var(--color-dim)" }
+                    }
+                  >
+                    {x.tag.replace(/_/g, " ")}
+                    <span className="ms-1 text-[10px] text-[var(--color-faint)]">{x.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* sort + ask */}
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <div className="flex gap-1 rounded-full border border-line p-1">
@@ -192,6 +225,7 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
               <AskComposer
                 circleId={circleId}
                 topicId={topicId}
+                knownTags={tags.map((x) => x.tag)}
                 onDone={(created) => {
                   setAsking(false);
                   if (created) void loadPosts();
@@ -228,15 +262,20 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
 function AskComposer({
   circleId,
   topicId,
+  knownTags,
   onDone,
 }: {
   circleId: string;
   topicId: string | null;
+  /** Tags already used in this circle — picking beats free-typing, which is
+   *  how you end up with visa/Visa/visas as three different tags. */
+  knownTags: string[];
   onDone: (created: boolean) => void;
 }) {
   const t = useT();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -245,7 +284,7 @@ function AskComposer({
     setBusy(true);
     setErr(null);
     try {
-      await createPost(circleId, { topicId, title, body });
+      await createPost(circleId, { topicId, title, body, tags });
       onDone(true);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -272,6 +311,31 @@ function AskComposer({
         placeholder={t("forum.askBodyPlaceholder")}
         className="mt-2 w-full resize-none rounded-xl border border-line bg-transparent px-3 py-2.5 text-[16px] leading-relaxed text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[var(--color-accent-line)] md:text-[13.5px]"
       />
+      {knownTags.length > 0 && (
+        <div className="mt-2">
+          <div className="mb-1 text-[11px] text-[var(--color-faint)]">{t("forum.tagsHint")}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {knownTags.map((x) => {
+              const on = tags.includes(x);
+              return (
+                <button
+                  key={x}
+                  type="button"
+                  onClick={() => setTags((ts) => (on ? ts.filter((v) => v !== x) : [...ts, x]))}
+                  className="rounded-full border px-2.5 py-1 text-[11.5px] capitalize transition"
+                  style={
+                    on
+                      ? { borderColor: "var(--color-accent-line)", background: "var(--color-accent-soft)", color: "var(--color-accent)" }
+                      : { borderColor: "var(--color-line)", color: "var(--color-dim)" }
+                  }
+                >
+                  {x.replace(/_/g, " ")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {err && <p className="mt-1.5 text-[12px] text-rose-300">{err}</p>}
       <div className="mt-2 flex justify-end gap-2">
         <button onClick={() => onDone(false)} className="rounded-xl border border-line px-3 py-1.5 text-[12.5px] text-[var(--color-dim)]">

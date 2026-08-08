@@ -14,11 +14,22 @@
 export const SPACE_SLUGS = ["summit", "irham"] as const;
 export type SpaceSlug = (typeof SPACE_SLUGS)[number];
 
-/** Display metadata for space-aware UI (neutral-home directory, hero copy). */
-export const SPACE_META: Record<SpaceSlug, { label: string; tagline: string; emoji: string }> = {
-  summit: { label: "Seaside Startup Summit", tagline: "Squads, mentors & the agenda", emoji: "🎪" },
-  irham: { label: "Iranians in Armenia", tagline: "Residency, tax, jobs — answered by people who did it", emoji: "🤝" },
+/**
+ * Display metadata for space-aware UI (neutral-home directory, hero copy).
+ *
+ * `listed: false` hides a space from navigation WITHOUT breaking it: the
+ * subdomain still resolves, its data is untouched, and anyone holding a link
+ * keeps working. Used for spaces that have served their purpose (a finished
+ * event) but shouldn't clutter the front door.
+ */
+export const SPACE_META: Record<SpaceSlug, { label: string; tagline: string; emoji: string; listed?: boolean }> = {
+  // The summit is over — kept alive for its attendees' links, off the menu.
+  summit: { label: "Seaside Startup Summit", tagline: "Squads, mentors & the agenda", emoji: "🎪", listed: false },
+  irham: { label: "Iranians in Armenia", tagline: "Residency, tax, jobs — answered by people who did it", emoji: "🤝", listed: true },
 };
+
+/** Spaces to advertise in navigation. */
+export const LISTED_SPACES: SpaceSlug[] = SPACE_SLUGS.filter((s) => SPACE_META[s].listed !== false);
 
 /** The Space a host belongs to, or null for the neutral home / localhost. */
 export function spaceFromHost(host?: string): SpaceSlug | null {

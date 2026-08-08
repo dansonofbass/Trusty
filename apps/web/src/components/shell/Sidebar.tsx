@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
+  CircleDot,
   FileText,
   Folder,
   FolderOpen,
@@ -25,7 +26,7 @@ import { fetchWorkspace, type FolderRow, type WritingSummary } from "@/lib/writi
 import { listConversations, type ConversationSummary } from "@/lib/chat/conversationsClient";
 import { fetchRooms } from "@/lib/socialClient";
 import NotificationBell from "@/components/NotificationBell";
-import { SPACE_META, SPACE_SLUGS, homeUrl, spaceFromHost, spaceUrl } from "@/lib/space";
+import { LISTED_SPACES, SPACE_META, homeUrl, spaceFromHost, spaceUrl } from "@/lib/space";
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -34,11 +35,16 @@ type NavItem = { href: string; labelKey: TranslationKey; icon: React.ElementType
 // Newcomer-calm nav: three primary surfaces; the power tools live behind
 // "More" (remembered per browser) so a first-timer sees three words, not six.
 const PRIMARY_NAV: NavItem[] = [
+  // Circles first: the forum is where the community's knowledge lives, so it
+  // is the front door rather than something buried under Discover.
+  { href: "/c", labelKey: "nav.circles", icon: CircleDot },
   { href: "/", labelKey: "nav.chat", icon: MessageCircle },
-  { href: "/messages", labelKey: "nav.messages", icon: MessagesSquare },
   { href: "/discover", labelKey: "nav.discover", icon: Radio },
 ];
 const SECONDARY_NAV: NavItem[] = [
+  // Circle chat retired in favour of the forum; /messages still serves squad
+  // rooms, so it stays reachable without taking a primary slot.
+  { href: "/messages", labelKey: "nav.messages", icon: MessagesSquare },
   { href: "/graph", labelKey: "nav.graph", icon: Orbit },
   { href: "/asks", labelKey: "nav.asks", icon: Megaphone },
   { href: "/decisions", labelKey: "nav.decisions", icon: Scale },
@@ -244,7 +250,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   </a>
                 </li>
               )}
-              {SPACE_SLUGS.map((slug) => (
+              {LISTED_SPACES.map((slug) => (
                 <li key={slug}>
                   <a
                     href={current === slug ? undefined : spaceUrl(slug)}

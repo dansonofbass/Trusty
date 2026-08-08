@@ -11,6 +11,7 @@
 
 export const en = {
   // ── navigation / shell ───────────────────────────────────────────
+  "nav.circles": "Circles",
   "nav.chat": "Chat",
   "nav.messages": "Messages",
   "nav.discover": "Discover",
@@ -137,6 +138,8 @@ export const en = {
   "forum.topicLabel": "Topic name",
   "forum.topicDescription": "What belongs in this topic?",
   "forum.reply": "Reply",
+  "forum.clearTag": "Clear filter",
+  "forum.tagsHint": "Tag it so people can find it later (optional)",
   "forum.deleted": "removed",
   "badge.owner": "Owner",
   "badge.moderator": "Moderator",
@@ -202,6 +205,7 @@ export type Dictionary = Record<TranslationKey, string>;
 
 /** Persian (فارسی). Reviewed for the Iranians-in-Armenia pilot. */
 export const fa: Dictionary = {
+  "nav.circles": "حلقه‌ها",
   "nav.chat": "گفت‌وگو",
   "nav.messages": "پیام‌ها",
   "nav.discover": "کشف",
@@ -324,6 +328,8 @@ export const fa: Dictionary = {
   "forum.topicLabel": "نام موضوع",
   "forum.topicDescription": "چه چیزهایی توی این موضوع جا می‌گیره؟",
   "forum.reply": "پاسخ به این",
+  "forum.clearTag": "حذف فیلتر",
+  "forum.tagsHint": "برچسب بزن تا بعداً پیدا بشه (اختیاری)",
   "forum.deleted": "حذف شده",
   "badge.owner": "مالک",
   "badge.moderator": "مدیر",

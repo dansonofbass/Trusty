@@ -117,6 +117,10 @@ export async function initSpecialists(): Promise<void> {
       updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await p.query(`ALTER TABLE specialist_profiles ADD COLUMN IF NOT EXISTS topic_tags JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  // Admin kill-switch: hide a specialist from discovery surfaces (topic
+  // search, mentor cards, survey results) without deleting the profile or its
+  // trust evidence. Default true so existing profiles keep showing.
+  await p.query(`ALTER TABLE specialist_profiles ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT true`);
   await p.query(`CREATE INDEX IF NOT EXISTS specialist_profiles_topic_tags_idx ON specialist_profiles USING GIN (topic_tags)`);
   pool = p;
   console.log("graph-service: specialists ready (postgres)");
@@ -200,6 +204,8 @@ export interface SpecialistView {
   /** Admin-assigned topic tags (TOPIC_TAXONOMY values) — not provider-editable,
    *  so a specialist can never make themselves more discoverable by topic. */
   topicTags: string[];
+  /** Admin visibility switch — false hides it from every discovery surface. */
+  listed: boolean;
   /** viewer-specific */
   isManager: boolean;
   permissions: SpecialistPermissions | null;
@@ -214,7 +220,7 @@ export async function getSpecialist(nodeId: string, viewerId: string, viewerIsAd
   if (!pool) throw new Error("specialists disabled");
   await ensureSpecialist(nodeId);
   const r = await pool.query(
-    `SELECT state, layers, topic_tags, created_at, updated_at FROM specialist_profiles WHERE node_id = $1`,
+    `SELECT state, layers, topic_tags, listed, created_at, updated_at FROM specialist_profiles WHERE node_id = $1`,
     [nodeId],
   );
   const row = r.rows[0];
@@ -228,6 +234,7 @@ export async function getSpecialist(nodeId: string, viewerId: string, viewerIsAd
     state: row.state as SpecialistState,
     layers: (row.layers ?? {}) as SpecialistLayers,
     topicTags: Array.isArray(row.topic_tags) ? row.topic_tags.map(String) : [],
+    listed: row.listed !== false,
     isManager: !!permissions,
     permissions,
     pendingClaim: !!pending.rowCount,
@@ -327,11 +334,30 @@ export async function nodeIdsByTopicTag(topic: string, limit = 50): Promise<stri
   if (!pool) return [];
   const r = await pool.query(
     `SELECT node_id FROM specialist_profiles
-       WHERE topic_tags @> $1::jsonb AND state NOT IN ('closed', 'merged')
+       WHERE topic_tags @> $1::jsonb AND state NOT IN ('closed', 'merged') AND listed
        ORDER BY updated_at DESC LIMIT $2`,
     [JSON.stringify([topic.trim().toLowerCase()]), limit],
   );
   return r.rows.map((row) => String(row.node_id));
+}
+
+/** Admin: show/hide a specialist across every discovery surface. */
+export async function setListed(nodeId: string, listed: boolean): Promise<void> {
+  if (!pool) return;
+  await ensureSpecialist(nodeId);
+  await pool.query(`UPDATE specialist_profiles SET listed = $2, updated_at = now() WHERE node_id = $1`, [
+    nodeId,
+    listed,
+  ]);
+}
+
+/** Bulk listed-state lookup (admin lists, and filtering pinned mentors). */
+export async function listedStates(nodeIds: string[]): Promise<Record<string, boolean>> {
+  if (!pool || nodeIds.length === 0) return {};
+  const r = await pool.query(`SELECT node_id, listed FROM specialist_profiles WHERE node_id = ANY($1)`, [nodeIds]);
+  const out: Record<string, boolean> = {};
+  for (const row of r.rows) out[String(row.node_id)] = !!row.listed;
+  return out;
 }
 
 /* ------------------------------ claims ----------------------------- */

@@ -46,6 +46,20 @@ export default function PostCard({ post, author }: { post: Post; author?: Author
           )}
         </Link>
 
+        {post.tags.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {post.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize"
+                style={{ background: "var(--color-tint)", color: "var(--color-dim)" }}
+              >
+                {tag.replace(/_/g, " ")}
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-faint)]">
           {author && (
             <span className="inline-flex items-center gap-1.5">

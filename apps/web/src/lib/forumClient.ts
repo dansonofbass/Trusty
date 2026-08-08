@@ -44,6 +44,8 @@ export interface Post {
   locked: boolean;
   answerCount: number;
   score: number;
+  /** Classification within the circle (visa, contract, bank…). */
+  tags: string[];
   myVote: number;
   createdAt: string;
 }
@@ -99,18 +101,26 @@ export const fetchCircleAbout = (circleId: string): Promise<CircleAbout> =>
 export const fetchTopics = (circleId: string): Promise<{ topics: Topic[] }> =>
   fetch(`/api/circles/${enc(circleId)}/topics`, { cache: "no-store" }).then(jsonOrThrow) as Promise<{ topics: Topic[] }>;
 
+export interface PostsPage {
+  posts: Post[];
+  authors: Record<string, Author>;
+  /** Tags in use in this circle, most-used first — powers the filter row. */
+  tags: { tag: string; count: number }[];
+}
+
 export function fetchPosts(
   circleId: string,
-  opts: { topicId?: string; sort?: PostSort; limit?: number } = {},
-): Promise<{ posts: Post[]; authors: Record<string, Author> }> {
+  opts: { topicId?: string; tag?: string; sort?: PostSort; limit?: number } = {},
+): Promise<PostsPage> {
   const qs = new URLSearchParams();
   if (opts.topicId) qs.set("topic", opts.topicId);
+  if (opts.tag) qs.set("tag", opts.tag);
   if (opts.sort) qs.set("sort", opts.sort);
   if (opts.limit) qs.set("limit", String(opts.limit));
   const q = qs.toString();
   return fetch(`/api/circles/${enc(circleId)}/posts${q ? `?${q}` : ""}`, { cache: "no-store" }).then(
     jsonOrThrow,
-  ) as Promise<{ posts: Post[]; authors: Record<string, Author> }>;
+  ) as Promise<PostsPage>;
 }
 
 export const fetchThread = (
@@ -135,7 +145,10 @@ const post = (url: string, body?: unknown) =>
 export const createTopic = (circleId: string, input: { label: string; description?: string; position?: number }) =>
   post(`/api/circles/${enc(circleId)}/topics`, input) as Promise<{ ok: true; id: string }>;
 
-export const createPost = (circleId: string, input: { topicId?: string | null; title: string; body?: string }) =>
+export const createPost = (
+  circleId: string,
+  input: { topicId?: string | null; title: string; body?: string; tags?: string[] },
+) =>
   post(`/api/circles/${enc(circleId)}/posts`, input) as Promise<{ ok: true; id: string }>;
 
 export const createAnswer = (postId: string, input: { body: string; parentId?: string | null }) =>

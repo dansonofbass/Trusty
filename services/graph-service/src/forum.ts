@@ -64,6 +64,8 @@ export interface PostRow {
   locked: boolean;
   answerCount: number;
   score: number;
+  /** Classification within the circle (visa, contract, bank…). */
+  tags: string[];
   /** The viewer's own vote (-1 | 0 | 1) — set by callers that pass a viewer. */
   myVote: number;
   createdAt: string;
@@ -131,6 +133,11 @@ export async function initForum(): Promise<void> {
   await p.query(`CREATE INDEX IF NOT EXISTS posts_author_idx ON posts(author_id)`);
   // Migrated saved answers carry their origin so the one-off migration is idempotent.
   await p.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS migrated_from_answer BIGINT`);
+  // Free-form classification WITHIN a circle (visa, contract, bank…), separate
+  // from `circle_topics` sections. Saved answers already carried these, so
+  // migrated knowledge keeps the classification it was written with.
+  await p.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'`);
+  await p.query(`CREATE INDEX IF NOT EXISTS posts_tags_idx ON posts USING GIN (tags)`);
   await p.query(
     `CREATE UNIQUE INDEX IF NOT EXISTS posts_migrated_uniq ON posts(migrated_from_answer) WHERE migrated_from_answer IS NOT NULL`,
   );
@@ -313,6 +320,7 @@ const postRow = (row: Record<string, unknown>): PostRow => ({
   locked: !!row.locked,
   answerCount: Number(row.answer_count ?? 0),
   score: Number(row.score ?? 0),
+  tags: Array.isArray(row.tags) ? (row.tags as unknown[]).map(String) : [],
   myVote: Number(row.my_vote ?? 0),
   createdAt: new Date(row.created_at as string).toISOString(),
 });
@@ -330,6 +338,7 @@ const ORDER_BY: Record<PostSort, string> = {
 export async function listPosts(opts: {
   circleId?: string;
   topicId?: string;
+  tag?: string;
   viewerId?: string;
   sort?: PostSort;
   limit?: number;
@@ -343,11 +352,25 @@ export async function listPosts(opts: {
       WHERE NOT p.deleted
         AND ($1::text IS NULL OR p.circle_id = $1)
         AND ($2::bigint IS NULL OR p.topic_id = $2)
+        AND ($5::text IS NULL OR p.tags @> ARRAY[$5]::text[])
       ORDER BY ${order}
       LIMIT $4`,
-    [opts.circleId ?? null, opts.topicId ?? null, opts.viewerId ?? "", opts.limit ?? 50],
+    [opts.circleId ?? null, opts.topicId ?? null, opts.viewerId ?? "", opts.limit ?? 50, opts.tag ?? null],
   );
   return r.rows.map(postRow);
+}
+
+/** Tags actually in use in a circle, most-used first — the filter row. */
+export async function circleTags(circleId: string): Promise<{ tag: string; count: number }[]> {
+  if (!pool) return [];
+  const r = await pool.query(
+    `SELECT tag, count(*)::int AS count
+       FROM posts p, unnest(p.tags) AS tag
+      WHERE p.circle_id = $1 AND NOT p.deleted
+      GROUP BY tag ORDER BY count DESC, tag`,
+    [circleId],
+  );
+  return r.rows.map((row) => ({ tag: String(row.tag), count: Number(row.count) }));
 }
 
 export async function getPost(id: string, viewerId?: string): Promise<PostRow | null> {
@@ -362,12 +385,16 @@ export async function getPost(id: string, viewerId?: string): Promise<PostRow | 
   return r.rowCount ? postRow(r.rows[0]) : null;
 }
 
+const cleanTags = (tags?: string[]): string[] =>
+  [...new Set((tags ?? []).map((t) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 6);
+
 export async function createPost(input: {
   circleId: string;
   topicId?: string | null;
   authorId: string;
   title: string;
   body?: string;
+  tags?: string[];
   createdAt?: string;
   migratedFromAnswer?: number;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
@@ -375,8 +402,8 @@ export async function createPost(input: {
   const title = input.title.trim();
   if (!title) return { ok: false, error: "title required" };
   const r = await pool.query(
-    `INSERT INTO posts (circle_id, topic_id, author_id, title, body, created_at, updated_at, migrated_from_answer)
-     VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()), now(), $7)
+    `INSERT INTO posts (circle_id, topic_id, author_id, title, body, tags, created_at, updated_at, migrated_from_answer)
+     VALUES ($1, $2, $3, $4, $5, $6::text[], COALESCE($7::timestamptz, now()), now(), $8)
      ON CONFLICT (migrated_from_answer) WHERE migrated_from_answer IS NOT NULL DO NOTHING
      RETURNING id`,
     [
@@ -385,12 +412,19 @@ export async function createPost(input: {
       input.authorId,
       title.slice(0, 200),
       (input.body ?? "").slice(0, 20000),
+      cleanTags(input.tags),
       input.createdAt ?? null,
       input.migratedFromAnswer ?? null,
     ],
   );
   if (!r.rowCount) return { ok: false, error: "already migrated" };
   return { ok: true, id: String(r.rows[0].id) };
+}
+
+/** Re-tag an existing post (moderators, and the re-run of the migration). */
+export async function setPostTags(id: string, tags: string[]): Promise<void> {
+  if (!pool) return;
+  await pool.query(`UPDATE posts SET tags = $2::text[], updated_at = now() WHERE id = $1`, [id, cleanTags(tags)]);
 }
 
 export async function setPostFlags(
@@ -626,7 +660,7 @@ export async function migrateRoomAnswers(
 ): Promise<{ migrated: number; skipped: number }> {
   if (!pool) return { migrated: 0, skipped: 0 };
   const src = await pool.query(
-    `SELECT id, author_id, body, created_at FROM room_answers WHERE room_id = $1 ORDER BY id`,
+    `SELECT id, author_id, body, topics, created_at FROM room_answers WHERE room_id = $1 ORDER BY id`,
     [roomId],
   );
   let migrated = 0;
@@ -641,17 +675,32 @@ export async function migrateRoomAnswers(
     // text as the body so nothing is truncated away.
     const firstLine = body.split(/\n/)[0].trim();
     const title = (firstLine.length > 90 ? `${firstLine.slice(0, 90)}…` : firstLine) || body.slice(0, 90);
+    // Saved answers were already classified (residency/documents/fees…).
+    // Carrying that across is the whole reason migrated knowledge is findable.
+    const tags = Array.isArray(row.topics) ? (row.topics as unknown[]).map(String) : [];
     const r = await createPost({
       circleId,
       topicId,
       authorId: String(row.author_id),
       title,
       body,
+      tags,
       createdAt: new Date(row.created_at).toISOString(),
       migratedFromAnswer: Number(row.id),
     });
-    if (r.ok) migrated++;
-    else skipped++;
+    if (r.ok) {
+      migrated++;
+    } else {
+      // Already migrated by an earlier run — back-fill the tags it missed
+      // rather than leaving that knowledge unclassified forever.
+      if (tags.length) {
+        await pool.query(
+          `UPDATE posts SET tags = $2::text[] WHERE migrated_from_answer = $1 AND cardinality(tags) = 0`,
+          [Number(row.id), cleanTags(tags)],
+        );
+      }
+      skipped++;
+    }
   }
   return { migrated, skipped };
 }

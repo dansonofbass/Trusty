@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Check, Loader2, X, Mail, Phone, FileBadge, Globe, Building2, MessageSquareQuote, Search, Tags } from "lucide-react";
+import { BadgeCheck, CalendarClock, Check, Loader2, X, Mail, Phone, FileBadge, Globe, Building2, MessageSquareQuote, Search, Tags } from "lucide-react";
 import { TOPIC_TAXONOMY } from "@constellation/graph-core";
 
 interface Claim {
@@ -297,6 +297,7 @@ function TopicTagEditor() {
   const [loadingTags, setLoadingTags] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [listed, setListed] = useState(true);
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -324,12 +325,32 @@ function TopicTagEditor() {
     setLoadingTags(true);
     try {
       const r = await fetch(`/api/specialists/${encodeURIComponent(hit.nodeId)}`, { cache: "no-store" });
-      const data = (await r.json()) as { topicTags?: string[] };
+      const data = (await r.json()) as { topicTags?: string[]; listed?: boolean };
       setTags(data.topicTags ?? []);
+      setListed(data.listed !== false);
     } catch {
       setTags([]);
+      setListed(true);
     } finally {
       setLoadingTags(false);
+    }
+  };
+
+  /** Visibility is a switch, not a delete — the profile and its trust
+   *  evidence stay intact, it just stops appearing in discovery. */
+  const toggleListed = async () => {
+    if (!selected) return;
+    const next = !listed;
+    setListed(next); // optimistic
+    try {
+      const r = await fetch(`/api/admin/specialists/${encodeURIComponent(selected.nodeId)}/listed`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ listed: next }),
+      });
+      if (!r.ok) throw new Error("failed");
+    } catch {
+      setListed(!next);
     }
   };
 
@@ -357,7 +378,7 @@ function TopicTagEditor() {
     <div className="mb-6 rounded-2xl border border-line bg-surface p-4 backdrop-blur-md">
       <div className="flex items-center gap-2">
         <Tags size={15} className="text-faint" />
-        <h2 className="text-[14px] font-bold text-ink">Topic tags</h2>
+        <h2 className="text-[14px] font-bold text-ink">Manage a specialist</h2>
       </div>
       <p className="mt-1 text-[12.5px] text-dim">
         Tag a specialist with the topics they cover. This is what the market-test survey and in-app topic search use
@@ -398,9 +419,31 @@ function TopicTagEditor() {
             <div className="text-[13px] font-semibold text-ink">
               {selected.label} <span className="font-normal capitalize text-faint">· {selected.nodeType.replace(/_/g, " ")}</span>
             </div>
-            <button onClick={() => setSelected(null)} className="text-[11.5px] text-faint hover:text-ink">
-              Change
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void toggleListed()}
+                title={listed ? "Visible in search, mentor cards and survey results" : "Hidden from every discovery surface"}
+                className="rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition"
+                style={
+                  listed
+                    ? { borderColor: "rgba(84,210,110,0.5)", color: "#54d26e", background: "rgba(84,210,110,0.08)" }
+                    : { borderColor: "var(--color-line)", color: "var(--color-faint)" }
+                }
+              >
+                {listed ? "Listed" : "Hidden"}
+              </button>
+              <a
+                href={`/s/${encodeURIComponent(selected.nodeId)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11.5px] text-faint hover:text-ink"
+              >
+                Profile
+              </a>
+              <button onClick={() => setSelected(null)} className="text-[11.5px] text-faint hover:text-ink">
+                Change
+              </button>
+            </div>
           </div>
 
           {loadingTags ? (
@@ -436,9 +479,165 @@ function TopicTagEditor() {
                 </button>
                 {saved && <span className="text-[11.5px] text-emerald-400">Saved</span>}
               </div>
+
+              <AdminSlots nodeId={selected.nodeId} />
             </>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+interface AdminSlot {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  bookedByLabel?: string;
+}
+
+/**
+ * Consultation times, managed from admin.
+ *
+ * Most specialists are unclaimed catalog entries with nobody to publish their
+ * own availability, so an admin can do it for them. The verification gate that
+ * applies to self-service publishing is intentionally NOT applied here — an
+ * admin adding a time is itself a human check.
+ */
+function AdminSlots({ nodeId }: { nodeId: string }) {
+  const [slots, setSlots] = useState<AdminSlot[] | null>(null);
+  const [start, setStart] = useState("");
+  const [minutes, setMinutes] = useState(30);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/admin/specialists/${encodeURIComponent(nodeId)}/slots`, { cache: "no-store" });
+      setSlots(((await r.json()) as { slots: AdminSlot[] }).slots ?? []);
+    } catch {
+      setSlots([]);
+    }
+  }, [nodeId]);
+  useEffect(() => { void load(); }, [load]);
+
+  const add = async () => {
+    if (!start) return;
+    const startsAt = new Date(start);
+    if (Number.isNaN(startsAt.getTime())) return setErr("That time doesn't look right.");
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/admin/specialists/${encodeURIComponent(nodeId)}/slots`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          startsAt: startsAt.toISOString(),
+          endsAt: new Date(startsAt.getTime() + minutes * 60_000).toISOString(),
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "failed");
+      setStart("");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (slotId: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(
+        `/api/admin/specialists/${encodeURIComponent(nodeId)}/slots/${encodeURIComponent(slotId)}`,
+        { method: "DELETE" },
+      );
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "failed");
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <div className="mb-2 flex items-center gap-1.5">
+        <CalendarClock size={14} className="text-faint" />
+        <h3 className="text-[13px] font-bold text-ink">Consultation times</h3>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-[11px] text-faint">
+          <span className="mb-1 block">Starts</span>
+          <input
+            type="datetime-local"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            className="rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[12.5px] text-ink outline-none"
+          />
+        </label>
+        <label className="text-[11px] text-faint">
+          <span className="mb-1 block">Length</span>
+          <select
+            value={minutes}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+            className="rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[12.5px] text-ink outline-none"
+          >
+            {[15, 30, 45, 60].map((m) => (
+              <option key={m} value={m} className="bg-[#111827]">{m} min</option>
+            ))}
+          </select>
+        </label>
+        <button
+          disabled={busy || !start}
+          onClick={() => void add()}
+          className="rounded-lg px-3 py-1.5 text-[12.5px] font-bold text-space disabled:opacity-50"
+          style={{ background: "var(--color-accent)" }}
+        >
+          {busy ? <Loader2 size={12} className="animate-spin" /> : "Add time"}
+        </button>
+      </div>
+
+      {err && <p className="mt-1.5 text-[12px] text-rose-300">{err}</p>}
+
+      {slots === null ? (
+        <Loader2 size={13} className="mt-2 animate-spin text-faint" />
+      ) : slots.length === 0 ? (
+        <p className="mt-2 text-[12px] text-faint">No times published yet.</p>
+      ) : (
+        <ul className="mt-2 space-y-1">
+          {slots.map((s) => (
+            <li key={s.id} className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5">
+              <span className="min-w-0 flex-1 text-[12.5px] text-ink">
+                {new Date(s.startsAt).toLocaleString(undefined, {
+                  weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                })}
+              </span>
+              <span className="shrink-0 text-[11px] text-faint">
+                {Math.round((Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60000)} min
+              </span>
+              {s.status === "booked" ? (
+                <span className="shrink-0 text-[11px] font-semibold" style={{ color: "#54d26e" }}>
+                  booked{s.bookedByLabel ? ` · ${s.bookedByLabel}` : ""}
+                </span>
+              ) : (
+                <button
+                  disabled={busy}
+                  onClick={() => void remove(s.id)}
+                  aria-label="Withdraw"
+                  className="shrink-0 text-faint hover:text-rose-300 disabled:opacity-50"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
