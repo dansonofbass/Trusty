@@ -93,6 +93,10 @@ export const en = {
   "circle.kindEventHint": "A one-off gathering or recurring meetup",
   "circle.kindTeam": "Team",
   "circle.kindTeamHint": "A working group — startup, project, crew",
+  "circle.memberCount": "{count} members",
+
+  // ── discover ─────────────────────────────────────────────────────
+  "discover.subtitle": "recommendations from people you listen to",
 
   // ── credits & billing ────────────────────────────────────────────
   "credits.title": "AI messages",
@@ -219,6 +223,9 @@ export const fa: Dictionary = {
   "circle.kindEventHint": "یک گردهمایی یک‌باره یا دوره‌ای",
   "circle.kindTeam": "تیم",
   "circle.kindTeamHint": "یک گروه کاری — استارتاپ، پروژه، تیم",
+  "circle.memberCount": "{count} عضو",
+
+  "discover.subtitle": "پیشنهادهایی از کسانی که به آن‌ها گوش می‌دهی",
 
   "credits.title": "پیام‌های هوش مصنوعی",
   "credits.balance": "{count} باقی‌مانده",

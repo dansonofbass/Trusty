@@ -7,6 +7,14 @@ import { FeedContent } from "@/components/FeedPanel";
 import { useUI } from "@/lib/store";
 import { fetchCircles, fetchSquadActivity, joinCircle, type CircleSummary, type SquadActivity } from "@/lib/socialClient";
 import { spaceFromHost } from "@/lib/space";
+import { useT, type TranslationKey } from "@/lib/i18n";
+
+const CATEGORY_KEY: Record<string, TranslationKey> = {
+  topic: "circle.kindTopic",
+  community: "circle.kindCommunity",
+  event: "circle.kindEvent",
+  team: "circle.kindTeam",
+};
 
 function timeAgo(iso: string): string {
   const s = Math.max(1, Math.floor((Date.now() - Date.parse(iso)) / 1000));
@@ -19,6 +27,7 @@ function timeAgo(iso: string): string {
 /** Circles in this space you can join (or open, if you're in). */
 function CirclesSection() {
   const router = useRouter();
+  const t = useT();
   const [circles, setCircles] = useState<CircleSummary[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -51,7 +60,7 @@ function CirclesSection() {
   return (
     <section className="mb-5">
       <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
-        <MessagesSquare size={11} /> Circles
+        <MessagesSquare size={11} /> {t("community.circles")}
       </div>
       <div className="space-y-1.5">
         {circles.slice(0, 8).map((c) => (
@@ -62,8 +71,10 @@ function CirclesSection() {
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
                 <span className="truncate text-[13px] font-semibold text-ink">{c.label}</span>
-                <span className="rounded-full bg-[rgba(146,166,255,0.1)] px-1.5 py-0.5 text-[9.5px] text-[var(--color-dim)]">{c.category}</span>
-                <span className="text-[10px] text-[var(--color-faint)]">{c.memberCount} member{c.memberCount === 1 ? "" : "s"}</span>
+                <span className="rounded-full bg-[rgba(146,166,255,0.1)] px-1.5 py-0.5 text-[9.5px] text-[var(--color-dim)]">
+                  {t(CATEGORY_KEY[c.category] ?? "circle.kindTopic")}
+                </span>
+                <span className="text-[10px] text-[var(--color-faint)]">{t("circle.memberCount", { count: c.memberCount })}</span>
               </span>
               {c.description && (
                 <span dir="auto" className="mt-0.5 block truncate text-[11px] text-[var(--color-dim)]">{c.description}</span>
@@ -80,7 +91,7 @@ function CirclesSection() {
                   : { background: "var(--color-accent)", color: "var(--color-on-accent)" }
               }
             >
-              {c.mine ? "Open chat" : c.open ? (busyId === c.id ? "Joining…" : "Join") : "Invite-only"}
+              {c.mine ? t("circle.open_") : c.open ? (busyId === c.id ? t("circle.joining") : t("circle.join")) : t("circle.inviteOnly")}
             </button>
           </div>
         ))}
@@ -173,6 +184,7 @@ function SquadActivitySection() {
  */
 export default function DiscoverPage() {
   const router = useRouter();
+  const t = useT();
   const select = useUI((s) => s.select);
   const requestGraphCenter = useUI((s) => s.requestGraphCenter);
 
@@ -181,11 +193,9 @@ export default function DiscoverPage() {
       <div className="flex items-center gap-2 border-b border-line px-5 py-2.5">
         <Radio size={13} style={{ color: "var(--color-accent)" }} />
         <span className="text-[12.5px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-          Discover
+          {t("nav.discover")}
         </span>
-        <span className="text-[10.5px] text-[var(--color-faint)]">
-          recommendations from people you listen to
-        </span>
+        <span className="text-[10.5px] text-[var(--color-faint)]">{t("discover.subtitle")}</span>
       </div>
       <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[720px] px-4 py-4">
