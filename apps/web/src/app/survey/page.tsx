@@ -16,7 +16,30 @@ import { NEED_LABEL, SURVEY_QUESTIONS, submitSurvey, type QKey } from "@/lib/sur
  * apps/web/src/app/onboarding/page.tsx) for anyone who registers WITHOUT
  * coming through this page first, so the market test isn't limited to people
  * who specifically clicked the /survey link.
+ *
+ * Copy is Persian throughout (see surveyQuestions.ts for why) — the results
+ * screen and CTA are written the same way, not just the questions.
  */
+
+const SPECIALIST_TYPE_FA: Record<string, string> = {
+  lawyer: "وکیل",
+  broker: "مشاور املاک",
+  immigration_consultant: "مشاور مهاجرت",
+  accountant: "حسابدار",
+  doctor: "پزشک",
+  dentist: "دندون‌پزشک",
+  mechanic: "مکانیک",
+  plumber: "لوله‌کش",
+  electrician: "برق‌کار",
+};
+
+const TRUST_LABEL_FA: Record<string, string> = {
+  limited_evidence: "شواهد کم",
+  emerging: "در حال شکل‌گیری",
+  established: "شناخته‌شده",
+  reliable: "قابل‌اعتماد",
+  highly_reliable: "به‌شدت قابل‌اعتماد",
+};
 
 interface Circle {
   id: string;
@@ -115,7 +138,9 @@ export default function SurveyPage() {
             />
           )}
         </div>
-        <p className="mt-5 text-center text-[11.5px] text-faint">5 quick questions · no account needed to answer</p>
+        <p dir="rtl" lang="fa" className="mt-5 text-center text-[11.5px] text-faint">
+          ۵ تا سوال سریع · نیازی به حساب کاربری نیست
+        </p>
       </section>
     </main>
   );
@@ -134,43 +159,46 @@ function ResultsScreen({
 }) {
   const hasMatches = (circles && circles.length > 0) || (specialists && specialists.length > 0);
   return (
-    <div className="mt-6">
+    <div dir="rtl" lang="fa" className="mt-6">
       <h1
-        className="text-[22px] font-extrabold leading-tight text-ink sm:text-[25px]"
+        className="text-right text-[22px] font-extrabold leading-relaxed text-ink sm:text-[25px]"
         style={{ fontFamily: "var(--font-display)" }}
       >
         {hasMatches ? (
           <>
-            Here&rsquo;s what your network already has{" "}
+            اینا چیزاییه که همین الان تو Trusty{" "}
             {need && (
               <>
-                for <span className="text-gold">{need}</span>
+                برای <span className="text-gold">{need}</span>
               </>
-            )}
+            )}{" "}
+            داریم
           </>
         ) : (
-          "Trusty is built for exactly this"
+          "Trusty دقیقاً برای همینا ساخته شده"
         )}
       </h1>
 
       {!hasMatches && (
-        <p className="mt-3 text-[14.5px] leading-relaxed text-dim">
-          We don&rsquo;t have circles or experts tagged for this yet — join and be the first to find out when we do.
+        <p className="mt-3 text-right text-[14.5px] leading-relaxed text-dim">
+          هنوز براش گروه یا متخصصی ثبت نکردیم — بپیوند تا اولین نفری باشی که خبردار می‌شه وقتی داشتیم.
         </p>
       )}
 
       {specialists && specialists.length > 0 && (
         <div className="mt-5">
-          <div className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-faint">Trusted experts</div>
+          <div className="text-right text-[11.5px] font-semibold uppercase tracking-[0.12em] text-faint">
+            متخصص‌های قابل‌اعتماد
+          </div>
           <ul className="mt-2 space-y-2">
             {specialists.map((s) => (
               <li key={s.nodeId} className="rounded-xl border border-line bg-[rgba(255,255,255,0.03)] p-3.5">
                 <div className="flex items-center justify-between">
+                  {s.verified && <span className="text-[10.5px] font-semibold text-emerald-400">تایید شده</span>}
                   <span className="text-[14px] font-bold text-ink">{s.label}</span>
-                  {s.verified && <span className="text-[10.5px] font-semibold text-emerald-400">Verified</span>}
                 </div>
-                <div className="mt-0.5 text-[12.5px] capitalize text-dim">
-                  {s.nodeType.replace(/_/g, " ")} · {s.trustLabelText}
+                <div className="mt-0.5 text-right text-[12.5px] text-dim">
+                  {SPECIALIST_TYPE_FA[s.nodeType] ?? s.nodeType} · {TRUST_LABEL_FA[s.trustLabel] ?? s.trustLabelText}
                 </div>
               </li>
             ))}
@@ -180,15 +208,13 @@ function ResultsScreen({
 
       {circles && circles.length > 0 && (
         <div className="mt-5">
-          <div className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-faint">Circles</div>
+          <div className="text-right text-[11.5px] font-semibold uppercase tracking-[0.12em] text-faint">گروه‌ها</div>
           <ul className="mt-2 space-y-2">
             {circles.map((c) => (
               <li key={c.id} className="rounded-xl border border-line bg-[rgba(255,255,255,0.03)] p-3.5">
-                <div className="text-[14px] font-bold text-ink">{c.label}</div>
-                {c.description && <div className="mt-0.5 text-[12.5px] text-dim">{c.description}</div>}
-                <div className="mt-1 text-[11.5px] text-faint">
-                  {c.memberCount} member{c.memberCount === 1 ? "" : "s"}
-                </div>
+                <div className="text-right text-[14px] font-bold text-ink">{c.label}</div>
+                {c.description && <div className="mt-0.5 text-right text-[12.5px] text-dim">{c.description}</div>}
+                <div className="mt-1 text-right text-[11.5px] text-faint">{c.memberCount} عضو</div>
               </li>
             ))}
           </ul>
@@ -201,10 +227,10 @@ function ResultsScreen({
         className="mt-7 flex w-full items-center justify-center rounded-xl px-4 py-3.5 text-[15px] font-bold text-[#05060d] transition hover:brightness-110"
         style={{ fontFamily: "var(--font-display)", background: "linear-gradient(180deg,#ffe08a,#ffc24d)" }}
       >
-        Join Trusty
+        بپیوند به Trusty
       </a>
       <a href="/api/auth/login" className="mt-3 block text-center text-[13px] text-dim hover:text-ink">
-        Already have an account? Sign in
+        قبلاً حساب داری؟ وارد شو
       </a>
     </div>
   );

@@ -14,7 +14,7 @@ export default function QuestionScreen({
   onAnswer: (value: string) => void;
 }) {
   return (
-    <div>
+    <div dir="rtl" lang="fa">
       <div className="mb-6 mt-6 flex gap-1.5">
         {Array.from({ length: total }).map((_, i) => (
           <div
@@ -24,7 +24,7 @@ export default function QuestionScreen({
         ))}
       </div>
       <h1
-        className="text-[22px] font-extrabold leading-tight text-ink sm:text-[25px]"
+        className="text-right text-[22px] font-extrabold leading-relaxed text-ink sm:text-[25px]"
         style={{ fontFamily: "var(--font-display)" }}
       >
         {question.title}
@@ -34,7 +34,7 @@ export default function QuestionScreen({
           <button
             key={o.value}
             onClick={() => onAnswer(o.value)}
-            className="w-full rounded-xl border border-line bg-[rgba(255,255,255,0.03)] px-4 py-3.5 text-left text-[14.5px] font-medium text-ink transition hover:border-gold/60 hover:bg-[rgba(255,201,77,0.08)]"
+            className="w-full rounded-xl border border-line bg-[rgba(255,255,255,0.03)] px-4 py-3.5 text-right text-[14.5px] font-medium text-ink transition hover:border-gold/60 hover:bg-[rgba(255,201,77,0.08)]"
           >
             {o.label}
           </button>
