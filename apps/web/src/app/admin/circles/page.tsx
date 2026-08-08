@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CircleDot, Loader2, Tags, Trash2, Users } from "lucide-react";
+import { BadgeCheck, CircleDot, Loader2, Search, Tags, Trash2, Users, X } from "lucide-react";
 import { TOPIC_TAXONOMY } from "@constellation/graph-core";
 import { deleteEntityAdmin } from "@/lib/adminEntitiesClient";
+
+interface CircleMentor {
+  nodeId: string;
+  label: string;
+}
 
 interface AdminCircle {
   id: string;
@@ -11,9 +16,16 @@ interface AdminCircle {
   description: string;
   category: string;
   topicTags: string[];
+  mentors: CircleMentor[];
   open: boolean;
   app: string;
   memberCount: number;
+}
+
+interface SpecialistHit {
+  nodeId: string;
+  label: string;
+  nodeType: string;
 }
 
 const APPS = ["irham", "summit", "general"];
@@ -27,6 +39,60 @@ export default function AdminCirclesPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [mentorsId, setMentorsId] = useState<string | null>(null);
+  const [mq, setMq] = useState("");
+  const [hits, setHits] = useState<SpecialistHit[]>([]);
+  const [mentorBusy, setMentorBusy] = useState(false);
+
+  // Specialist search for the mentor picker (reuses the admin search that
+  // backs the specialist topic-tag editor).
+  useEffect(() => {
+    if (!mentorsId) return;
+    const t = setTimeout(async () => {
+      if (mq.trim().length < 2) return setHits([]);
+      try {
+        const r = await fetch(`/api/admin/specialists/search?q=${encodeURIComponent(mq.trim())}`, { cache: "no-store" });
+        setHits(((await r.json()) as { nodes: SpecialistHit[] }).nodes ?? []);
+      } catch {
+        setHits([]);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [mq, mentorsId]);
+
+  const pinMentor = async (circleId: string, specialistId: string) => {
+    setMentorBusy(true);
+    try {
+      const r = await fetch(`/api/admin/circles/${encodeURIComponent(circleId)}/mentors`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ specialistId }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `failed (${r.status})`);
+      setMq("");
+      setHits([]);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMentorBusy(false);
+    }
+  };
+
+  const unpinMentor = async (circleId: string, specialistId: string) => {
+    setMentorBusy(true);
+    try {
+      await fetch(
+        `/api/admin/circles/${encodeURIComponent(circleId)}/mentors/${encodeURIComponent(specialistId)}`,
+        { method: "DELETE" },
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMentorBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -140,9 +206,18 @@ export default function AdminCirclesPage() {
                         {t.replace(/_/g, " ")}
                       </span>
                     ))}
+                    {c.mentors.length > 0 && (
+                      <span className="flex items-center gap-1"><BadgeCheck size={11} /> {c.mentors.length} pinned</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => setMentorsId(mentorsId === c.id ? null : c.id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink"
+                  >
+                    <BadgeCheck size={13} /> Mentors
+                  </button>
                   <button
                     onClick={() => (editingId === c.id ? setEditingId(null) : startEdit(c))}
                     className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink"
@@ -158,6 +233,57 @@ export default function AdminCirclesPage() {
                   </button>
                 </div>
               </div>
+
+              {mentorsId === c.id && (
+                <div className="mt-3 rounded-lg border border-line p-3">
+                  <p className="mb-2 text-[11.5px] text-faint">
+                    Pinned mentors show at the top of this circle&rsquo;s chat, ahead of automatic topic-tag matches.
+                  </p>
+                  {c.mentors.length > 0 && (
+                    <ul className="mb-2 space-y-1">
+                      {c.mentors.map((m) => (
+                        <li key={m.nodeId} className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5">
+                          <BadgeCheck size={12} style={{ color: "var(--color-accent)" }} />
+                          <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{m.label}</span>
+                          <button
+                            disabled={mentorBusy}
+                            onClick={() => void unpinMentor(c.id, m.nodeId)}
+                            aria-label={`Unpin ${m.label}`}
+                            className="text-faint hover:text-rose-300 disabled:opacity-50"
+                          >
+                            <X size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="relative">
+                    <Search size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                    <input
+                      value={mq}
+                      onChange={(e) => setMq(e.target.value)}
+                      placeholder="Search specialists to pin…"
+                      className="w-full rounded-lg border border-line bg-transparent py-1.5 pl-7 pr-2.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
+                    />
+                  </div>
+                  {hits.length > 0 && (
+                    <ul className="mt-1.5 divide-y divide-line overflow-hidden rounded-lg border border-line">
+                      {hits.map((h) => (
+                        <li key={h.nodeId}>
+                          <button
+                            disabled={mentorBusy}
+                            onClick={() => void pinMentor(c.id, h.nodeId)}
+                            className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[12.5px] text-ink hover:bg-[var(--color-tint)] disabled:opacity-50"
+                          >
+                            <span className="truncate">{h.label}</span>
+                            <span className="shrink-0 text-[10.5px] capitalize text-faint">{h.nodeType.replace(/_/g, " ")}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {editingId === c.id && (
                 <div className="mt-3 rounded-lg border border-line p-3">

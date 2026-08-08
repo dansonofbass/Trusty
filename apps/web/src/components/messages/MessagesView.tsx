@@ -21,6 +21,7 @@ import {
   type SavedAnswer,
 } from "@/lib/socialClient";
 import {
+  fetchSpecialistCardsByIds,
   fetchSpecialistsByTopics,
   telegramUrl,
   SPECIALIST_TYPE_FA,
@@ -42,11 +43,11 @@ const senderColor = (id: string) => {
   return SENDER_COLORS[h % SENDER_COLORS.length];
 };
 
-/** Trusted mentors for this circle — admin-tagged specialists matching the
- *  circle's topicTags (infra/fixtures/circles-iran.json), same trust-ranked
- *  source as the market-test survey and CommunityHome's Experts section.
- *  Only renders for circles that have topics tagged AND at least one match —
- *  a squad chat or an untagged circle shows nothing here. */
+/** Trusted mentors for this circle: admin-PINNED specialists first (explicit
+ *  curation, /admin/circles), then automatic matches on the circle's
+ *  topicTags — same trust-ranked source as the market-test survey and
+ *  CommunityHome's Experts section. Renders nothing when a circle has
+ *  neither pins nor tagged matches (e.g. a squad chat). */
 function TrustedMentors({ roomId }: { roomId: string }) {
   const [mentors, setMentors] = useState<SpecialistCard[] | null>(null);
 
@@ -56,10 +57,17 @@ function TrustedMentors({ roomId }: { roomId: string }) {
     fetchCircles()
       .then(async (r) => {
         const circle = r.circles.find((c) => c.roomId === roomId);
+        const pinnedIds = circle?.mentorIds ?? [];
         const topics = circle?.topicTags ?? [];
-        if (!topics.length) return alive && setMentors([]);
-        const list = await fetchSpecialistsByTopics(topics, 3);
-        if (alive) setMentors(list.slice(0, 3));
+        if (!pinnedIds.length && !topics.length) return alive && setMentors([]);
+        const [pinned, matched] = await Promise.all([
+          fetchSpecialistCardsByIds(pinnedIds).catch(() => []),
+          topics.length ? fetchSpecialistsByTopics(topics, 3).catch(() => []) : Promise.resolve([]),
+        ]);
+        // Pinned wins on duplicates — an admin's explicit choice outranks a tag match.
+        const seen = new Set(pinned.map((m) => m.nodeId));
+        const list = [...pinned, ...matched.filter((m) => !seen.has(m.nodeId))];
+        if (alive) setMentors(list.slice(0, 4));
       })
       .catch(() => alive && setMentors([]));
     return () => {

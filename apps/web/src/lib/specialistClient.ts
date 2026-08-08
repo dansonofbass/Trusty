@@ -33,6 +33,18 @@ export async function fetchSpecialistsByTopics(topics: string[], limitEach = 6):
   return [...byId.values()].sort((a, b) => (RANK[b.trustLabel] ?? 0) - (RANK[a.trustLabel] ?? 0));
 }
 
+/** Cards for an explicit id list — a circle's admin-pinned mentors. */
+export async function fetchSpecialistCardsByIds(ids: string[]): Promise<SpecialistCard[]> {
+  if (!ids.length) return [];
+  const r = await fetch("/api/specialists/cards", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  const data = (await jsonOrThrow(r)) as { specialists: SpecialistCard[] };
+  return data.specialists;
+}
+
 export function telegramUrl(handle: string): string {
   return `https://t.me/${handle.replace(/^@/, "")}`;
 }

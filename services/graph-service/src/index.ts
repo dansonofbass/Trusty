@@ -3599,6 +3599,19 @@ async function specialistCardsForIds(ids: string[], limit: number): Promise<Spec
   return cards;
 }
 
+/** Cards for an explicit id list — backs a circle's admin-pinned mentors.
+ *  POST (not GET) to match /api/specialists/states' id-list convention. */
+app.post("/api/specialists/cards", async (req, res) => {
+  auth(req);
+  if (!specialistsEnabled()) return res.json({ specialists: [] });
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String).slice(0, 20) : [];
+  try {
+    res.json({ specialists: await specialistCardsForIds(ids, ids.length) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** Topic search — admin-tagged, trust-ranked. Backs "find an expert" in-app
  *  and the public market-test survey's results screen. */
 app.get("/api/specialists", async (req, res) => {

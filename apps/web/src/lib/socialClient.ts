@@ -99,6 +99,9 @@ export interface CircleSummary {
   description: string;
   category: string;
   topicTags: string[];
+  /** Admin-pinned trusted mentors (specialist node ids), shown ahead of
+   *  automatic topic-tag matches. */
+  mentorIds: string[];
   open: boolean;
   memberCount: number;
   mine: boolean;
