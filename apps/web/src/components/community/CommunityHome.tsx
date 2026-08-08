@@ -9,12 +9,11 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Loader2, MessageCircle, MessagesSquare, QrCode, ScanLine, Send, UserPlus, X } from "lucide-react";
+import { BadgeCheck, Loader2, MessageCircle, MessagesSquare, QrCode, ScanLine, UserPlus, X } from "lucide-react";
 import { QRShare, QRScan } from "@/components/summit/QRConnect";
 import { fetchCircles, joinCircle, type CircleSummary } from "@/lib/socialClient";
 import {
   fetchSpecialistsByTopics,
-  telegramUrl,
   SPECIALIST_TYPE_FA,
   TRUST_LABEL_FA,
   type SpecialistCard,
@@ -61,15 +60,16 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
     fetchSpecialistsByTopics(EXPERT_TOPICS).then(setExperts).catch(() => setExperts([]));
   }, [expertsOpen, experts]);
 
+  // Circles are forums now — open /c/<id>, not the retired chat room.
   const enterCircle = async (c: CircleSummary) => {
     if (c.mine) {
-      router.push(`/messages?room=${encodeURIComponent(c.roomId)}`);
+      router.push(`/c/${encodeURIComponent(c.id)}`);
       return;
     }
     setBusyId(c.id);
     try {
       await joinCircle(c.id);
-      router.push(`/messages?room=${encodeURIComponent(c.roomId)}`);
+      router.push(`/c/${encodeURIComponent(c.id)}`);
     } catch {
       setBusyId(null);
     }
@@ -140,25 +140,16 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
                         {SPECIALIST_TYPE_FA[e.nodeType] ?? e.nodeType} · {TRUST_LABEL_FA[e.trustLabel] ?? e.trustLabelText}
                       </span>
                     </span>
-                    {e.telegramHandle ? (
-                      <a
-                        href={telegramUrl(e.telegramHandle)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
-                        style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
-                      >
-                        <Send size={12} /> {t("expert.telegram")}
-                      </a>
-                    ) : (
-                      <a
-                        href={`/s/${encodeURIComponent(e.nodeId)}`}
-                        className="shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
-                        style={{ background: "rgba(146,166,255,0.12)", color: "var(--color-ink)" }}
-                      >
-                        {t("circle.open_")}
-                      </a>
-                    )}
+                    {/* Always the in-app profile — never a direct t.me link.
+                        Contact details sit behind the trust evidence so nobody
+                        DMs a stranger without seeing what backs them. */}
+                    <a
+                      href={`/s/${encodeURIComponent(e.nodeId)}`}
+                      className="shrink-0 rounded-full px-3 py-1.5 text-[11.5px] font-bold"
+                      style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+                    >
+                      {t("expert.viewProfile")}
+                    </a>
                   </li>
                 ))}
               </ul>

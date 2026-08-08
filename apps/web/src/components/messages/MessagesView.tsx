@@ -23,7 +23,6 @@ import {
 import {
   fetchSpecialistCardsByIds,
   fetchSpecialistsByTopics,
-  telegramUrl,
   SPECIALIST_TYPE_FA,
   TRUST_LABEL_FA,
   type SpecialistCard,
@@ -96,25 +95,15 @@ function TrustedMentors({ roomId }: { roomId: string }) {
                 {SPECIALIST_TYPE_FA[m.nodeType] ?? m.nodeType} · {TRUST_LABEL_FA[m.trustLabel] ?? m.trustLabelText}
               </span>
             </span>
-            {m.telegramHandle ? (
-              <a
-                href={telegramUrl(m.telegramHandle)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
-                style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
-              >
-                <Send size={11} /> تلگرام
-              </a>
-            ) : (
-              <a
-                href={`/s/${encodeURIComponent(m.nodeId)}`}
-                className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
-                style={{ background: "rgba(146,166,255,0.12)", color: "var(--color-ink)" }}
-              >
-                پروفایل
-              </a>
-            )}
+            {/* Profile, never a direct t.me link — contact sits behind the
+                trust evidence on /s/[id]. */}
+            <a
+              href={`/s/${encodeURIComponent(m.nodeId)}`}
+              className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
+              style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+            >
+              پروفایل
+            </a>
           </div>
         ))}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, CircleDot, Loader2, Search, Tags, Trash2, Users, X } from "lucide-react";
+import { BadgeCheck, CircleDot, Loader2, Search, ShieldCheck, Tags, Trash2, Users, X } from "lucide-react";
 import { TOPIC_TAXONOMY } from "@constellation/graph-core";
 import { deleteEntityAdmin } from "@/lib/adminEntitiesClient";
 
@@ -43,6 +43,7 @@ export default function AdminCirclesPage() {
   const [mq, setMq] = useState("");
   const [hits, setHits] = useState<SpecialistHit[]>([]);
   const [mentorBusy, setMentorBusy] = useState(false);
+  const [rolesId, setRolesId] = useState<string | null>(null);
 
   // Specialist search for the mentor picker (reuses the admin search that
   // backs the specialist topic-tag editor).
@@ -213,6 +214,12 @@ export default function AdminCirclesPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
+                    onClick={() => setRolesId(rolesId === c.id ? null : c.id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink"
+                  >
+                    <ShieldCheck size={13} /> Mods
+                  </button>
+                  <button
                     onClick={() => setMentorsId(mentorsId === c.id ? null : c.id)}
                     className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink"
                   >
@@ -233,6 +240,8 @@ export default function AdminCirclesPage() {
                   </button>
                 </div>
               </div>
+
+              {rolesId === c.id && <ModeratorsPanel circleId={c.id} />}
 
               {mentorsId === c.id && (
                 <div className="mt-3 rounded-lg border border-line p-3">
@@ -315,6 +324,151 @@ export default function AdminCirclesPage() {
                   </button>
                 </div>
               )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+interface CircleRoleRow {
+  userId: string;
+  role: string;
+  label: string;
+  addedBy: string;
+  createdAt: string;
+}
+
+/**
+ * Moderators for one circle. Admin-appointed by design: while the community is
+ * small, quality and tone matter more than self-service scaling. Mods can
+ * manage topics and moderate posts; only owners can appoint other mods.
+ */
+function ModeratorsPanel({ circleId }: { circleId: string }) {
+  const [roles, setRoles] = useState<CircleRoleRow[] | null>(null);
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<{ id: string; label: string }[]>([]);
+  const [role, setRole] = useState("moderator");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/admin/circles/${encodeURIComponent(circleId)}/roles`, { cache: "no-store" });
+      setRoles(((await r.json()) as { roles: CircleRoleRow[] }).roles ?? []);
+    } catch {
+      setRoles([]);
+    }
+  }, [circleId]);
+  useEffect(() => { void load(); }, [load]);
+
+  // Reuse the entities directory search — mods are people, not specialists.
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (q.trim().length < 2) return setHits([]);
+      try {
+        const r = await fetch(`/api/admin/entities?type=person&q=${encodeURIComponent(q.trim())}`, { cache: "no-store" });
+        const data = (await r.json()) as { nodes: { id: string; label: string }[] };
+        setHits((data.nodes ?? []).slice(0, 10));
+      } catch {
+        setHits([]);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const grant = async (userId: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetch(`/api/admin/circles/${encodeURIComponent(circleId)}/roles`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId, role }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? `failed (${r.status})`);
+      setQ("");
+      setHits([]);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (userId: string) => {
+    setBusy(true);
+    try {
+      await fetch(`/api/admin/circles/${encodeURIComponent(circleId)}/roles/${encodeURIComponent(userId)}`, {
+        method: "DELETE",
+      });
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-line p-3">
+      <p className="mb-2 text-[11.5px] text-faint">
+        Moderators appear in the circle sidebar and can create topics, pin, lock and remove posts.
+      </p>
+      {roles === null ? (
+        <Loader2 size={13} className="animate-spin text-faint" />
+      ) : (
+        roles.length > 0 && (
+          <ul className="mb-2 space-y-1">
+            {roles.map((r) => (
+              <li key={r.userId} className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5">
+                <ShieldCheck size={12} style={{ color: "var(--color-accent)" }} />
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{r.label}</span>
+                <span className="shrink-0 text-[10.5px] capitalize text-faint">{r.role}</span>
+                <button
+                  disabled={busy}
+                  onClick={() => void revoke(r.userId)}
+                  aria-label={`Remove ${r.label}`}
+                  className="text-faint hover:text-rose-300 disabled:opacity-50"
+                >
+                  <X size={13} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      )}
+      <div className="flex gap-2">
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          className="rounded-lg border border-line bg-transparent px-2 py-1.5 text-[12.5px] text-ink outline-none"
+        >
+          <option value="moderator" className="bg-[#111827]">moderator</option>
+          <option value="owner" className="bg-[#111827]">owner</option>
+        </select>
+        <div className="relative flex-1">
+          <Search size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search people to appoint…"
+            className="w-full rounded-lg border border-line bg-transparent py-1.5 pl-7 pr-2.5 text-[12.5px] text-ink outline-none placeholder:text-faint"
+          />
+        </div>
+      </div>
+      {err && <p className="mt-1.5 text-[12px] text-rose-300">{err}</p>}
+      {hits.length > 0 && (
+        <ul className="mt-1.5 divide-y divide-line overflow-hidden rounded-lg border border-line">
+          {hits.map((h) => (
+            <li key={h.id}>
+              <button
+                disabled={busy}
+                onClick={() => void grant(h.id)}
+                className="w-full px-2.5 py-1.5 text-left text-[12.5px] text-ink hover:bg-[var(--color-tint)] disabled:opacity-50"
+              >
+                {h.label}
+              </button>
             </li>
           ))}
         </ul>

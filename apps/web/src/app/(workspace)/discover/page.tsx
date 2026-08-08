@@ -43,15 +43,16 @@ function CirclesSection() {
 
   if (!circles || circles.length === 0) return null;
 
+  // Circles are forums now — open /c/<id>, not the retired chat room.
   const enter = async (c: CircleSummary) => {
     if (c.mine) {
-      router.push(`/messages?room=${encodeURIComponent(c.roomId)}`);
+      router.push(`/c/${encodeURIComponent(c.id)}`);
       return;
     }
     setBusyId(c.id);
     try {
       await joinCircle(c.id);
-      router.push(`/messages?room=${encodeURIComponent(c.roomId)}`);
+      router.push(`/c/${encodeURIComponent(c.id)}`);
     } catch {
       setBusyId(null);
     }

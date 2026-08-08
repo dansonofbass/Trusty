@@ -310,6 +310,37 @@ import {
 } from "./meetingNotes";
 import { initEventLocations, locationsEnabled, listLocations, upsertLocation, deleteLocation } from "./eventLocations";
 import {
+  acceptAnswer,
+  answerAuthor,
+  answerPost,
+  circleContributors,
+  createAnswer,
+  createPost,
+  createTopic,
+  deleteAnswer,
+  deleteTopic,
+  ensureTopic,
+  forumEnabled,
+  migrateRoomAnswers,
+  getPost,
+  initForum,
+  karmaFor,
+  listAnswers,
+  listPosts,
+  listTopics,
+  permissionsIn,
+  removeRole,
+  rolesFor,
+  rolesForUsers,
+  setPostFlags,
+  setRole,
+  topicCircle,
+  updateTopic,
+  vote as castVote,
+  type CircleRole,
+  type PostSort,
+} from "./forum";
+import {
   initSurvey,
   markJoined,
   markMatchesShown,
@@ -2430,6 +2461,415 @@ app.post("/api/circles/:id/leave", async (req, res) => {
       return commitGraph(userId, refreshDerived({ ...ws, links: ws.links.filter((l) => l.id !== edgeId) }));
     });
     emitEvent("circle.left", { userId, targetId: circle.id });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ------------------------- circle forum (#forum) ---------------------- */
+/* Circle → topic → question → answers, with votes. Replaces circle chat.
+ * Authority: circle_roles (owner/moderator) OR platform admin. Membership is
+ * still the MEMBER_OF graph edge, so joining is unchanged. */
+
+const isCircleMember = (circleId: string, userId: string) => squadMembers(circleId).includes(userId);
+
+/** Circle-scoped moderation right, with the platform-admin override. */
+async function canModerate(circleId: string, req: express.Request, userId: string): Promise<boolean> {
+  if (isAdminReq(req)) return true;
+  const perms = await permissionsIn(circleId, userId);
+  return !!perms?.moderatePosts;
+}
+
+/** Author summaries for a set of ids: label, photo, karma, and the badges
+ *  every forum surface renders. One resolver so the badge rules can't drift
+ *  between the thread view, the sidebar and the profile. */
+async function authorsFor(userIds: string[], circleId?: string) {
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (ids.length === 0) return {};
+  const byId = new Map(shared.nodes.map((n) => [n.id, n] as const));
+  const [karma, roles, states] = await Promise.all([
+    karmaFor(ids).catch(() => ({} as Record<string, number>)),
+    rolesForUsers(ids).catch(() => ({} as Record<string, { circleId: string; role: CircleRole }[]>)),
+    specialistsEnabled() ? specialistStates(ids).catch(() => ({})) : Promise.resolve({}),
+  ]);
+  const out: Record<string, {
+    id: string; label: string; photoUrl?: string; karma: number;
+    badges: { kind: string; value?: string }[];
+  }> = {};
+  for (const id of ids) {
+    const node = byId.get(id);
+    const badges: { kind: string; value?: string }[] = [];
+    const role = (roles[id] ?? []).find((r) => !circleId || r.circleId === circleId);
+    if (role) badges.push({ kind: role.role });          // owner | moderator
+    const state = (states as Record<string, string>)[id];
+    if (state === "verified") badges.push({ kind: "verified_specialist" });
+    else if (state === "claimed") badges.push({ kind: "specialist" });
+    const nodeType = node ? specialistTypeOf(node as { type: string; entityType?: string }) : undefined;
+    if (nodeType && isSpecialistType(nodeType)) badges.push({ kind: "profession", value: nodeType });
+    out[id] = {
+      id,
+      label: node?.label ?? "Someone",
+      ...(node?.photos?.[0] ? { photoUrl: node.photos[0] } : {}),
+      karma: karma[id] ?? 0,
+      badges,
+    };
+  }
+  return out;
+}
+
+/** Topics (forum sections) in a circle. Reading is open to any member. */
+app.get("/api/circles/:id/topics", async (req, res) => {
+  auth(req);
+  if (!forumEnabled()) return res.json({ topics: [] });
+  try {
+    res.json({ topics: await listTopics(String(req.params.id)) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Create a topic — mods/owners/admins only (curated skeleton, by design:
+ *  member-created topics produced the half-empty-section sprawl we're
+ *  moving away from). */
+app.post("/api/circles/:id/topics", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const circleId = String(req.params.id);
+  if (!circleNodes().some((n) => n.id === circleId)) return res.status(404).json({ error: "circle not found" });
+  if (!(await canModerate(circleId, req, userId))) return res.status(403).json({ error: "moderators only" });
+  try {
+    const r = await createTopic({
+      circleId,
+      label: str(req.body?.label, 80) ?? "",
+      description: str(req.body?.description, 300),
+      position: Number(req.body?.position) || 0,
+      createdBy: userId,
+    });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("forum.topic_created", { userId, targetId: circleId, payload: { topicId: r.id } });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.patch("/api/topics/:topicId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const topicId = String(req.params.topicId);
+  const circleId = await topicCircle(topicId);
+  if (!circleId) return res.status(404).json({ error: "topic not found" });
+  if (!(await canModerate(circleId, req, userId))) return res.status(403).json({ error: "moderators only" });
+  try {
+    await updateTopic(topicId, {
+      label: str(req.body?.label, 80),
+      description: str(req.body?.description, 300),
+      ...(req.body?.position != null ? { position: Number(req.body.position) } : {}),
+    });
+    emitEvent("forum.topic_updated", { userId, targetId: circleId, payload: { topicId } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/topics/:topicId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const topicId = String(req.params.topicId);
+  const circleId = await topicCircle(topicId);
+  if (!circleId) return res.status(404).json({ error: "topic not found" });
+  if (!(await canModerate(circleId, req, userId))) return res.status(403).json({ error: "moderators only" });
+  try {
+    await deleteTopic(topicId);
+    emitEvent("forum.topic_deleted", { userId, targetId: circleId, payload: { topicId } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Posts in a circle (optionally one topic). Authors resolved for badges. */
+app.get("/api/circles/:id/posts", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.json({ posts: [], authors: {} });
+  const circleId = String(req.params.id);
+  try {
+    const posts = await listPosts({
+      circleId,
+      topicId: str(req.query.topic as unknown, 40),
+      viewerId: userId,
+      sort: (str(req.query.sort as unknown, 10) as PostSort) ?? "hot",
+      limit: Math.min(100, Number(req.query.limit) || 50),
+    });
+    res.json({ posts, authors: await authorsFor(posts.map((p) => p.authorId), circleId) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Ask a question. Members only — joining a circle is the price of posting. */
+app.post("/api/circles/:id/posts", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const circleId = String(req.params.id);
+  const circle = circleNodes().find((n) => n.id === circleId);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  if (!isCircleMember(circleId, userId) && !isAdminReq(req)) {
+    return res.status(403).json({ error: "join this circle to post" });
+  }
+  try {
+    const r = await createPost({
+      circleId,
+      topicId: str(req.body?.topicId, 40) ?? null,
+      authorId: userId,
+      title: str(req.body?.title, 200) ?? "",
+      body: str(req.body?.body, 20000) ?? "",
+    });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("forum.post_created", {
+      userId,
+      app: String(circleProps(circle).app ?? BUILTIN_APP),
+      targetId: r.id,
+      payload: { circleId },
+    });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** A thread: the question, its answers, and every author's badges. */
+app.get("/api/posts/:postId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  try {
+    const post = await getPost(String(req.params.postId), userId);
+    if (!post) return res.status(404).json({ error: "not found" });
+    const answers = await listAnswers(post.id, userId);
+    const authors = await authorsFor([post.authorId, ...answers.map((a) => a.authorId)], post.circleId);
+    const canMod = await canModerate(post.circleId, req, userId);
+    res.json({ post, answers, authors, canModerate: canMod });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Pin / lock / remove — moderators and admins. */
+app.patch("/api/posts/:postId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const post = await getPost(String(req.params.postId));
+  if (!post) return res.status(404).json({ error: "not found" });
+  if (!(await canModerate(post.circleId, req, userId))) return res.status(403).json({ error: "moderators only" });
+  try {
+    await setPostFlags(post.id, {
+      ...(req.body?.pinned != null ? { pinned: !!req.body.pinned } : {}),
+      ...(req.body?.locked != null ? { locked: !!req.body.locked } : {}),
+      ...(req.body?.deleted != null ? { deleted: !!req.body.deleted } : {}),
+    });
+    emitEvent("forum.post_moderated", { userId, targetId: post.id, payload: { circleId: post.circleId } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Answer a question (or reply to an answer — one level of nesting). */
+app.post("/api/posts/:postId/answers", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const post = await getPost(String(req.params.postId));
+  if (!post) return res.status(404).json({ error: "not found" });
+  if (!isCircleMember(post.circleId, userId) && !isAdminReq(req)) {
+    return res.status(403).json({ error: "join this circle to answer" });
+  }
+  try {
+    const r = await createAnswer({
+      postId: post.id,
+      parentId: str(req.body?.parentId, 40) ?? null,
+      authorId: userId,
+      body: str(req.body?.body, 20000) ?? "",
+    });
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("forum.answer_created", { userId, targetId: post.id, payload: { circleId: post.circleId } });
+    // Tell the asker someone answered — the loop that makes a forum feel alive.
+    if (post.authorId !== userId) {
+      const label = shared.nodes.find((n) => n.id === userId)?.label ?? "Someone";
+      await addNotification({
+        userId: post.authorId,
+        type: "forum.answer",
+        text: `${label} answered “${post.title.slice(0, 60)}”`,
+        actorId: userId,
+        targetId: post.id,
+      }).catch(() => {});
+    }
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Accept an answer — the asker or a moderator. */
+app.post("/api/answers/:answerId/accept", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const answerId = String(req.params.answerId);
+  try {
+    const postId = await answerPost(answerId);
+    if (!postId) return res.status(404).json({ error: "not found" });
+    const post = await getPost(postId);
+    if (!post) return res.status(404).json({ error: "not found" });
+    // Authorise BEFORE mutating — the asker owns "this solved it", with a
+    // moderator override for abandoned threads.
+    const allowed = post.authorId === userId || (await canModerate(post.circleId, req, userId));
+    if (!allowed) return res.status(403).json({ error: "only the asker or a moderator can accept" });
+    const r = await acceptAnswer(answerId);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("forum.answer_accepted", { userId, targetId: postId, payload: { answerId } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Delete an answer — its author or a moderator. */
+app.delete("/api/answers/:answerId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const answerId = String(req.params.answerId);
+  try {
+    const owner = await answerAuthor(answerId);
+    if (!owner) return res.status(404).json({ error: "not found" });
+    if (owner !== userId && !isAdminReq(req)) return res.status(403).json({ error: "not your answer" });
+    await deleteAnswer(answerId);
+    emitEvent("forum.answer_deleted", { userId, targetId: answerId });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Vote on a post or an answer. `value` 1 | -1 | 0 (0 clears). */
+app.post("/api/:subject(posts|answers)/:id/vote", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const subjectType = req.params.subject === "posts" ? "post" : "answer";
+  try {
+    const r = await castVote(subjectType, String(req.params.id), userId, Number(req.body?.value ?? 0));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("forum.vote_cast", { userId, targetId: String(req.params.id), payload: { subjectType, value: r.myVote } });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Sidebar: who runs this circle, who contributes, how many members. */
+app.get("/api/circles/:id/about", async (req, res) => {
+  const { userId } = auth(req);
+  const circleId = String(req.params.id);
+  const circle = circleNodes().find((n) => n.id === circleId);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  try {
+    const roles = forumEnabled() ? await rolesFor(circleId) : [];
+    const contributors = forumEnabled() ? await circleContributors(circleId) : [];
+    const mentorIds = circleMentorIds(circle);
+    const authors = await authorsFor([...roles.map((r) => r.userId), ...contributors.slice(0, 12)], circleId);
+    res.json({
+      id: circle.id,
+      label: circle.label,
+      description: String(circleProps(circle).description ?? ""),
+      topicTags: circleTopicTags(circle),
+      memberCount: squadMembers(circleId).length,
+      mine: squadMembers(circleId).includes(userId),
+      open: circleProps(circle).open !== false,
+      moderators: roles.map((r) => ({ ...r, ...(authors[r.userId] ?? {}) })),
+      contributors: contributors.slice(0, 12).map((id) => authors[id]).filter(Boolean),
+      mentors: specialistsEnabled() ? await specialistCardsForIds(mentorIds, 6) : [],
+      canModerate: await canModerate(circleId, req, userId),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * Admin: promote every circle's saved answers into forum posts.
+ *
+ * Idempotent — safe to re-run, and it never deletes the source rows, so the
+ * already-shared public /a/<id> links keep working. `?app=` scopes it to one
+ * space; `?topic=` names the destination section.
+ */
+app.post("/api/admin/forum/migrate-answers", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const space = str(req.query.app as unknown, 40);
+  const topicLabel = str(req.query.topic as unknown, 80) ?? "پرسش‌های عمومی";
+  try {
+    const results: { circle: string; migrated: number; skipped: number }[] = [];
+    for (const circle of circleNodes()) {
+      if (space && String(circleProps(circle).app ?? BUILTIN_APP) !== space) continue;
+      const topicId = await ensureTopic(circle.id, topicLabel, "system");
+      const r = await migrateRoomAnswers(circle.id, `room_circle_${circle.id}`, topicId);
+      if (r.migrated || r.skipped) results.push({ circle: circle.label, ...r });
+    }
+    res.json({
+      ok: true,
+      results,
+      migrated: results.reduce((n, r) => n + r.migrated, 0),
+      skipped: results.reduce((n, r) => n + r.skipped, 0),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* --------- circle roles (admin-appointed moderators, #forum) ---------- */
+
+app.get("/api/admin/circles/:id/roles", async (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!forumEnabled()) return res.json({ roles: [] });
+  const circleId = String(req.params.id);
+  try {
+    const roles = await rolesFor(circleId);
+    const authors = await authorsFor(roles.map((r) => r.userId), circleId);
+    res.json({ roles: roles.map((r) => ({ ...r, label: authors[r.userId]?.label ?? r.userId })) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.post("/api/admin/circles/:id/roles", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const circleId = String(req.params.id);
+  const targetId = str(req.body?.userId, 200);
+  const role = String(req.body?.role ?? "moderator") as CircleRole;
+  if (!targetId || !shared.nodes.some((n) => n.id === targetId)) {
+    return res.status(400).json({ error: "unknown user" });
+  }
+  try {
+    const r = await setRole(circleId, targetId, role, userId);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("circle.role_granted", { userId, targetId: circleId, payload: { role } });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/admin/circles/:id/roles/:userId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  try {
+    await removeRole(String(req.params.id), String(req.params.userId));
+    emitEvent("circle.role_revoked", { userId, targetId: String(req.params.id) });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -6217,6 +6657,9 @@ async function main() {
   );
   await initSurvey().catch((e) =>
     console.error("graph-service: survey init failed:", e instanceof Error ? e.message : e),
+  );
+  await initForum().catch((e) =>
+    console.error("graph-service: forum init failed:", e instanceof Error ? e.message : e),
   );
   await initConversations().catch((e) =>
     console.error("graph-service: conversations init failed:", e instanceof Error ? e.message : e),
