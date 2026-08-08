@@ -9,6 +9,11 @@ export interface SpecialistCard {
   trustLabelText: string;
   telegramHandle?: string;
   photoUrl?: string;
+  karma?: number;
+  /** Why a card ranks where it does: trust tier vs. the bounded karma lift
+   *  (see KARMA_RANK_WEIGHT in graph-service). Surfaced so a surprising order
+   *  can be explained rather than guessed at. */
+  rankBasis?: { trust: number; karma: number; karmaWeight: number };
 }
 
 async function jsonOrThrow(r: Response) {

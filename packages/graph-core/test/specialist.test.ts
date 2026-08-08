@@ -8,6 +8,8 @@ import {
   applyProviderPatch,
   validateClaimEvidence,
   specialistTrustLabel,
+  specialistRankScore,
+  karmaTerm,
   MANAGER_PERMISSIONS,
   type SpecialistEvent,
 } from "../src/specialist";
@@ -189,5 +191,42 @@ describe("manager permissions", () => {
     assert.equal(MANAGER_PERMISSIONS.analytics_viewer.viewAnalytics, true);
     assert.equal(MANAGER_PERMISSIONS.profile_manager.manageBilling, false);
     assert.equal(MANAGER_PERMISSIONS.owner.manageManagers, true);
+  });
+});
+
+describe("karma-influenced ranking", () => {
+  it("karmaTerm is 0 for no karma and saturates at 1", () => {
+    assert.equal(karmaTerm(0), 0);
+    assert.equal(karmaTerm(-50), 0);
+    assert.equal(karmaTerm(NaN), 0);
+    assert.equal(karmaTerm(99), 1); // log10(100)/2
+    assert.equal(karmaTerm(100_000), 1); // saturated — a whale gains nothing more
+    assert.ok(karmaTerm(9) > 0 && karmaTerm(9) < 1);
+  });
+
+  it("karma is monotonic but sharply diminishing", () => {
+    assert.ok(karmaTerm(50) > karmaTerm(10));
+    // 10x the karma is worth well under 2x the term.
+    assert.ok(karmaTerm(90) < karmaTerm(9) * 2);
+  });
+
+  it("trust dominates: karma lifts at most one tier at the default weight", () => {
+    // Max karma on the tier below exactly ties zero karma on the tier above —
+    // the ceiling that stops upvote-farming from buying rank.
+    assert.equal(specialistRankScore("emerging", 100_000, 1), specialistRankScore("established", 0, 1));
+    // And it can never reach two tiers up.
+    assert.ok(specialistRankScore("emerging", 100_000, 1) < specialistRankScore("reliable", 0, 1));
+    assert.ok(
+      specialistRankScore("limited_evidence", 100_000, 1) < specialistRankScore("established", 0, 1),
+    );
+  });
+
+  it("weight 0 restores pure outcome-based ordering", () => {
+    assert.equal(specialistRankScore("emerging", 100_000, 0), specialistRankScore("emerging", 0, 0));
+    assert.ok(specialistRankScore("emerging", 100_000, 0) < specialistRankScore("established", 0, 0));
+  });
+
+  it("karma still breaks ties inside a tier", () => {
+    assert.ok(specialistRankScore("reliable", 40, 1) > specialistRankScore("reliable", 0, 1));
   });
 });

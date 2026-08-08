@@ -35,7 +35,10 @@ import {
   isSpecialistType,
   validateDomainEvent,
   specialistTrustLabel,
+  specialistRankScore,
+  TRUST_RANK,
   TRUST_LABEL_TEXT,
+  type SpecialistTrustLabel,
   type SpecialistLayerName,
   listenCapacity,
   listenSuggestions,
@@ -3973,9 +3976,22 @@ function specialistEvidence(viewerId: string, nodeId: string) {
   };
 }
 
-const TRUST_RANK: Record<string, number> = {
-  highly_reliable: 4, reliable: 3, established: 2, emerging: 1, limited_evidence: 0,
-};
+/**
+ * How much forum karma may lift a specialist in topic ranking.
+ *
+ * Trust here is otherwise derived ONLY from independent recommendations and
+ * recorded outcomes — the profile page promises users the specialist "cannot
+ * edit, buy, or remove" that evidence. Karma is different in kind: it is
+ * farmable by being active and likeable in threads, which is precisely the
+ * behaviour of the consultants this community already distrusts.
+ *
+ * So it is one bounded knob. The maths (log damping + a one-tier ceiling)
+ * lives in graph-core's `specialistRankScore`, where it is unit-tested;
+ * `rankBasis` on every card exposes both components so a surprising order can
+ * be explained. KARMA_RANK_WEIGHT=0 restores pure outcome-based ordering with
+ * no code change — that is the lever to pull if karma ever outranks outcomes.
+ */
+const KARMA_RANK_WEIGHT = Number(process.env.KARMA_RANK_WEIGHT ?? "1") || 0;
 
 /** Public-safe specialist summary — no contact/claim internals. Used by both
  *  the in-app topic search and the unauthenticated market-test survey. */
@@ -3988,16 +4004,24 @@ interface SpecialistCard {
   trustLabelText: string;
   telegramHandle?: string;
   photoUrl?: string;
+  karma?: number;
+  /** Why this card sits where it does — trust tier vs. the bounded karma lift. */
+  rankBasis?: { trust: number; karma: number; karmaWeight: number };
 }
 
 /** Admin-tagged specialists for `topic`, ranked by independent trust evidence
  *  (never by anything the specialist controls). */
-function specialistsForTopic(topicIds: string[], limit: number): SpecialistCard[] {
+function specialistsForTopic(
+  topicIds: string[],
+  limit: number,
+  karma: Record<string, number> = {},
+): SpecialistCard[] {
   const cards: SpecialistCard[] = [];
   for (const nodeId of topicIds) {
     const node = shared.nodes.find((n) => n.id === nodeId);
     if (!node) continue;
     const evidence = specialistEvidence("__topic_search__", nodeId);
+    const k = karma[nodeId] ?? 0;
     cards.push({
       nodeId,
       label: node.label,
@@ -4005,9 +4029,18 @@ function specialistsForTopic(topicIds: string[], limit: number): SpecialistCard[
       verified: false, // filled in by caller once state is known
       trustLabel: evidence.label,
       trustLabelText: evidence.labelText,
+      karma: k,
+      // Both terms travel with the card so any ordering is explainable.
+      rankBasis: { trust: TRUST_RANK[evidence.label] ?? 0, karma: k, karmaWeight: KARMA_RANK_WEIGHT },
     });
   }
-  return cards.sort((a, b) => TRUST_RANK[b.trustLabel] - TRUST_RANK[a.trustLabel]).slice(0, limit);
+  return cards
+    .sort(
+      (a, b) =>
+        specialistRankScore(b.trustLabel as SpecialistTrustLabel, b.karma ?? 0, KARMA_RANK_WEIGHT) -
+        specialistRankScore(a.trustLabel as SpecialistTrustLabel, a.karma ?? 0, KARMA_RANK_WEIGHT),
+    )
+    .slice(0, limit);
 }
 
 async function findSpecialistsByTopic(topic: string, limit: number): Promise<SpecialistCard[]> {
@@ -4015,7 +4048,12 @@ async function findSpecialistsByTopic(topic: string, limit: number): Promise<Spe
   if (!ids.length) return [];
   const states = await specialistStates(ids);
   const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
-  const cards = specialistsForTopic(live, limit);
+  // Karma is fetched BEFORE the sort — it participates in ranking (bounded by
+  // KARMA_RANK_WEIGHT), so it can't be attached after the slice. Specialist
+  // node ids ARE user ids for claimed profiles (ensureUser creates the person
+  // node under the auth id), so an unclaimed catalog entry simply scores 0.
+  const karma = forumEnabled() ? await karmaFor(live).catch(() => ({})) : {};
+  const cards = specialistsForTopic(live, limit, karma);
   const fields = await cardFieldsFor(cards.map((c) => c.nodeId));
   for (const c of cards) {
     c.verified = states[c.nodeId] === "verified";
@@ -4033,7 +4071,8 @@ async function specialistCardsForIds(ids: string[], limit: number): Promise<Spec
   if (!ids.length) return [];
   const states = await specialistStates(ids);
   const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
-  const cards = specialistsForTopic(live, limit);
+  const karma = forumEnabled() ? await karmaFor(live).catch(() => ({})) : {};
+  const cards = specialistsForTopic(live, limit, karma);
   const fields = await cardFieldsFor(cards.map((c) => c.nodeId));
   for (const c of cards) {
     c.verified = states[c.nodeId] === "verified";

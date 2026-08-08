@@ -286,6 +286,42 @@ export function specialistTrustLabel(e: TrustLabelInput): SpecialistTrustLabel {
   return "limited_evidence";
 }
 
+/* --------------------- karma-influenced ranking -------------------- */
+
+/** Trust ladder as an ordinal, for ranking. */
+export const TRUST_RANK: Record<SpecialistTrustLabel, number> = {
+  highly_reliable: 4,
+  reliable: 3,
+  established: 2,
+  emerging: 1,
+  limited_evidence: 0,
+};
+
+/**
+ * Forum karma folded to 0..1, log-damped so a prolific poster cannot run away
+ * with the ranking (≈100 karma reaches the cap; 1,000 is worth no more).
+ */
+export function karmaTerm(karma: number): number {
+  if (!Number.isFinite(karma) || karma <= 0) return 0;
+  return Math.min(Math.log10(karma + 1) / 2, 1);
+}
+
+/**
+ * Ranking score for a specialist in topic search.
+ *
+ * Trust (recommendations + recorded outcomes) is the primary term. Karma is a
+ * SECONDARY, bounded lift: at the default weight of 1 the most prolific
+ * contributor gains at most one trust tier, so nobody climbs from
+ * "limited evidence" to the top on upvotes alone. `weight = 0` restores pure
+ * outcome-based ordering.
+ *
+ * Karma is farmable in a way recorded outcomes are not — that asymmetry is
+ * why the lift is capped rather than linear.
+ */
+export function specialistRankScore(label: SpecialistTrustLabel, karma: number, weight: number): number {
+  return TRUST_RANK[label] + karmaTerm(karma) * (Number.isFinite(weight) ? weight : 0);
+}
+
 export const TRUST_LABEL_TEXT: Record<SpecialistTrustLabel, string> = {
   limited_evidence: "Limited evidence",
   emerging: "Emerging",
