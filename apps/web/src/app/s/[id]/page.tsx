@@ -20,6 +20,7 @@ import Brand from "@/components/Brand";
 import RecommendButton from "@/components/RecommendButton";
 import ClaimProfileButton from "@/components/ClaimProfileButton";
 import SpecialistEditor from "@/components/SpecialistEditor";
+import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
 import { markIntent } from "@/lib/outcomeClient";
 import { logClick, logImpressions } from "@/lib/interactionClient";
 
@@ -166,6 +167,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
   const officeAddress = asStr(L.operational?.officeAddress);
   const bookingUrl = asStr(L.operational?.bookingUrl);
   const telegramHandle = asStr(L.operational?.telegramHandle);
+  const photoUrl = asStr(L.identity?.photoUrl);
   const faq = asStr(L.content?.faq);
   const providerUpdated = Object.values(L.content ?? {})[0]?.updatedAt;
 
@@ -181,12 +183,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
       {/* ---------------- header ---------------- */}
       <header className="panel rounded-2xl p-5">
         <div className="flex flex-wrap items-start gap-3">
-          <span
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[22px] font-extrabold"
-            style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)", fontFamily: "var(--font-display)" }}
-          >
-            {view.label.slice(0, 1)}
-          </span>
+          <SpecialistAvatar label={view.label} photoUrl={photoUrl ?? undefined} size={56} rounded="rounded-2xl" />
           <div className="min-w-0 flex-1">
             <h1 className="text-[19px] font-extrabold leading-tight text-ink" style={{ fontFamily: "var(--font-display)" }}>
               {view.label}
@@ -247,6 +244,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
               <SpecialistEditor
                 nodeId={view.nodeId}
                 nodeType={view.nodeType}
+                label={view.label}
                 layers={view.layers}
                 onSaved={() => setNonce((n) => n + 1)}
               />

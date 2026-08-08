@@ -5,6 +5,7 @@ import Brand from "@/components/Brand";
 import QuestionScreen from "@/components/survey/QuestionScreen";
 import { NEED_LABEL, SURVEY_QUESTIONS, submitSurvey, type QKey } from "@/lib/surveyQuestions";
 import { SPECIALIST_TYPE_FA, TRUST_LABEL_FA } from "@/lib/specialistClient";
+import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
 
 /**
  * Public market-test survey (no login — excluded from the proxy gate, see
@@ -37,6 +38,7 @@ interface SpecialistCard {
   verified: boolean;
   trustLabel: string;
   trustLabelText: string;
+  photoUrl?: string;
 }
 
 export default function SurveyPage() {
@@ -173,14 +175,17 @@ function ResultsScreen({
           </div>
           <ul className="mt-2 space-y-2">
             {specialists.map((s) => (
-              <li key={s.nodeId} className="rounded-xl border border-line bg-[rgba(255,255,255,0.03)] p-3.5">
-                <div className="flex items-center justify-between">
-                  {s.verified && <span className="text-[10.5px] font-semibold text-emerald-400">تایید شده</span>}
-                  <span className="text-[14px] font-bold text-ink">{s.label}</span>
-                </div>
-                <div className="mt-0.5 text-right text-[12.5px] text-dim">
-                  {SPECIALIST_TYPE_FA[s.nodeType] ?? s.nodeType} · {TRUST_LABEL_FA[s.trustLabel] ?? s.trustLabelText}
-                </div>
+              <li key={s.nodeId} className="flex items-center gap-3 rounded-xl border border-line bg-[rgba(255,255,255,0.03)] p-3.5">
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between">
+                    {s.verified && <span className="text-[10.5px] font-semibold text-emerald-400">تایید شده</span>}
+                    <span className="text-[14px] font-bold text-ink">{s.label}</span>
+                  </span>
+                  <span className="mt-0.5 block text-right text-[12.5px] text-dim">
+                    {SPECIALIST_TYPE_FA[s.nodeType] ?? s.nodeType} · {TRUST_LABEL_FA[s.trustLabel] ?? s.trustLabelText}
+                  </span>
+                </span>
+                <SpecialistAvatar label={s.label} photoUrl={s.photoUrl} size={34} rounded="rounded-lg" />
               </li>
             ))}
           </ul>

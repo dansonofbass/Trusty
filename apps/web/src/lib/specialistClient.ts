@@ -8,6 +8,7 @@ export interface SpecialistCard {
   trustLabel: string;
   trustLabelText: string;
   telegramHandle?: string;
+  photoUrl?: string;
 }
 
 async function jsonOrThrow(r: Response) {

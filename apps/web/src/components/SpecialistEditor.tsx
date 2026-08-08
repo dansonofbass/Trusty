@@ -10,8 +10,10 @@
  */
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, PencilLine, X, Check } from "lucide-react";
+import { Loader2, PencilLine, X, Check, ImagePlus } from "lucide-react";
 import { SPECIALIST_TAXONOMIES, type SpecialistTaxonomy } from "@constellation/graph-core";
+import { uploadMedia } from "@/lib/placesClient";
+import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
 
 interface Field { value: unknown; source: string; updatedAt: string }
 type Layers = Partial<Record<string, Record<string, Field>>>;
@@ -25,19 +27,23 @@ const list = (layers: Layers, layer: string, key: string): string[] => {
   return Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : [];
 };
 
-export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: {
+export default function SpecialistEditor({ nodeId, nodeType, label, layers, onSaved }: {
   nodeId: string;
   nodeType: string;
+  /** Display name — only used for the avatar's letter fallback. */
+  label?: string;
   layers: Layers;
   onSaved: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const taxonomy: SpecialistTaxonomy | undefined =
     SPECIALIST_TAXONOMIES[nodeType as keyof typeof SPECIALIST_TAXONOMIES];
 
+  const [photoUrl, setPhotoUrl] = useState(() => s(layers, "identity", "photoUrl"));
   const [bio, setBio] = useState(() => s(layers, "content", "biography"));
   const [website, setWebsite] = useState(() => s(layers, "content", "website"));
   const [faq, setFaq] = useState(() => s(layers, "content", "faq"));
@@ -51,8 +57,21 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
   const toggle = (xs: string[], set: (v: string[]) => void, item: string) =>
     set(xs.includes(item) ? xs.filter((x) => x !== item) : [...xs, item]);
 
+  const pickPhoto = useCallback(async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      setPhotoUrl(await uploadMedia(file, "specialists"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
   const dirtyPatches = useMemo(() => {
     const patches: { layer: string; fields: Record<string, unknown> }[] = [];
+    patches.push({ layer: "identity", fields: { photoUrl: photoUrl.trim() } });
     patches.push({
       layer: "content",
       fields: { biography: bio.trim(), website: website.trim(), faq: faq.trim() },
@@ -71,7 +90,7 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
     });
     patches.push({ layer: "taxonomy", fields: { services, clientContexts: contexts } });
     return patches;
-  }, [bio, website, faq, officeAddress, bookingUrl, telegramHandle, languages, services, contexts]);
+  }, [photoUrl, bio, website, faq, officeAddress, bookingUrl, telegramHandle, languages, services, contexts]);
 
   const save = useCallback(async () => {
     setBusy(true);
@@ -156,6 +175,38 @@ export default function SpecialistEditor({ nodeId, nodeType, layers, onSaved }: 
                   It helps people understand your services — it never changes trust, which comes only from
                   independent recommendations and outcomes.
                 </p>
+                <div>
+                  <div className="mb-1.5 text-[11.5px] font-semibold text-dim">Photo</div>
+                  <div className="flex items-center gap-3">
+                    <SpecialistAvatar label={label ?? "?"} photoUrl={photoUrl || undefined} size={56} rounded="rounded-2xl" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-dim hover:text-ink">
+                        {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImagePlus size={13} />}
+                        {photoUrl ? "Replace" : "Upload"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploading}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void pickPhoto(f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {photoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setPhotoUrl("")}
+                          className="rounded-lg border border-line px-3 py-1.5 text-[12.5px] text-dim hover:text-rose-300"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <div>
                   <div className="mb-1.5 text-[11.5px] font-semibold text-dim">Professional biography</div>
                   <textarea

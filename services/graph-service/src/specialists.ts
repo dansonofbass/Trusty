@@ -294,17 +294,29 @@ export async function setSpecialistTopicTags(
   return { ok: true, topicTags: clean };
 }
 
-/** Bulk telegramHandle lookup (operational layer) for topic-search cards —
- *  avoids an N+1 fetch per card. */
-export async function telegramHandles(nodeIds: string[]): Promise<Record<string, string>> {
+export interface SpecialistCardFields {
+  telegramHandle?: string;
+  photoUrl?: string;
+}
+
+/** Bulk lookup of the layer fields that specialist CARDS render (telegram
+ *  handle, photo) — one query instead of an N+1 fetch per card. */
+export async function cardFieldsFor(nodeIds: string[]): Promise<Record<string, SpecialistCardFields>> {
   if (!pool || nodeIds.length === 0) return {};
   const r = await pool.query(
-    `SELECT node_id, layers->'operational'->'telegramHandle'->>'value' AS handle
+    `SELECT node_id,
+            layers->'operational'->'telegramHandle'->>'value' AS handle,
+            layers->'identity'->'photoUrl'->>'value'          AS photo
        FROM specialist_profiles WHERE node_id = ANY($1)`,
     [nodeIds],
   );
-  const out: Record<string, string> = {};
-  for (const row of r.rows) if (row.handle) out[String(row.node_id)] = String(row.handle);
+  const out: Record<string, SpecialistCardFields> = {};
+  for (const row of r.rows) {
+    const entry: SpecialistCardFields = {};
+    if (row.handle) entry.telegramHandle = String(row.handle);
+    if (row.photo) entry.photoUrl = String(row.photo);
+    if (entry.telegramHandle || entry.photoUrl) out[String(row.node_id)] = entry;
+  }
   return out;
 }
 

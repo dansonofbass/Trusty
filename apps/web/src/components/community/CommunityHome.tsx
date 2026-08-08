@@ -19,6 +19,7 @@ import {
   TRUST_LABEL_FA,
   type SpecialistCard,
 } from "@/lib/specialistClient";
+import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useUI } from "@/lib/store";
 import { useT } from "@/lib/i18n";
@@ -129,6 +130,7 @@ export default function CommunityHome({ onAsk }: { onAsk: (prompt: string) => vo
               <ul className="space-y-1.5">
                 {experts.map((e) => (
                   <li key={e.nodeId} className="flex items-center gap-2.5 rounded-xl border border-line px-2.5 py-2">
+                    <SpecialistAvatar label={e.label} photoUrl={e.photoUrl} size={30} rounded="rounded-lg" />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
                         <span className="truncate text-[13px] font-semibold text-ink">{e.label}</span>

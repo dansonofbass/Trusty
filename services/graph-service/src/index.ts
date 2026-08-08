@@ -289,7 +289,7 @@ import {
   specialistsEnabled,
   specialistTimeline,
   submitClaim,
-  telegramHandles,
+  cardFieldsFor,
   updateProfileFields,
 } from "./specialists";
 import { JSONCodec, type NatsConnection } from "nats";
@@ -3547,6 +3547,7 @@ interface SpecialistCard {
   trustLabel: string;
   trustLabelText: string;
   telegramHandle?: string;
+  photoUrl?: string;
 }
 
 /** Admin-tagged specialists for `topic`, ranked by independent trust evidence
@@ -3575,10 +3576,12 @@ async function findSpecialistsByTopic(topic: string, limit: number): Promise<Spe
   const states = await specialistStates(ids);
   const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
   const cards = specialistsForTopic(live, limit);
-  const handles = await telegramHandles(cards.map((c) => c.nodeId));
+  const fields = await cardFieldsFor(cards.map((c) => c.nodeId));
   for (const c of cards) {
     c.verified = states[c.nodeId] === "verified";
-    if (handles[c.nodeId]) c.telegramHandle = handles[c.nodeId];
+    const f = fields[c.nodeId];
+    if (f?.telegramHandle) c.telegramHandle = f.telegramHandle;
+    if (f?.photoUrl) c.photoUrl = f.photoUrl;
   }
   return cards;
 }
@@ -3591,10 +3594,12 @@ async function specialistCardsForIds(ids: string[], limit: number): Promise<Spec
   const states = await specialistStates(ids);
   const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
   const cards = specialistsForTopic(live, limit);
-  const handles = await telegramHandles(cards.map((c) => c.nodeId));
+  const fields = await cardFieldsFor(cards.map((c) => c.nodeId));
   for (const c of cards) {
     c.verified = states[c.nodeId] === "verified";
-    if (handles[c.nodeId]) c.telegramHandle = handles[c.nodeId];
+    const f = fields[c.nodeId];
+    if (f?.telegramHandle) c.telegramHandle = f.telegramHandle;
+    if (f?.photoUrl) c.photoUrl = f.photoUrl;
   }
   return cards;
 }

@@ -28,6 +28,7 @@ import {
   TRUST_LABEL_FA,
   type SpecialistCard,
 } from "@/lib/specialistClient";
+import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
 
 const POLL_MS = 4000;
 
@@ -85,6 +86,7 @@ function TrustedMentors({ roomId }: { roomId: string }) {
             key={m.nodeId}
             className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-[var(--color-surface)] px-3 py-2"
           >
+            <SpecialistAvatar label={m.label} photoUrl={m.photoUrl} size={28} rounded="rounded-lg" />
             <span className="min-w-0">
               <span className="flex items-center gap-1.5">
                 <span className="truncate text-[12.5px] font-semibold text-ink">{m.label}</span>
