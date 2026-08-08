@@ -2180,6 +2180,14 @@ const circleTopicTags = (n: (typeof shared.nodes)[number]): string[] => {
   return Array.isArray(raw) ? raw.map(String) : [];
 };
 
+/** Admin-pinned specialists for a circle — explicit curation on top of (and
+ *  ranked ahead of) automatic topic-tag matching. See TrustedMentors on the
+ *  client and specialistCardsForIds below. */
+const circleMentorIds = (n: (typeof shared.nodes)[number]): string[] => {
+  const raw = circleProps(n).mentorIds;
+  return Array.isArray(raw) ? raw.map(String) : [];
+};
+
 app.get("/api/circles", async (req, res) => {
   const { userId } = auth(req);
   const space = appOf(req);
@@ -2196,6 +2204,7 @@ app.get("/api/circles", async (req, res) => {
           description: String(circleProps(n).description ?? ""),
           category: String(circleProps(n).category ?? "topic"),
           topicTags: circleTopicTags(n),
+          mentorIds: circleMentorIds(n),
           open: circleProps(n).open !== false,
           memberCount: members.length,
           mine: members.includes(userId),
@@ -2216,6 +2225,7 @@ app.get("/api/admin/circles", (req, res) => {
   auth(req);
   if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
   const space = str(req.query.app as unknown, 40);
+  const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
   const circles = circleNodes()
     .filter((n) => !space || String(circleProps(n).app ?? BUILTIN_APP) === space)
     .map((n) => ({
@@ -2224,12 +2234,62 @@ app.get("/api/admin/circles", (req, res) => {
       description: String(circleProps(n).description ?? ""),
       category: String(circleProps(n).category ?? "topic"),
       topicTags: circleTopicTags(n),
+      mentors: circleMentorIds(n).map((id) => ({ nodeId: id, label: labelOf.get(id) ?? id })),
       open: circleProps(n).open !== false,
       app: String(circleProps(n).app ?? BUILTIN_APP),
       memberCount: squadMembers(n.id).length,
     }))
     .sort((a, b) => b.memberCount - a.memberCount);
   res.json({ circles });
+});
+
+/** Admin: pin/unpin a specialist as an explicit trusted mentor for a circle —
+ *  curation on top of automatic topic-tag matching (TrustedMentors on the
+ *  client shows pinned mentors first, then topic matches). */
+app.post("/api/admin/circles/:id/mentors", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const id = String(req.params.id);
+  const specialistId = str(req.body?.specialistId, 200);
+  const circle = circleNodes().find((n) => n.id === id);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  if (!specialistId || !shared.nodes.some((n) => n.id === specialistId && isSpecialistType(specialistTypeOf(n)))) {
+    return res.status(400).json({ error: "unknown specialist" });
+  }
+  try {
+    const next = [...new Set([...circleMentorIds(circle), specialistId])].slice(0, 10);
+    await serialize(async () => {
+      const nodes = shared.nodes.map((n) =>
+        n.id === id ? { ...n, properties: { ...(n.properties ?? {}), mentorIds: next } } : n,
+      );
+      return commitShared(refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] }));
+    });
+    emitEvent("circle.mentors_set", { userId, targetId: id, payload: { mentors: next.length } });
+    res.json({ ok: true, mentorIds: next });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/admin/circles/:id/mentors/:specialistId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const id = String(req.params.id);
+  const circle = circleNodes().find((n) => n.id === id);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  try {
+    const next = circleMentorIds(circle).filter((x) => x !== req.params.specialistId);
+    await serialize(async () => {
+      const nodes = shared.nodes.map((n) =>
+        n.id === id ? { ...n, properties: { ...(n.properties ?? {}), mentorIds: next } } : n,
+      );
+      return commitShared(refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] }));
+    });
+    emitEvent("circle.mentors_set", { userId, targetId: id, payload: { mentors: next.length } });
+    res.json({ ok: true, mentorIds: next });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
 });
 
 /** Admin: set a circle's topic tags after the fact (creation-time only
@@ -3511,6 +3571,22 @@ function specialistsForTopic(topicIds: string[], limit: number): SpecialistCard[
 
 async function findSpecialistsByTopic(topic: string, limit: number): Promise<SpecialistCard[]> {
   const ids = await nodeIdsByTopicTag(topic, 50);
+  if (!ids.length) return [];
+  const states = await specialistStates(ids);
+  const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");
+  const cards = specialistsForTopic(live, limit);
+  const handles = await telegramHandles(cards.map((c) => c.nodeId));
+  for (const c of cards) {
+    c.verified = states[c.nodeId] === "verified";
+    if (handles[c.nodeId]) c.telegramHandle = handles[c.nodeId];
+  }
+  return cards;
+}
+
+/** Cards for an EXPLICIT id list (e.g. a circle's admin-pinned mentors) —
+ *  same trust-ranking + telegram-handle enrichment as topic search, just
+ *  without the topic-tag lookup step. */
+async function specialistCardsForIds(ids: string[], limit: number): Promise<SpecialistCard[]> {
   if (!ids.length) return [];
   const states = await specialistStates(ids);
   const live = ids.filter((id) => states[id] !== "closed" && states[id] !== "merged");

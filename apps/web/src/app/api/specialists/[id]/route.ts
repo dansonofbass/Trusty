@@ -9,9 +9,11 @@ export function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) 
   );
 }
 
-/** Provider-controlled profile edits (managers only). */
+/** Provider-controlled profile edits — managers, or admins (e.g. seeding a
+ *  freshly created, still-unclaimed specialist). sendAdminFlag is required
+ *  here too, or graph-service never sees the admin override. */
 export function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return ctx.params.then(({ id }) =>
-    proxyGraph(req, `/api/specialists/${encodeURIComponent(id)}/profile`, "PATCH"),
+    proxyGraph(req, `/api/specialists/${encodeURIComponent(id)}/profile`, "PATCH", { sendAdminFlag: true }),
   );
 }
