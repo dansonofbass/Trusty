@@ -106,6 +106,8 @@ export interface PostsPage {
   authors: Record<string, Author>;
   /** Tags in use in this circle, most-used first — powers the filter row. */
   tags: { tag: string; count: number }[];
+  /** Curated vocabulary the circle offers when asking (admin-set). */
+  suggestedTags: string[];
 }
 
 export function fetchPosts(

@@ -348,6 +348,7 @@ import {
   rolesFor,
   rolesForUsers,
   setPostFlags,
+  setPostTags,
   setRole,
   topicCircle,
   updateTopic,
@@ -2229,6 +2230,12 @@ const circleTopicTags = (n: (typeof shared.nodes)[number]): string[] => {
 /** Admin-pinned specialists for a circle — explicit curation on top of (and
  *  ranked ahead of) automatic topic-tag matching. See TrustedMentors on the
  *  client and specialistCardsForIds below. */
+/** Curated tag vocabulary a circle offers when asking a question. */
+const circleSuggestedTags = (n: (typeof shared.nodes)[number]): string[] => {
+  const raw = circleProps(n).suggestedTags;
+  return Array.isArray(raw) ? raw.map(String) : [];
+};
+
 const circleMentorIds = (n: (typeof shared.nodes)[number]): string[] => {
   const raw = circleProps(n).mentorIds;
   return Array.isArray(raw) ? raw.map(String) : [];
@@ -2358,6 +2365,7 @@ app.get("/api/admin/circles/:id/detail", async (req, res) => {
       open: circleProps(circle).open !== false,
       app: String(circleProps(circle).app ?? BUILTIN_APP),
       topicTags: circleTopicTags(circle),
+      suggestedTags: circleSuggestedTags(circle),
       memberCount: squadMembers(circleId).length,
       topics: forumEnabled() ? await listTopics(circleId) : [],
       tags: forumEnabled() ? await circleTags(circleId) : [],
@@ -2695,10 +2703,12 @@ app.get("/api/circles/:id/posts", async (req, res) => {
       sort: (str(req.query.sort as unknown, 10) as PostSort) ?? "hot",
       limit: Math.min(100, Number(req.query.limit) || 50),
     });
+    const circleNode = circleNodes().find((n) => n.id === circleId);
     res.json({
       posts,
       authors: await authorsFor(posts.map((p) => p.authorId), circleId),
       tags: await circleTags(circleId),
+      suggestedTags: circleNode ? circleSuggestedTags(circleNode) : [],
     });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -2748,6 +2758,51 @@ app.get("/api/posts/:postId", async (req, res) => {
     const authors = await authorsFor([post.authorId, ...answers.map((a) => a.authorId)], post.circleId);
     const canMod = await canModerate(post.circleId, req, userId);
     res.json({ post, answers, authors, canModerate: canMod });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Re-tag a question — its author, a moderator, or an admin. Tags are how a
+ *  question stays findable months later, so fixing a bad one matters. */
+app.patch("/api/posts/:postId/tags", async (req, res) => {
+  const { userId } = auth(req);
+  if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+  const post = await getPost(String(req.params.postId));
+  if (!post) return res.status(404).json({ error: "not found" });
+  const tags = Array.isArray(req.body?.tags) ? req.body.tags.map(String) : null;
+  if (!tags) return res.status(400).json({ error: "tags (string[]) required" });
+  const allowed = post.authorId === userId || (await canModerate(post.circleId, req, userId));
+  if (!allowed) return res.status(403).json({ error: "not yours to re-tag" });
+  try {
+    await setPostTags(post.id, tags);
+    res.json({ ok: true, tags });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Admin: set the tag vocabulary a circle offers when asking a question.
+ *  A curated list beats free-typing, which is how you end up with
+ *  visa/Visa/visas as three separate tags. */
+app.patch("/api/admin/circles/:id/suggested-tags", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const circleId = String(req.params.id);
+  if (!circleNodes().some((n) => n.id === circleId)) return res.status(404).json({ error: "circle not found" });
+  const suggestedTags = Array.isArray(req.body?.tags)
+    ? [...new Set(req.body.tags.map((t: unknown) => String(t).trim()).filter(Boolean))].slice(0, 40)
+    : null;
+  if (!suggestedTags) return res.status(400).json({ error: "tags (string[]) required" });
+  try {
+    await serialize(async () => {
+      const nodes = shared.nodes.map((n) =>
+        n.id === circleId ? { ...n, properties: { ...(n.properties ?? {}), suggestedTags } } : n,
+      );
+      return commitShared(refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] }));
+    });
+    emitEvent("circle.topic_tags_set", { userId, targetId: circleId, payload: { suggested: suggestedTags.length } });
+    res.json({ ok: true, suggestedTags });
   } catch (e) {
     res.status(500).json(asError(e));
   }

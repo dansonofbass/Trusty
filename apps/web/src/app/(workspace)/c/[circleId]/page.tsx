@@ -43,6 +43,7 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
   const [topicId, setTopicId] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [sort, setSort] = useState<PostSort>("hot");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
     setPosts(r.posts);
     setAuthors(r.authors);
     setTags(r.tags ?? []);
+    setSuggestedTags(r.suggestedTags ?? []);
   }, [circleId, topicId, tag, sort]);
 
   useEffect(() => {
@@ -225,7 +227,9 @@ export default function CircleForumPage({ params }: { params: Promise<{ circleId
               <AskComposer
                 circleId={circleId}
                 topicId={topicId}
-                knownTags={tags.map((x) => x.tag)}
+                // Curated vocabulary first, then anything already in use, so
+                // the offered list is consistent without hiding organic tags.
+                knownTags={[...new Set([...suggestedTags, ...tags.map((x) => x.tag)])]}
                 onDone={(created) => {
                   setAsking(false);
                   if (created) void loadPosts();

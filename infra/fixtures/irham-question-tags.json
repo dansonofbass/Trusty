@@ -1,0 +1,101 @@
+{
+  "_note": "Per-circle question-tag vocabulary for the Iranians-in-Armenia space, plus keyword rules used to back-fill tags onto questions that already exist. Tags are Persian because the content and the readers are; `match` terms are matched case-insensitively against a question's title+body. A tag is only offered in the circle it belongs to, so 'قرارداد' means a rental contract in خانه و اجاره and an employment contract in اقامت without colliding. Legacy English tags carried over from the original saved answers are normalised via `_legacy`.",
+  "_legacy": {
+    "residency": "اقامت",
+    "documents": "مدارک",
+    "fees": "هزینه",
+    "process": "مراحل",
+    "family": "خانواده",
+    "renewal": "تمدید",
+    "urgent": "فوری",
+    "tax": "مالیات",
+    "accounting": "حسابداری",
+    "pricing": "هزینه",
+    "banking": "بانک",
+    "company": "ثبت شرکت",
+    "payments": "انتقال پول",
+    "credit": "اعتبار",
+    "health": "سلامت",
+    "insurance": "بیمه",
+    "medication": "دارو",
+    "jobs": "کاریابی",
+    "trust": "اعتماد",
+    "verification": "احراز هویت",
+    "housing": "مسکن",
+    "language": "زبان",
+    "apps": "اپلیکیشن",
+    "shopping": "خرید",
+    "moving": "اسباب‌کشی",
+    "community": "جمع",
+    "fun": "تفریح",
+    "sports": "ورزش"
+  },
+  "circles": {
+    "اقامت": [
+      { "tag": "نوبت‌دهی", "match": ["نوبت", "appointment", "earlyone", "permit.am", "وقت اداره"] },
+      { "tag": "مدارک", "match": ["مدارک", "مدرک", "گواهی", "ترجمه", "پاسپورت", "چک‌لیست"] },
+      { "tag": "تماس افسر", "match": ["افسر", "تماس", "زنگ", "بازدید", "officer"] },
+      { "tag": "تمدید", "match": ["تمدید", "renewal", "انقضا"] },
+      { "tag": "خانواده", "match": ["همسر", "خانواده", "فرزند", "بچه", "spouse"] },
+      { "tag": "هزینه", "match": ["هزینه", "درام", "پرداخت", "قیمت", "amd"] },
+      { "tag": "قرارداد کاری", "match": ["قرارداد", "contract", "کارفرما"] },
+      { "tag": "ثبت آدرس", "match": ["آدرس", "رجیستر", "کلانتری", "address"] },
+      { "tag": "فوری", "match": ["فوری", "جریمه", "اورستی", "۹۰ روز", "90 روز", "مهلت"] }
+    ],
+    "حسابداری و مالیات": [
+      { "tag": "ثبت IE", "match": ["ie", "ثبت شرکت", "آدزه", "شخصی"] },
+      { "tag": "رژیم مالیاتی", "match": ["رژیم", "taxservice", "۲۰ روز", "20 روز", "turnover tax", "۱٪", "1 درصد"] },
+      { "tag": "فاکتور", "match": ["فاکتور", "invoice", "اینویس"] },
+      { "tag": "گردش مالی", "match": ["گردش", "turnover", "تراکنش", "میلیون"] },
+      { "tag": "پیش‌پرداخت", "match": ["پیش‌پرداخت", "پیش پرداخت", "prepay", "۴۵", "150"] },
+      { "tag": "حسابدار", "match": ["حسابدار", "accountant", "ساهاک", "سهاک"] },
+      { "tag": "هزینه", "match": ["هزینه", "قیمت", "ماهیانه", "درام"] },
+      { "tag": "LLC", "match": ["llc", "شرکت مشترک"] }
+    ],
+    "بانک و پول": [
+      { "tag": "افتتاح حساب", "match": ["افتتاح", "باز کردن حساب", "حساب باز", "account"] },
+      { "tag": "انتقال پول", "match": ["انتقال", "حواله", "transfer", "swift", "iban"] },
+      { "tag": "Payoneer", "match": ["payoneer", "پیونیر", "upwork", "بانک ریفرنس"] },
+      { "tag": "کریپتو", "match": ["کریپتو", "crypto", "usdt", "تتر", "بایننس", "صرافی"] },
+      { "tag": "کارت بانکی", "match": ["کارت", "card", "ویزا", "مستر"] },
+      { "tag": "اعتبار", "match": ["قسط", "اعتبار", "وام", "credit"] },
+      { "tag": "مالیات", "match": ["مالیات", "tax"] }
+    ],
+    "کار و رفرال": [
+      { "tag": "کاریابی", "match": ["استخدام", "کار پیدا", "شغل", "job", "hiring", "staff.am"] },
+      { "tag": "رزومه", "match": ["رزومه", "cv", "resume", "ats"] },
+      { "tag": "لینکدین", "match": ["لینکدین", "linkedin", "وریفای"] },
+      { "tag": "فریلنس", "match": ["فریلنس", "freelance", "upwork", "پروژه"] },
+      { "tag": "اعتماد", "match": ["واسطه", "کلاهبرداری", "قرارداد", "پول معرفی"] }
+    ],
+    "سلامت و بیمه": [
+      { "tag": "گواهی سلامت", "match": ["گواهی سلامت", "health certificate", "باشینجاغیان"] },
+      { "tag": "بیمه", "match": ["بیمه", "insurance", "پرمیوم"] },
+      { "tag": "دکتر", "match": ["دکتر", "پزشک", "کلینیک", "ویزیت"] },
+      { "tag": "دارو", "match": ["دارو", "نسخه", "medication"] },
+      { "tag": "هزینه", "match": ["هزینه", "قیمت", "درام"] }
+    ],
+    "خانه و اجاره": [
+      { "tag": "قرارداد اجاره", "match": ["قرارداد", "اجاره", "rent", "lease"] },
+      { "tag": "ثبت آدرس", "match": ["رجیستر", "آدرس", "address"] },
+      { "tag": "صاحبخانه", "match": ["صاحبخانه", "مالک", "landlord"] },
+      { "tag": "بروکر", "match": ["بروکر", "املاک", "broker", "آژانس"] },
+      { "tag": "قیمت", "match": ["قیمت", "کرایه", "هزینه", "درام"] }
+    ],
+    "زبان ارمنی": [
+      { "tag": "منابع", "match": ["کتاب", "منبع", "درس", "واژگان", "دیکشنری"] },
+      { "tag": "اپلیکیشن", "match": ["اپ", "app", "ayolingo", "lezugo"] },
+      { "tag": "کلاس", "match": ["کلاس", "معلم", "استاد", "دوره"] }
+    ],
+    "خرید و فروش": [
+      { "tag": "فورواردر", "match": ["فورواردر", "onex", "barami", "ارسال", "آمازون", "علی‌اکسپرس", "aliexpress"] },
+      { "tag": "گمرک", "match": ["گمرک", "عوارض", "مالیات", "customs"] },
+      { "tag": "اسباب‌کشی", "match": ["اسباب", "وسایل", "حمل", "انتقال وسایل"] },
+      { "tag": "دست‌دوم", "match": ["دست دوم", "دست‌دوم", "فروش", "مبل", "صندلی"] }
+    ],
+    "دورهمی": [
+      { "tag": "ورزش", "match": ["پینگ‌پنگ", "پینگ پنگ", "دویدن", "ورزش", "فوتبال"] },
+      { "tag": "قرار", "match": ["قرار", "دورهمی", "کافه", "ایونت", "meetup"] }
+    ]
+  }
+}
