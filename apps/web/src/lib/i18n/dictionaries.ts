@@ -143,6 +143,20 @@ export const en = {
   "badge.verified_specialist": "Verified specialist",
   "badge.specialist": "Specialist",
 
+  // ── bookable sessions ────────────────────────────────────────────
+  "booking.sessions": "Session times",
+  "booking.book": "Book",
+  "booking.booked": "Booked",
+  "booking.cancel": "Cancel",
+  "booking.addSlot": "Add a time",
+  "booking.withdraw": "Withdraw",
+  "booking.publish": "Publish",
+  "booking.startTime": "Starts",
+  "booking.duration": "Length",
+  "booking.noSlots": "No session times published yet.",
+  "booking.invalidTime": "That time doesn't look right.",
+  "booking.verifyFirst": "Session times can be published once this profile has a verification — people book strangers here, so a checked claim comes first.",
+
   // ── credits & billing ────────────────────────────────────────────
   "credits.title": "AI messages",
   "credits.balance": "{count} left",
@@ -315,6 +329,19 @@ export const fa: Dictionary = {
   "badge.moderator": "مدیر",
   "badge.verified_specialist": "متخصص تاییدشده",
   "badge.specialist": "متخصص",
+
+  "booking.sessions": "زمان‌های مشاوره",
+  "booking.book": "رزرو",
+  "booking.booked": "رزرو شده",
+  "booking.cancel": "لغو",
+  "booking.addSlot": "افزودن زمان",
+  "booking.withdraw": "حذف",
+  "booking.publish": "ثبت",
+  "booking.startTime": "شروع",
+  "booking.duration": "مدت",
+  "booking.noSlots": "هنوز زمانی برای مشاوره ثبت نشده.",
+  "booking.invalidTime": "این زمان درست به نظر نمی‌رسه.",
+  "booking.verifyFirst": "ثبت زمان مشاوره بعد از تایید پروفایل ممکن می‌شه — اینجا آدم‌ها با کسی که نمی‌شناسن قرار می‌ذارن، پس اول باید ادعاها بررسی بشه.",
 
   "credits.title": "پیام‌های هوش مصنوعی",
   "credits.balance": "{count} باقی‌مانده",

@@ -21,6 +21,7 @@ import RecommendButton from "@/components/RecommendButton";
 import ClaimProfileButton from "@/components/ClaimProfileButton";
 import SpecialistEditor from "@/components/SpecialistEditor";
 import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
+import BookingPanel from "@/components/specialist/BookingPanel";
 import { markIntent } from "@/lib/outcomeClient";
 import { logClick, logImpressions } from "@/lib/interactionClient";
 
@@ -261,6 +262,8 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
           <ClaimProfileButton nodeId={view.nodeId} nodeType={view.nodeType} label={view.label} />
         </div>
       </header>
+
+      <BookingPanel nodeId={view.nodeId} />
 
       {/* ---------------- provider-supplied ---------------- */}
       {(bio || services.length > 0 || contexts.length > 0 || faq) && (

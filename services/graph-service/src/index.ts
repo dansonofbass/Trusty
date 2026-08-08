@@ -313,6 +313,16 @@ import {
 } from "./meetingNotes";
 import { initEventLocations, locationsEnabled, listLocations, upsertLocation, deleteLocation } from "./eventLocations";
 import {
+  bookSlot,
+  bookingEnabled,
+  cancelBooking,
+  initBooking,
+  listSlots,
+  myBookings,
+  publishSlot,
+  withdrawSlot,
+} from "./booking";
+import {
   acceptAnswer,
   answerAuthor,
   answerPost,
@@ -4128,6 +4138,148 @@ app.patch("/api/admin/specialists/:nodeId/topic-tags", async (req, res) => {
   }
 });
 
+/* ------------------- bookable sessions (#booking) --------------------- */
+/* Free to book in v1 — the survey is still measuring willingness-to-pay.
+ * Publishing is gated on a real verification: a newcomer meeting a stranger
+ * off the back of this deserves more than a self-declared profile. */
+
+/** True when the specialist holds at least one non-expired verification. */
+async function isVerifiedSpecialist(nodeId: string): Promise<boolean> {
+  if (!specialistsEnabled()) return false;
+  const vs = await listVerifications(nodeId).catch(() => []);
+  return vs.some((v) => v.status === "active");
+}
+
+/** Open slots for a specialist. Managers/admins also see booked ones. */
+app.get("/api/specialists/:nodeId/slots", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.json({ slots: [], canManage: false, verified: false });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = specialistsEnabled() ? await getSpecialist(nodeId, userId, isAdminReq(req)) : null;
+    const canManage = !!view?.isManager || isAdminReq(req);
+    res.json({
+      slots: await listSlots(nodeId, { includeBooked: canManage }),
+      canManage,
+      verified: await isVerifiedSpecialist(nodeId),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Publish availability — managers of a VERIFIED specialist only. */
+app.post("/api/specialists/:nodeId/slots", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.isManager && !isAdminReq(req)) return res.status(403).json({ error: "managers only" });
+    if (!(await isVerifiedSpecialist(nodeId))) {
+      return res.status(403).json({ error: "a verification is required before publishing session times" });
+    }
+    const r = await publishSlot(nodeId, String(req.body?.startsAt ?? ""), String(req.body?.endsAt ?? ""));
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("booking.slot_published", { userId, targetId: nodeId, payload: { slotId: r.id } });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+app.delete("/api/specialists/:nodeId/slots/:slotId", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.isManager && !isAdminReq(req)) return res.status(403).json({ error: "managers only" });
+    const r = await withdrawSlot(String(req.params.slotId), nodeId);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("booking.slot_withdrawn", { userId, targetId: nodeId });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Book a slot. Both sides get notified — this is a commitment, not a click. */
+app.post("/api/specialists/:nodeId/slots/:slotId/book", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const r = await bookSlot(String(req.params.slotId), userId, str(req.body?.note, 500));
+    if (!r.ok) return res.status(409).json({ error: r.error });
+    emitEvent("booking.booked", { userId, targetId: nodeId, payload: { slotId: r.slot.id } });
+    const when = new Date(r.slot.startsAt).toISOString().slice(0, 16).replace("T", " ");
+    const userLabel = shared.nodes.find((n) => n.id === userId)?.label ?? "Someone";
+    const specialistLabel = shared.nodes.find((n) => n.id === nodeId)?.label ?? "a specialist";
+    await Promise.all([
+      addNotification({
+        userId: nodeId,
+        type: "booking.booked",
+        text: `${userLabel} booked a session with you — ${when} UTC`,
+        actorId: userId,
+        targetId: nodeId,
+      }).catch(() => {}),
+      addNotification({
+        userId,
+        type: "booking.confirmed",
+        text: `Your session with ${specialistLabel} is confirmed — ${when} UTC`,
+        targetId: nodeId,
+      }).catch(() => {}),
+    ]);
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Cancel — either side; the slot reopens and the other side is told. */
+app.post("/api/specialists/:nodeId/slots/:slotId/cancel", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = specialistsEnabled() ? await getSpecialist(nodeId, userId, isAdminReq(req)) : null;
+    // Pass the specialist id only when the actor actually manages it, so a
+    // stranger can't cancel someone else's booking by naming the node.
+    const asSpecialist = view?.isManager || isAdminReq(req) ? nodeId : "";
+    const r = await cancelBooking(String(req.params.slotId), userId, asSpecialist);
+    if (!r.ok) return res.status(403).json({ error: r.error });
+    emitEvent("booking.cancelled", { userId, targetId: nodeId });
+    const other = r.bookedBy === userId ? nodeId : r.bookedBy;
+    const actorLabel = shared.nodes.find((n) => n.id === userId)?.label ?? "Someone";
+    await addNotification({
+      userId: other,
+      type: "booking.cancelled",
+      text: `${actorLabel} cancelled a booked session`,
+      actorId: userId,
+      targetId: nodeId,
+    }).catch(() => {});
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** The viewer's upcoming sessions. */
+app.get("/api/bookings/mine", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.json({ bookings: [] });
+  try {
+    const rows = await myBookings(userId);
+    const labelOf = new Map(shared.nodes.map((n) => [n.id, n.label] as const));
+    res.json({
+      bookings: rows.map((b) => ({ ...b, specialistLabel: labelOf.get(b.specialistNodeId) ?? b.specialistNodeId })),
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** Public specialist view: profile layers + lifecycle + derived evidence. */
 app.get("/api/specialists/:nodeId", async (req, res) => {
   const { userId } = auth(req);
@@ -6699,6 +6851,9 @@ async function main() {
   );
   await initForum().catch((e) =>
     console.error("graph-service: forum init failed:", e instanceof Error ? e.message : e),
+  );
+  await initBooking().catch((e) =>
+    console.error("graph-service: booking init failed:", e instanceof Error ? e.message : e),
   );
   await initConversations().catch((e) =>
     console.error("graph-service: conversations init failed:", e instanceof Error ? e.message : e),
