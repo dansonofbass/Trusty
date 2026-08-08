@@ -455,10 +455,14 @@ export async function updateProfileFields(
   userId: string,
   layer: SpecialistLayerName,
   fields: Record<string, unknown>,
+  actorIsAdmin = false,
 ): Promise<{ ok: true; layers: SpecialistLayers } | { ok: false; error: string }> {
   if (!pool) return { ok: false, error: "specialists disabled" };
   const perms = await permissionsFor(nodeId, userId);
-  if (!perms?.editProfile) return { ok: false, error: "not a profile manager" };
+  // Admins can seed/fix a profile (e.g. a freshly created, still-unclaimed
+  // specialist) without first adding themselves as a manager — same override
+  // every other specialist-admin route already gets via isAdminReq.
+  if (!perms?.editProfile && !actorIsAdmin) return { ok: false, error: "not a profile manager" };
   const bad = invalidProviderField(layer, fields);
   if (bad) return { ok: false, error: `field not editable: ${bad}` };
 

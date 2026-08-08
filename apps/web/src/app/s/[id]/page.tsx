@@ -33,6 +33,7 @@ interface ProfileView {
   state: string;
   layers: Partial<Record<"identity" | "taxonomy" | "operational" | "credential" | "communication" | "content", Layer>>;
   isManager: boolean;
+  isAdmin?: boolean;
   pendingClaim: boolean;
   evidence: {
     recCount: number;
@@ -241,7 +242,7 @@ export default function SpecialistProfilePage({ params }: { params: Promise<{ id
               <Send size={14} /> Telegram <ExternalLink size={11} />
             </button>
           )}
-          {view.isManager && (
+          {(view.isManager || view.isAdmin) && (
             <>
               <SpecialistEditor
                 nodeId={view.nodeId}

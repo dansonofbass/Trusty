@@ -3522,6 +3522,7 @@ app.get("/api/specialists/:nodeId", async (req, res) => {
       label: node.label,
       nodeType: specialistTypeOf(node),
       evidence: specialistEvidence(userId, nodeId),
+      isAdmin: isAdminReq(req),
     });
   } catch (e) {
     res.status(500).json(asError(e));
@@ -3567,7 +3568,7 @@ app.patch("/api/specialists/:nodeId/profile", async (req, res) => {
     return res.status(400).json({ error: "layer and fields required" });
   }
   try {
-    const r = await updateProfileFields(nodeId, userId, layer, fields);
+    const r = await updateProfileFields(nodeId, userId, layer, fields, isAdminReq(req));
     emitEvent("specialist.profile_updated", { userId, targetId: nodeId, payload: { layer } });
     if (!r.ok) return res.status(403).json({ error: r.error });
     res.json({ ok: true, layers: r.layers });
