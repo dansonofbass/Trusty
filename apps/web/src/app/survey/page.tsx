@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Brand from "@/components/Brand";
+import QuestionScreen from "@/components/survey/QuestionScreen";
+import { NEED_LABEL, SURVEY_QUESTIONS, submitSurvey, type QKey } from "@/lib/surveyQuestions";
 
 /**
  * Public market-test survey (no login — excluded from the proxy gate, see
@@ -9,75 +11,12 @@ import Brand from "@/components/Brand";
  * pay, then a results screen backed by REAL circles and admin-tagged, trust-
  * ranked specialists for the stated need — not a mockup. The CTA funnels into
  * the existing invite/waitlist auth flow; nothing about that flow changes.
+ *
+ * The same 5 questions also appear inside onboarding (see
+ * apps/web/src/app/onboarding/page.tsx) for anyone who registers WITHOUT
+ * coming through this page first, so the market test isn't limited to people
+ * who specifically clicked the /survey link.
  */
-
-type QKey = "stage" | "biggestNeed" | "workaround" | "wtpSession" | "wtpSubscription";
-
-interface Question {
-  key: QKey;
-  title: string;
-  options: { value: string; label: string }[];
-}
-
-const QUESTIONS: Question[] = [
-  {
-    key: "stage",
-    title: "Where are you in your relocation journey?",
-    options: [
-      { value: "exploring", label: "Just exploring" },
-      { value: "planning", label: "Actively planning (visa in progress)" },
-      { value: "recently_arrived", label: "Recently arrived (under 6 months)" },
-      { value: "settled", label: "Settled, but still need help" },
-    ],
-  },
-  {
-    key: "biggestNeed",
-    title: "What's the single biggest challenge right now?",
-    options: [
-      { value: "legal", label: "Legal & visa paperwork" },
-      { value: "housing", label: "Housing & finding a place" },
-      { value: "banking", label: "Banking, taxes & money" },
-      { value: "career", label: "Job, career & local connections" },
-    ],
-  },
-  {
-    key: "workaround",
-    title: "How do you currently find trustworthy help for this?",
-    options: [
-      { value: "ask_network", label: "Ask friends/family or Telegram groups" },
-      { value: "search_myself", label: "Search Google/YouTube myself" },
-      { value: "hired_online", label: "Hired someone online, hoping for the best" },
-      { value: "no_reliable_help", label: "Haven't found reliable help yet" },
-    ],
-  },
-  {
-    key: "wtpSession",
-    title: "Book a 15-min call with a vetted expert (lawyer, broker, accountant) — how much would you pay?",
-    options: [
-      { value: "free_only", label: "Only if it's free" },
-      { value: "5_15", label: "$5–15" },
-      { value: "15_30", label: "$15–30" },
-      { value: "30_plus", label: "$30+" },
-    ],
-  },
-  {
-    key: "wtpSubscription",
-    title: "How much would you pay per month for an app that helps you find trusted people & answers?",
-    options: [
-      { value: "free_only", label: "Nothing, free features only" },
-      { value: "3_7", label: "$3–7/mo" },
-      { value: "7_15", label: "$7–15/mo" },
-      { value: "15_plus", label: "$15+/mo" },
-    ],
-  },
-];
-
-const NEED_LABEL: Record<string, string> = {
-  legal: "legal & visa help",
-  housing: "housing & real estate",
-  banking: "banking & accounting",
-  career: "career & local connections",
-};
 
 interface Circle {
   id: string;
@@ -112,18 +51,13 @@ export default function SurveyPage() {
   const answer = async (key: QKey, value: string) => {
     const next = { ...answers, [key]: value };
     setAnswers(next);
-    if (step + 1 < QUESTIONS.length) {
+    if (step + 1 < SURVEY_QUESTIONS.length) {
       setStep(step + 1);
       return;
     }
     setPhase("loading");
     try {
-      const r = await fetch("/api/public/survey", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(next),
-      });
-      const data = (await r.json()) as { ok?: boolean; id?: string; topic?: string; error?: string };
+      const data = await submitSurvey(next as Record<QKey, string>);
       if (!data.ok || !data.id || !data.topic) throw new Error(data.error ?? "submit failed");
       setSurveyId(data.id);
       setTopic(data.topic);
@@ -159,9 +93,9 @@ export default function SurveyPage() {
           {phase === "asking" && (
             <QuestionScreen
               index={step}
-              total={QUESTIONS.length}
-              question={QUESTIONS[step]}
-              onAnswer={(v) => void answer(QUESTIONS[step].key, v)}
+              total={SURVEY_QUESTIONS.length}
+              question={SURVEY_QUESTIONS[step]}
+              onAnswer={(v) => void answer(SURVEY_QUESTIONS[step].key, v)}
             />
           )}
 
@@ -184,48 +118,6 @@ export default function SurveyPage() {
         <p className="mt-5 text-center text-[11.5px] text-faint">5 quick questions · no account needed to answer</p>
       </section>
     </main>
-  );
-}
-
-function QuestionScreen({
-  index,
-  total,
-  question,
-  onAnswer,
-}: {
-  index: number;
-  total: number;
-  question: Question;
-  onAnswer: (value: string) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-6 mt-6 flex gap-1.5">
-        {Array.from({ length: total }).map((_, i) => (
-          <div
-            key={i}
-            className={`h-1 flex-1 rounded-full transition-colors ${i <= index ? "bg-gold" : "bg-[rgba(255,255,255,0.1)]"}`}
-          />
-        ))}
-      </div>
-      <h1
-        className="text-[22px] font-extrabold leading-tight text-ink sm:text-[25px]"
-        style={{ fontFamily: "var(--font-display)" }}
-      >
-        {question.title}
-      </h1>
-      <div className="mt-6 space-y-2.5">
-        {question.options.map((o) => (
-          <button
-            key={o.value}
-            onClick={() => onAnswer(o.value)}
-            className="w-full rounded-xl border border-line bg-[rgba(255,255,255,0.03)] px-4 py-3.5 text-left text-[14.5px] font-medium text-ink transition hover:border-gold/60 hover:bg-[rgba(255,201,77,0.08)]"
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 

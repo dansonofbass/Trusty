@@ -12,6 +12,8 @@ import {
   type OnboardingState,
   type OnboardingStep,
 } from "@/lib/onboardingClient";
+import QuestionScreen from "@/components/survey/QuestionScreen";
+import { SURVEY_QUESTIONS, submitSurvey, type QKey } from "@/lib/surveyQuestions";
 
 /**
  * Progressive onboarding — one question per screen, under a minute, ending in a
@@ -70,6 +72,16 @@ export default function OnboardingPage() {
   const [city, setCity] = useState("");
   const [language, setLanguage] = useState("");
 
+  // Market-test survey fallback: anyone who registers WITHOUT having gone
+  // through the public /survey page first (e.g. a direct invite link) still
+  // gets asked the same 5 questions, so the market test covers every new
+  // user, not just people who clicked the /survey link specifically.
+  const [needsSurveyFallback, setNeedsSurveyFallback] = useState(false);
+  const [showingSurvey, setShowingSurvey] = useState(false);
+  const [surveyStep, setSurveyStep] = useState(0);
+  const [surveyAnswers, setSurveyAnswers] = useState<Partial<Record<QKey, string>>>({});
+  const [surveySubmitting, setSurveySubmitting] = useState(false);
+
   // Resume from server state on mount.
   useEffect(() => {
     getOnboarding()
@@ -88,7 +100,11 @@ export default function OnboardingPage() {
         setName(s.profile?.name ?? "");
         setCity(s.profile?.city ?? "");
         setLanguage(s.profile?.language ?? "");
-        setStep(s.step && s.step !== "done" ? s.step : "welcome");
+        const resumeStep = s.step && s.step !== "done" ? s.step : "welcome";
+        setStep(resumeStep);
+        // Only offer the fallback survey at the very start of a fresh session
+        // (no cookie handoff, nothing answered yet, nothing saved past welcome).
+        if (!surveyTopic && !topics0.length && resumeStep === "welcome") setNeedsSurveyFallback(true);
       })
       .catch(() => undefined)
       .finally(() => setLoaded(true));
@@ -103,17 +119,56 @@ export default function OnboardingPage() {
     }
   };
 
+  const answerSurvey = async (key: QKey, value: string) => {
+    const nextAnswers = { ...surveyAnswers, [key]: value };
+    setSurveyAnswers(nextAnswers);
+    if (surveyStep + 1 < SURVEY_QUESTIONS.length) {
+      setSurveyStep(surveyStep + 1);
+      return;
+    }
+    setSurveySubmitting(true);
+    try {
+      const data = await submitSurvey(nextAnswers as Record<QKey, string>);
+      if (data.ok && data.topic && TOPIC_TAXONOMY.includes(data.topic)) {
+        setTopics((t) => (t.length ? t : [data.topic as string]));
+      }
+    } catch {
+      /* best-effort — still let them continue onboarding either way */
+    } finally {
+      setShowingSurvey(false);
+      setSurveySubmitting(false);
+      void go("topics");
+    }
+  };
+
   if (!loaded) return <Shell>{null}</Shell>;
 
   return (
     <Shell>
-      <Progress step={step} />
-      {step === "welcome" && (
+      {!showingSurvey && <Progress step={step} />}
+
+      {showingSurvey && (
+        surveySubmitting ? (
+          <div className="mt-8 space-y-3">
+            <div className="h-16 animate-pulse rounded-xl bg-[rgba(255,255,255,0.05)]" />
+            <div className="h-16 animate-pulse rounded-xl bg-[rgba(255,255,255,0.05)]" />
+          </div>
+        ) : (
+          <QuestionScreen
+            index={surveyStep}
+            total={SURVEY_QUESTIONS.length}
+            question={SURVEY_QUESTIONS[surveyStep]}
+            onAnswer={(v) => void answerSurvey(SURVEY_QUESTIONS[surveyStep].key, v)}
+          />
+        )
+      )}
+
+      {step === "welcome" && !showingSurvey && (
         <Step
           title={<>Find who your network <span className="text-gold">actually trusts</span></>}
           body="Trusty helps you make better decisions — the dentist, lawyer, or mechanic people you trust rely on, with the reason shown."
           cta="Get started"
-          onNext={() => go("topics")}
+          onNext={() => (needsSurveyFallback ? setShowingSurvey(true) : go("topics"))}
         />
       )}
 
