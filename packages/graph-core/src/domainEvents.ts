@@ -68,6 +68,7 @@ export const DOMAIN_EVENT_TYPES = [
   "circle.created",
   "circle.joined",
   "circle.left",
+  "circle.topic_tags_set",
   "answer.saved",
   "agent.turn_started",
   "agent.tool_called",

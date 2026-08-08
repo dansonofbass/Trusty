@@ -2209,6 +2209,55 @@ app.get("/api/circles", async (req, res) => {
   }
 });
 
+/** Admin: circles across every space, with member counts — the admin
+ *  circles page's list (unlike GET /api/circles, not scoped to the caller's
+ *  own membership/host). */
+app.get("/api/admin/circles", (req, res) => {
+  auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const space = str(req.query.app as unknown, 40);
+  const circles = circleNodes()
+    .filter((n) => !space || String(circleProps(n).app ?? BUILTIN_APP) === space)
+    .map((n) => ({
+      id: n.id,
+      label: n.label,
+      description: String(circleProps(n).description ?? ""),
+      category: String(circleProps(n).category ?? "topic"),
+      topicTags: circleTopicTags(n),
+      open: circleProps(n).open !== false,
+      app: String(circleProps(n).app ?? BUILTIN_APP),
+      memberCount: squadMembers(n.id).length,
+    }))
+    .sort((a, b) => b.memberCount - a.memberCount);
+  res.json({ circles });
+});
+
+/** Admin: set a circle's topic tags after the fact (creation-time only
+ *  otherwise) — lets old/stale circles get tagged without re-seeding. */
+app.patch("/api/admin/circles/:id/topic-tags", async (req, res) => {
+  const { userId } = auth(req);
+  if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
+  const id = String(req.params.id);
+  const circle = circleNodes().find((n) => n.id === id);
+  if (!circle) return res.status(404).json({ error: "circle not found" });
+  const topicTags = Array.isArray(req.body?.tags)
+    ? [...new Set(req.body.tags.map((t: unknown) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 10)
+    : null;
+  if (!topicTags) return res.status(400).json({ error: "tags (string[]) required" });
+  try {
+    await serialize(async () => {
+      const nodes = shared.nodes.map((n) =>
+        n.id === id ? { ...n, properties: { ...(n.properties ?? {}), topicTags } } : n,
+      );
+      return commitShared(refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] }));
+    });
+    emitEvent("circle.topic_tags_set", { userId, targetId: id, payload: { count: topicTags.length } });
+    res.json({ ok: true, topicTags });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 app.post("/api/circles", async (req, res) => {
   const { userId, meta } = auth(req);
   const name = str(req.body?.name, 60);

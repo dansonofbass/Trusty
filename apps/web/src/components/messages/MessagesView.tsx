@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BadgeCheck, Bookmark, BookmarkCheck, Check, CornerUpLeft, Link as LinkIcon, Loader2, MessagesSquare, Plus, Send, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Bookmark, BookmarkCheck, Check, CornerUpLeft, Link as LinkIcon, Loader2, LogOut, MessagesSquare, Plus, Send, Trash2, Users, X } from "lucide-react";
 import { useUI } from "@/lib/store";
 import {
   createCircle,
@@ -11,6 +11,7 @@ import {
   fetchRoomAnswers,
   fetchRoomMessages,
   fetchRooms,
+  leaveCircle,
   markRoomRead,
   saveMessageAsAnswer,
   sendRoomMessage,
@@ -126,8 +127,21 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [sharing, setSharing] = useState<number | null>(null);
   const [shareTarget, setShareTarget] = useState<{ answerId: number; body: string } | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const stickToBottom = useRef(true);
+
+  const leave = async () => {
+    if (!thread?.room.refId || leaving) return;
+    if (!confirm(`Leave "${thread.room.title}"? You can rejoin later if it's open.`)) return;
+    setLeaving(true);
+    try {
+      await leaveCircle(thread.room.refId);
+      onBack();
+    } catch {
+      setLeaving(false);
+    }
+  };
 
   const indexAnswers = (list: SavedAnswer[]) =>
     setAnswerIdOf(new Map(list.filter((a) => a.messageId).map((a) => [a.messageId as number, a.id])));
@@ -259,6 +273,18 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
         >
           <Users size={15} />
         </button>
+        {thread?.room.kind === "circle" && (
+          <button
+            type="button"
+            onClick={() => void leave()}
+            disabled={leaving}
+            title="Leave this circle"
+            aria-label="Leave circle"
+            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-dim)] transition hover:text-rose-300 disabled:opacity-50"
+          >
+            {leaving ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} />}
+          </button>
+        )}
       </div>
 
       <TrustedMentors roomId={roomId} />
