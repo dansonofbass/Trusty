@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BadgeCheck,
   ChevronDown,
   ChevronRight,
   CircleDot,
@@ -26,7 +27,7 @@ import { fetchWorkspace, type FolderRow, type WritingSummary } from "@/lib/writi
 import { listConversations, type ConversationSummary } from "@/lib/chat/conversationsClient";
 import { fetchRooms } from "@/lib/socialClient";
 import NotificationBell from "@/components/NotificationBell";
-import { LISTED_SPACES, SPACE_META, homeUrl, spaceFromHost, spaceUrl } from "@/lib/space";
+import { LISTED_SPACES, SPACE_META, homeUrl, isCommunitySpace, spaceSubdomain, spaceUrl } from "@/lib/space";
 import { useChat } from "@/lib/chat/ChatProvider";
 import SidebarFooter from "./SidebarFooter";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -48,6 +49,21 @@ const SECONDARY_NAV: NavItem[] = [
   { href: "/graph", labelKey: "nav.graph", icon: Orbit },
   { href: "/asks", labelKey: "nav.asks", icon: Megaphone },
   { href: "/decisions", labelKey: "nav.decisions", icon: Scale },
+];
+
+/**
+ * A community space gets four words, not eleven.
+ *
+ * Its members are newcomers to Armenia, not to knowledge tools: the doc tree,
+ * chat history, graph, asks and decisions are a workspace vocabulary that
+ * costs a first-timer attention and earns nothing. They stay reachable by URL
+ * — this hides them from the front door, it doesn't remove them.
+ */
+const COMMUNITY_NAV: NavItem[] = [
+  { href: "/", labelKey: "nav.topics", icon: CircleDot },
+  { href: "/ask", labelKey: "nav.ask", icon: MessageCircle },
+  { href: "/experts", labelKey: "nav.experts", icon: BadgeCheck },
+  { href: "/messages", labelKey: "nav.messages", icon: MessagesSquare },
 ];
 
 /**
@@ -88,6 +104,13 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [chats, setChats] = useState<ConversationSummary[]>([]);
   const { conversationId, loadConversation, newChat, sending } = useChat();
 
+  // Resolved after mount (window.location) — see HomePage for why the first
+  // paint uses the default rather than branching during SSR.
+  const [community, setCommunity] = useState(false);
+  useEffect(() => setCommunity(isCommunitySpace()), []);
+  // Home is the feed in a community space, so the chat lives at /ask there.
+  const chatHref = community ? "/ask" : "/";
+
   useEffect(() => {
     let alive = true;
     listConversations()
@@ -101,14 +124,14 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const openChat = (id: string) => {
     if (sending) return; // don't yank a streaming thread out from under itself
     void loadConversation(id).catch(() => {});
-    router.push("/");
+    router.push(chatHref);
     onNavigate?.();
   };
 
   const startNewChat = () => {
     if (sending) return;
     newChat();
-    router.push("/");
+    router.push(chatHref);
     onNavigate?.();
   };
 
@@ -177,7 +200,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </button>
 
       <nav className="px-2" aria-label="Workspace">
-        {[...PRIMARY_NAV, ...((moreOpen || onSecondary) ? SECONDARY_NAV : [])].map((n) => (
+        {(community ? COMMUNITY_NAV : [...PRIMARY_NAV, ...((moreOpen || onSecondary) ? SECONDARY_NAV : [])]).map((n) => (
           <Link
             key={n.href}
             href={n.href}
@@ -209,34 +232,42 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </Link>
         ))}
-        <button
-          type="button"
-          onClick={toggleMore}
-          className="mb-0.5 flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-[12px] font-medium text-[var(--color-faint)] transition hover:text-ink"
-        >
-          <ChevronDown
-            size={13}
-            className={`transition-transform ${(moreOpen || onSecondary) ? "rotate-180" : ""}`}
-          />
-          <span className="flex-1 text-start">{(moreOpen || onSecondary) ? t("nav.less") : t("nav.more")}</span>
-          {!(moreOpen || onSecondary) && unreadAsks > 0 && (
-            <span
-              className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"
-              style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
-            >
-              {unreadAsks > 9 ? "9+" : unreadAsks}
-            </span>
-          )}
-        </button>
+        {!community && (
+          <button
+            type="button"
+            onClick={toggleMore}
+            className="mb-0.5 flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-[12px] font-medium text-[var(--color-faint)] transition hover:text-ink"
+          >
+            <ChevronDown
+              size={13}
+              className={`transition-transform ${(moreOpen || onSecondary) ? "rotate-180" : ""}`}
+            />
+            <span className="flex-1 text-start">{(moreOpen || onSecondary) ? t("nav.less") : t("nav.more")}</span>
+            {!(moreOpen || onSecondary) && unreadAsks > 0 && (
+              <span
+                className="grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9.5px] font-bold"
+                style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+              >
+                {unreadAsks > 9 ? "9+" : unreadAsks}
+              </span>
+            )}
+          </button>
+        )}
       </nav>
 
+      {/* A community space is the whole product to its members — the "which
+          space am I in" directory is noise there, so it only shows elsewhere. */}
+      {!community && (
+      <>
       {/* Spaces — community front doors (subdomains). Current one highlighted. */}
       <div className="mt-3 px-2">
         <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
           {t("nav.spaces")}
         </div>
         {(() => {
-          const current = spaceFromHost();
+          // The literal subdomain, not the resolved space: on the apex there is
+          // no subdomain to strip and no "back to home" to offer.
+          const current = spaceSubdomain();
           return (
             <ul>
               {current !== null && (
@@ -412,6 +443,12 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <Plus size={13} /> {t("nav.addEntity")}
         </button>
       </div>
+      </>
+      )}
+
+      {/* Without the docs list there is nothing to absorb the slack, so the
+          footer needs an explicit push to the bottom. */}
+      {community && <div className="flex-1" />}
 
       <SidebarFooter />
     </aside>

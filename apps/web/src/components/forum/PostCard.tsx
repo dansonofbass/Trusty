@@ -8,8 +8,18 @@ import BadgeRow from "./BadgeRow";
 import { votePost, type Author, type Post } from "@/lib/forumClient";
 import { useI18n } from "@/lib/i18n";
 
-/** One question in a list. Body is clamped — the thread page has the rest. */
-export default function PostCard({ post, author }: { post: Post; author?: Author }) {
+/** One question in a list. Body is clamped — the thread page has the rest.
+ *  `circleLabel` is set only by lists that mix circles (the merged feed), where
+ *  a card without its origin is ambiguous. */
+export default function PostCard({
+  post,
+  author,
+  circleLabel,
+}: {
+  post: Post;
+  author?: Author;
+  circleLabel?: string;
+}) {
   const { t, locale } = useI18n();
 
   return (
@@ -22,6 +32,15 @@ export default function PostCard({ post, author }: { post: Post; author?: Author
 
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-1.5">
+          {circleLabel && (
+            <Link
+              href={`/c/${encodeURIComponent(post.circleId)}`}
+              dir="auto"
+              className="rounded-full border border-line px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-dim)] transition hover:text-ink"
+            >
+              {circleLabel}
+            </Link>
+          )}
           {post.pinned && (
             <span className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
               style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>

@@ -46,7 +46,7 @@ const senderColor = (id: string) => {
 /** Trusted mentors for this circle: admin-PINNED specialists first (explicit
  *  curation, /admin/circles), then automatic matches on the circle's
  *  topicTags — same trust-ranked source as the market-test survey and
- *  CommunityHome's Experts section. Renders nothing when a circle has
+ *  the Experts page. Renders nothing when a circle has
  *  neither pins nor tagged matches (e.g. a squad chat). */
 function TrustedMentors({ roomId }: { roomId: string }) {
   const [mentors, setMentors] = useState<SpecialistCard[] | null>(null);

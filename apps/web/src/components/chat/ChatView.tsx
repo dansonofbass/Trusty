@@ -11,7 +11,6 @@ import ChatInput from "./ChatInput";
 import { useUI } from "@/lib/store";
 import { spaceFromHost } from "@/lib/space";
 import SummitHome from "@/components/summit/SummitHome";
-import CommunityHome from "@/components/community/CommunityHome";
 import CreditsPaywall from "@/components/billing/CreditsPaywall";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useChat } from "@/lib/chat/ChatProvider";
@@ -39,7 +38,7 @@ function heroCardsForSpace(space: string | null): HeroCard[] {
     return [
       { title: "🏛 Residency & documents", prompt: "What documents do I need for the residency application?", sub: "Saved community answers, with author + date" },
       { title: "🧾 Find a trusted accountant", prompt: "Find a trusted accountant for my IE", sub: "Ranked by your community's real experience" },
-      { title: "⭕ Join the circles", href: "/discover", sub: "Residency · Accounting · Jobs · Health — pick yours" },
+      { title: "⭕ Browse the topics", href: "/", sub: "Residency · Accounting · Jobs · Health — pick yours" },
       { title: "📣 Ask the community", prompt: "Ask my network: which bank is currently opening accounts?", sub: "Reaches people who listen to you" },
     ];
   }
@@ -209,26 +208,6 @@ export default function ChatView() {
       <div className="scroll-quiet flex h-full flex-col overflow-y-auto px-4 py-5 md:px-6">
         <div className="m-auto w-full max-w-[560px]">
           <SummitHome />
-          <div className="mt-4">{input}</div>
-          {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
-          {toast && <p className="mt-3 text-center text-[11.5px] text-[#54d26e]">{toast}</p>}
-          {paywall}
-        </div>
-      </div>
-    );
-  }
-
-  if (hero && spaceFromHost() === "irham") {
-    // Iranians-in-Armenia space: bilingual buttons-first front door.
-    return (
-      <div className="scroll-quiet flex h-full flex-col overflow-y-auto px-4 py-5 md:px-6">
-        <div className="m-auto w-full max-w-[560px]">
-          <CommunityHome
-            onAsk={(p) => {
-              if (p) void runTurn({ text: p });
-              else setChatPrefill(" ");
-            }}
-          />
           <div className="mt-4">{input}</div>
           {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
           {toast && <p className="mt-3 text-center text-[11.5px] text-[#54d26e]">{toast}</p>}

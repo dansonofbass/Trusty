@@ -17,7 +17,9 @@ async function forward(
 ): Promise<NextResponse> {
   // Space scoping: the subdomain the user is on decides the app scope for
   // every proxied read/mutation (explicit ?app= in a path still wins inside
-  // graph-service). Client-sent x-app is the fallback for the neutral home.
+  // graph-service). A host with no space subdomain resolves to DEFAULT_SPACE —
+  // the client-sent x-app fallback only applies if that is ever set back to
+  // null (a genuinely neutral home).
   const space = spaceFromHost(req.headers.get("host") ?? undefined) ?? req.headers.get("x-app") ?? undefined;
   const headers: Record<string, string> = {
     "content-type": "application/json",

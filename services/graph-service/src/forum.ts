@@ -337,6 +337,9 @@ const ORDER_BY: Record<PostSort, string> = {
 
 export async function listPosts(opts: {
   circleId?: string;
+  /** Several circles at once — the space-wide merged feed. Ignored when
+   *  `circleId` is set, which is the narrower filter. */
+  circleIds?: string[];
   topicId?: string;
   tag?: string;
   viewerId?: string;
@@ -345,17 +348,29 @@ export async function listPosts(opts: {
 }): Promise<PostRow[]> {
   if (!pool) return [];
   const order = ORDER_BY[opts.sort ?? "hot"];
+  const circleIds = opts.circleId ? null : opts.circleIds ?? null;
+  // An empty id list means "no circles in scope" — return nothing rather than
+  // silently widening to the whole platform.
+  if (circleIds && circleIds.length === 0) return [];
   const r = await pool.query(
     `SELECT p.*, COALESCE(v.value, 0) AS my_vote
        FROM posts p
        LEFT JOIN votes v ON v.subject_type = 'post' AND v.subject_id = p.id AND v.user_id = $3
       WHERE NOT p.deleted
         AND ($1::text IS NULL OR p.circle_id = $1)
+        AND ($6::text[] IS NULL OR p.circle_id = ANY($6))
         AND ($2::bigint IS NULL OR p.topic_id = $2)
         AND ($5::text IS NULL OR p.tags @> ARRAY[$5]::text[])
       ORDER BY ${order}
       LIMIT $4`,
-    [opts.circleId ?? null, opts.topicId ?? null, opts.viewerId ?? "", opts.limit ?? 50, opts.tag ?? null],
+    [
+      opts.circleId ?? null,
+      opts.topicId ?? null,
+      opts.viewerId ?? "",
+      opts.limit ?? 50,
+      opts.tag ?? null,
+      circleIds,
+    ],
   );
   return r.rows.map(postRow);
 }
@@ -371,6 +386,23 @@ export async function circleTags(circleId: string): Promise<{ tag: string; count
     [circleId],
   );
   return r.rows.map((row) => ({ tag: String(row.tag), count: Number(row.count) }));
+}
+
+/**
+ * Per-circle question counts across a set of circles, in ONE query — the merged
+ * feed's topic chips need a count each, and N round-trips for N circles is how
+ * a nine-chip row turns into nine queries.
+ */
+export async function postCountsByCircle(circleIds: string[]): Promise<Record<string, number>> {
+  if (!pool || circleIds.length === 0) return {};
+  const r = await pool.query(
+    `SELECT circle_id, count(*)::int AS count FROM posts
+      WHERE circle_id = ANY($1) AND NOT deleted GROUP BY circle_id`,
+    [circleIds],
+  );
+  const out: Record<string, number> = {};
+  for (const row of r.rows) out[String(row.circle_id)] = Number(row.count);
+  return out;
 }
 
 export async function getPost(id: string, viewerId?: string): Promise<PostRow | null> {

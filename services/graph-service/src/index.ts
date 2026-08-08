@@ -330,7 +330,10 @@ import {
   circleContributors,
   circleTags,
   createAnswer,
-  createPost,
+  // Aliased: graph-core exports a `createPost` too (the social-graph post
+  // node). Importing both under one name silently shadowed the graph-core one
+  // and broke POST /api/posts — the alias makes the collision impossible.
+  createPost as createForumPost,
   createTopic,
   deleteAnswer,
   deleteTopic,
@@ -344,6 +347,7 @@ import {
   listPosts,
   listTopics,
   permissionsIn,
+  postCountsByCircle,
   removeRole,
   rolesFor,
   rolesForUsers,
@@ -2271,6 +2275,74 @@ app.get("/api/circles", async (req, res) => {
   }
 });
 
+/**
+ * The community front door: every circle in the space PLUS one merged question
+ * feed across them.
+ *
+ * A newcomer arriving from a Telegram link doesn't know which circle their
+ * question belongs to — asking them to pick one before they can read anything
+ * is the wrong first move. So the feed is flat by default and the circles are
+ * a filter row on top of it (`?circle=`), not a gate in front of it.
+ *
+ * One round-trip: circles + posts + authors + (when a circle is selected) that
+ * circle's tag facets, because this is the first screen of the app and every
+ * extra request is visible on a phone on Armenian mobile data.
+ */
+app.get("/api/feed", async (req, res) => {
+  const { userId } = auth(req);
+  const space = appOf(req);
+  const circleId = str(req.query.circle as unknown, 60);
+  try {
+    const nodes = circleNodes().filter((n) => String(circleProps(n).app ?? BUILTIN_APP) === space);
+    const counts = forumEnabled() ? await postCountsByCircle(nodes.map((n) => n.id)) : {};
+    const circles = nodes
+      .map((n) => {
+        const members = squadMembers(n.id);
+        return {
+          id: n.id,
+          label: n.label,
+          description: String(circleProps(n).description ?? ""),
+          category: String(circleProps(n).category ?? "topic"),
+          open: circleProps(n).open !== false,
+          memberCount: members.length,
+          mine: members.includes(userId),
+          postCount: counts[n.id] ?? 0,
+          suggestedTags: circleSuggestedTags(n),
+        };
+      })
+      // Busiest topic first: a chip row ordered by where the knowledge actually
+      // is beats an arbitrary seed order.
+      .sort((a, b) => b.postCount - a.postCount || b.memberCount - a.memberCount);
+
+    // An unknown ?circle= must not silently fall back to the whole space —
+    // that would show a filtered UI over unfiltered data.
+    if (circleId && !circles.some((c) => c.id === circleId)) {
+      return res.status(404).json({ error: "circle not found in this space" });
+    }
+    if (!forumEnabled()) return res.json({ space, circles, posts: [], authors: {}, tags: [] });
+
+    const posts = await listPosts({
+      ...(circleId ? { circleId } : { circleIds: circles.map((c) => c.id) }),
+      tag: str(req.query.tag as unknown, 40),
+      viewerId: userId,
+      sort: (str(req.query.sort as unknown, 10) as PostSort) ?? "new",
+      limit: Math.min(100, Number(req.query.limit) || 50),
+    });
+    res.json({
+      space,
+      circles,
+      posts,
+      authors: await authorsFor(posts.map((p) => p.authorId), circleId || undefined),
+      // Tag facets only make sense inside one circle: `قرارداد` means a rental
+      // contract in خانه و اجاره and an employment contract in اقامت, so a
+      // merged tag row would collide meanings from different circles.
+      tags: circleId ? await circleTags(circleId) : [],
+    });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
 /** Admin: circles across every space, with member counts — the admin
  *  circles page's list (unlike GET /api/circles, not scoped to the caller's
  *  own membership/host). */
@@ -2726,7 +2798,7 @@ app.post("/api/circles/:id/posts", async (req, res) => {
     return res.status(403).json({ error: "join this circle to post" });
   }
   try {
-    const r = await createPost({
+    const r = await createForumPost({
       circleId,
       topicId: str(req.body?.topicId, 40) ?? null,
       authorId: userId,

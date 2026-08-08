@@ -10,6 +10,7 @@ import Sidebar from "@/components/shell/Sidebar";
 import Brand from "@/components/Brand";
 import NotificationBell from "@/components/NotificationBell";
 import { switchMode } from "@/lib/dataSource";
+import { isCommunitySpace } from "@/lib/space";
 
 // Client-only islands (canvas/window dependencies) — same pattern as the old
 // home page: decide mobile vs desktop BEFORE mounting anything heavy.
@@ -47,6 +48,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   // ChatGPT-app-style mobile chrome: ☰ opens the sidebar as a drawer.
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => setDrawerOpen(false), [pathname]);
+  // Home is the community feed in a community space, so "new chat" has to aim
+  // at /ask there or the button would navigate away from the chat entirely.
+  const [chatHref, setChatHref] = useState("/");
+  useEffect(() => setChatHref(isCommunitySpace() ? "/ask" : "/"), []);
 
   if (loadError) {
     return (
@@ -89,7 +94,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             onClick={() => {
               if (sending) return;
               newChat();
-              router.push("/");
+              router.push(chatHref);
             }}
             className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)]"
           >

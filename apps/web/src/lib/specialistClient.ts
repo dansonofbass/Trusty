@@ -55,7 +55,7 @@ export function telegramUrl(handle: string): string {
   return `https://t.me/${handle.replace(/^@/, "")}`;
 }
 
-/** Persian labels — shared by the survey results screen and CommunityHome's
+/** Persian labels — shared by the survey results screen and the Experts page's
  *  Experts section, the two Persian-first surfaces that render specialist
  *  cards. `nodeType`/`trustLabel` are stable enum keys from graph-core. */
 export const SPECIALIST_TYPE_FA: Record<string, string> = {

@@ -5,6 +5,14 @@ import { spaceFromHost } from "@/lib/space";
 
 const EXTRACTOR = process.env.EXTRACTOR_INTERNAL_URL ?? "http://extractor:4003";
 
+/** The space scope for a proxied call, as a header record (empty when the host
+ *  resolves to no space) — a plain `Record<string, string>` so spreading it
+ *  into a headers object stays assignable to HeadersInit. */
+function spaceHeader(req: NextRequest): Record<string, string> {
+  const sp = spaceFromHost(req.headers.get("host") ?? undefined);
+  return sp ? { "x-app": sp } : {};
+}
+
 /** BFF proxy for the composer agent's streaming (SSE) tool-calling loop (#29). */
 export async function POST(req: NextRequest) {
   const { session } = await readValidSession(req);
@@ -27,10 +35,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "content-type": "application/json",
         "x-user-id": session.sub,
-        ...((() => {
-          const sp = spaceFromHost(req.headers.get("host") ?? undefined);
-          return sp ? { "x-app": sp } : {};
-        })()),
+        ...spaceHeader(req),
       },
       body: "{}",
       cache: "no-store",
@@ -56,10 +61,7 @@ export async function POST(req: NextRequest) {
         "x-user-tier": tier,
         ...(session.name ? { "x-user-name": session.name } : {}),
         // Space subdomain → agent tools scope their graph reads to it.
-        ...((() => {
-          const sp = spaceFromHost(req.headers.get("host") ?? undefined);
-          return sp ? { "x-app": sp } : {};
-        })()),
+        ...spaceHeader(req),
       },
       body,
       cache: "no-store",
