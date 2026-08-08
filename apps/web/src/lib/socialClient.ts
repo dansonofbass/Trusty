@@ -98,6 +98,7 @@ export interface CircleSummary {
   label: string;
   description: string;
   category: string;
+  topicTags: string[];
   open: boolean;
   memberCount: number;
   mine: boolean;

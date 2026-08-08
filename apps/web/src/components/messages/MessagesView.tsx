@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Bookmark, BookmarkCheck, Check, CornerUpLeft, Link as LinkIcon, Loader2, MessagesSquare, Plus, Send, Trash2, Users, X } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Bookmark, BookmarkCheck, Check, CornerUpLeft, Link as LinkIcon, Loader2, MessagesSquare, Plus, Send, Trash2, Users, X } from "lucide-react";
 import { useUI } from "@/lib/store";
 import {
   createCircle,
   deleteRoomMessage,
+  fetchCircles,
   fetchRoomAnswers,
   fetchRoomMessages,
   fetchRooms,
@@ -18,6 +19,13 @@ import {
   type RoomThread,
   type SavedAnswer,
 } from "@/lib/socialClient";
+import {
+  fetchSpecialistsByTopics,
+  telegramUrl,
+  SPECIALIST_TYPE_FA,
+  TRUST_LABEL_FA,
+  type SpecialistCard,
+} from "@/lib/specialistClient";
 
 const POLL_MS = 4000;
 
@@ -32,6 +40,76 @@ const senderColor = (id: string) => {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return SENDER_COLORS[h % SENDER_COLORS.length];
 };
+
+/** Trusted mentors for this circle — admin-tagged specialists matching the
+ *  circle's topicTags (infra/fixtures/circles-iran.json), same trust-ranked
+ *  source as the market-test survey and CommunityHome's Experts section.
+ *  Only renders for circles that have topics tagged AND at least one match —
+ *  a squad chat or an untagged circle shows nothing here. */
+function TrustedMentors({ roomId }: { roomId: string }) {
+  const [mentors, setMentors] = useState<SpecialistCard[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setMentors(null);
+    fetchCircles()
+      .then(async (r) => {
+        const circle = r.circles.find((c) => c.roomId === roomId);
+        const topics = circle?.topicTags ?? [];
+        if (!topics.length) return alive && setMentors([]);
+        const list = await fetchSpecialistsByTopics(topics, 3);
+        if (alive) setMentors(list.slice(0, 3));
+      })
+      .catch(() => alive && setMentors([]));
+    return () => {
+      alive = false;
+    };
+  }, [roomId]);
+
+  if (!mentors || mentors.length === 0) return null;
+
+  return (
+    <div className="border-b border-line px-3 py-2 md:px-5">
+      <div className="mx-auto flex w-full max-w-[760px] gap-2 overflow-x-auto scroll-quiet">
+        {mentors.map((m) => (
+          <div
+            key={m.nodeId}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-line bg-[var(--color-surface)] px-3 py-2"
+          >
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5">
+                <span className="truncate text-[12.5px] font-semibold text-ink">{m.label}</span>
+                {m.verified && <BadgeCheck size={12} style={{ color: "var(--color-accent)" }} />}
+              </span>
+              <span className="block text-[10.5px] text-[var(--color-dim)]">
+                {SPECIALIST_TYPE_FA[m.nodeType] ?? m.nodeType} · {TRUST_LABEL_FA[m.trustLabel] ?? m.trustLabelText}
+              </span>
+            </span>
+            {m.telegramHandle ? (
+              <a
+                href={telegramUrl(m.telegramHandle)}
+                target="_blank"
+                rel="noreferrer"
+                className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
+                style={{ background: "var(--color-accent)", color: "var(--color-on-accent)" }}
+              >
+                <Send size={11} /> تلگرام
+              </a>
+            ) : (
+              <a
+                href={`/s/${encodeURIComponent(m.nodeId)}`}
+                className="shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-bold"
+                style={{ background: "rgba(146,166,255,0.12)", color: "var(--color-ink)" }}
+              >
+                پروفایل
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
   const select = useUI((s) => s.select);
@@ -182,6 +260,8 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
           <Users size={15} />
         </button>
       </div>
+
+      <TrustedMentors roomId={roomId} />
 
       {/* Share sheet — one saved answer, every channel. The link is PUBLIC and
           previews in Telegram, so sharing help is how Trusty spreads. */}

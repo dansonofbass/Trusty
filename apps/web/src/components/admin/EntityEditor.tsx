@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Trash2, ImageIcon, GitBranch, X, Plus, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
+import { Trash2, ImageIcon, GitBranch, X, Plus, ArrowRight, ArrowLeft, Loader2, Copy, ExternalLink } from "lucide-react";
 import type { FieldDef } from "@constellation/graph-core";
 import {
   updateEntityAdmin, deleteEntityAdmin, nodeRelations, addRelation, removeRelation, listEntities,
@@ -65,6 +65,12 @@ function Field({ f, value, onChange }: { f: FieldDef; value: unknown; onChange: 
 }
 
 const cardCls = "rounded-2xl border border-line bg-surface backdrop-blur-md p-5";
+
+/** Entity types that carry a specialist profile at /s/[id] (mirror of graph-core's list). */
+const SPECIALIST_TYPES = new Set([
+  "lawyer", "broker", "immigration_consultant", "accountant", "doctor",
+  "dentist", "mechanic", "plumber", "electrician",
+]);
 
 /** Add / list / remove ontology relations (MEMBER_OF, ADVISES, …) for a node. */
 function RelationsSection({ nodeId }: { nodeId: string }) {
@@ -204,6 +210,26 @@ export default function EntityEditor({ row, fields, onSaved, onDeleted }: { row:
         </div>
         <span className="mt-5 rounded-full border border-line px-2.5 py-1 text-[11px] uppercase tracking-wider text-dim">{row.entityType ?? row.type}</span>
         {row.app && <span className="mt-5 rounded-full border border-line px-2.5 py-1 text-[11px] uppercase tracking-wider text-faint">{row.app}</span>}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-[12px] text-faint">
+        <button
+          onClick={() => void navigator.clipboard.writeText(row.id)}
+          className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 hover:text-ink"
+          title="Copy node ID"
+        >
+          <Copy size={12} /> {row.id}
+        </button>
+        {SPECIALIST_TYPES.has(row.entityType ?? "") && (
+          <a
+            href={`/s/${encodeURIComponent(row.id)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 hover:text-ink"
+          >
+            <ExternalLink size={12} /> View public profile
+          </a>
+        )}
       </div>
 
       <section className={cardCls}>
