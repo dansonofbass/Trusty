@@ -44,6 +44,20 @@ const TOPIC_LABEL: Record<string, string> = {
 
 const label = (t: string) => TOPIC_LABEL[t] ?? t.replace(/_/g, " ");
 
+/** Reads (and clears) the short-lived `survey_topic` cookie set by /survey's
+ *  "Join Trusty" CTA — a one-shot continuity handoff, not persistent state. */
+function consumeSurveyTopicCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)survey_topic=([^;]+)/);
+  if (!match) return null;
+  document.cookie = "survey_topic=; path=/; max-age=0";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
 const ORDER: OnboardingStep[] = ["welcome", "topics", "looking_for", "profile", "first_rec"];
 
 export default function OnboardingPage() {
@@ -64,7 +78,12 @@ export default function OnboardingPage() {
           router.replace("/");
           return;
         }
-        setTopics(s.topics ?? []);
+        // The public market-test survey (/survey) already asked "what's your
+        // biggest need" before signup; if that answer mapped to a known topic,
+        // pre-select it here so the same question is never asked twice.
+        const surveyTopic = consumeSurveyTopicCookie();
+        const topics0 = s.topics?.length ? s.topics : surveyTopic && TOPIC_TAXONOMY.includes(surveyTopic) ? [surveyTopic] : [];
+        setTopics(topics0);
         setLookingFor(s.lookingFor ?? []);
         setName(s.profile?.name ?? "");
         setCity(s.profile?.city ?? "");

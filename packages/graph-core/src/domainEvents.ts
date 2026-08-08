@@ -130,6 +130,12 @@ export const DOMAIN_EVENT_TYPES = [
   "specialist.verification_granted",
   "specialist.verification_revoked",
   "specialist.subscription_changed",
+  "specialist.topic_tags_set",
+  // public market-test survey (no auth — pre-signup)
+  "survey.started",
+  "survey.completed",
+  "survey.matches_shown",
+  "survey.join_clicked",
   // feedback / media
   "feedback.submitted",
   "media.uploaded",

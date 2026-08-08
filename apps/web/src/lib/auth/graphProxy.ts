@@ -82,3 +82,29 @@ export async function proxyGraphAdmin(req: NextRequest, path: string, method: Me
   // header they 403 the very requests this gate just authorized.
   return forward(req, session, refreshed, path, method, { "x-user-admin": "1" });
 }
+
+/**
+ * Unauthenticated proxy to a graph-service `/public/*` endpoint — no session,
+ * no identity headers. Only for routes that are deliberately open (the
+ * market-test survey, invite/answer previews): graph-service enforces its own
+ * read restrictions on everything under `/public/*`.
+ */
+export async function proxyGraphPublic(req: NextRequest, path: string, method: Method): Promise<NextResponse> {
+  const body = method === "GET" ? undefined : await req.text();
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${GRAPH}${path}`, {
+      method,
+      headers: { "content-type": "application/json" },
+      body,
+      cache: "no-store",
+    });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "graph-service unreachable" }, { status: 502 });
+  }
+  const text = await upstream.text();
+  return new NextResponse(text, {
+    status: upstream.status,
+    headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
+  });
+}
