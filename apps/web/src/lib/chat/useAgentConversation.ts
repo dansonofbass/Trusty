@@ -9,7 +9,13 @@ import type {
 } from "@constellation/graph-core";
 import type { QuotaExceeded } from "@/lib/billingClient";
 import { AgentUnavailableError, OutOfCreditsError, streamAgentTurn } from "@/lib/agentClient";
-import { TOOL_LABEL, type AgentChatEntry, type TrustToolData } from "@/components/composer/AgentChat";
+import {
+  TOOL_LABEL,
+  type AgentChatEntry,
+  type ForumPostToolData,
+  type TrustToolData,
+} from "@/components/composer/AgentChat";
+import type { ExpertsToolData } from "@/components/composer/ExpertSlotsCard";
 import { useUI } from "@/lib/store";
 import {
   createConversation,
@@ -96,7 +102,17 @@ export function useAgentConversation(opts?: {
             ev.tool === "extract_entities" && ev.ok && ev.data
               ? (ev.data as { text: string; extraction: ThoughtExtraction })
               : e.weaveData;
-          return { ...e, trace, trustData, weaveData };
+          // Specialists come back WITH their open times, so the thread can
+          // offer a real booking instead of a link to go and look.
+          const expertsData =
+            ev.tool === "find_expert" && ev.ok && ev.data
+              ? (ev.data as ExpertsToolData)
+              : e.expertsData;
+          const forumData =
+            ev.tool === "ask_forum" && ev.ok && ev.data
+              ? (ev.data as ForumPostToolData)
+              : e.forumData;
+          return { ...e, trace, trustData, weaveData, expertsData, forumData };
         });
       } else if (ev.type === "token") {
         patchTail((e) => ({ ...e, text: e.text + ev.content }));

@@ -318,9 +318,12 @@ import {
   bookingEnabled,
   cancelBooking,
   initBooking,
+  listAvailability,
   listSlots,
+  materializeSlots,
   myBookings,
   publishSlot,
+  setAvailability,
   withdrawSlot,
 } from "./booking";
 import {
@@ -2338,6 +2341,148 @@ app.get("/api/feed", async (req, res) => {
       // merged tag row would collide meanings from different circles.
       tags: circleId ? await circleTags(circleId) : [],
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/* ----------------------- routing a question to a circle ---------------- */
+
+/** Words too common to carry signal. Persian first — that's the corpus. */
+const ROUTE_STOPWORDS = new Set([
+  "و", "در", "به", "از", "که", "را", "با", "این", "برای", "است", "می", "هم", "یا", "تا", "بر",
+  "کنم", "کنید", "چه", "چی", "کی", "کجا", "چطور", "آیا", "شود", "شده", "دارم", "دارد", "باید",
+  "the", "a", "an", "and", "or", "to", "of", "in", "for", "is", "are", "do", "does", "how",
+  "what", "where", "when", "can", "i", "my", "me", "any", "some", "with", "on", "at",
+]);
+
+const routeTokens = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}_]+/u)
+    .filter((w) => w.length > 2 && !ROUTE_STOPWORDS.has(w));
+
+export interface CircleRouteCandidate {
+  circleId: string;
+  label: string;
+  score: number;
+  /** Machine-readable evidence — the client turns these into localised copy. */
+  reasons: { kind: string; value?: string; count?: number }[];
+  postCount: number;
+  mine: boolean;
+  open: boolean;
+  suggestedTags: string[];
+  /** Curated tags the question text actually matched — pre-checked in the UI. */
+  matchedTags: string[];
+}
+
+/**
+ * Which circle does this question belong in?
+ *
+ * Newcomers don't know the circle map, and "pick a circle" before "ask" is the
+ * step that loses the question. Ranking is deliberately explainable rather than
+ * clever — every point comes with a reason the UI can show, because the user
+ * has to be able to tell that the machine picked wrong and override it.
+ *
+ * Scoring, strongest first: a curated tag of the circle appearing verbatim in
+ * the text; the circle's own name; a topic tag from the shared taxonomy; a
+ * tag already in use on that circle's questions; description word overlap.
+ * Activity only ever breaks ties.
+ */
+async function routeQuestion(text: string, space: string, userId: string): Promise<CircleRouteCandidate[]> {
+  const lower = text.toLowerCase();
+  const tokens = new Set(routeTokens(text));
+  const nodes = circleNodes().filter((n) => String(circleProps(n).app ?? BUILTIN_APP) === space);
+  if (nodes.length === 0) return [];
+
+  const counts = forumEnabled() ? await postCountsByCircle(nodes.map((n) => n.id)) : {};
+  // Tags in use, per circle — one query each, but only over this space's
+  // circles and only when the forum is on.
+  const inUse = forumEnabled()
+    ? Object.fromEntries(
+        await Promise.all(
+          nodes.map(async (n) => [n.id, await circleTags(n.id).catch(() => [])] as const),
+        ),
+      )
+    : {};
+
+  const out: CircleRouteCandidate[] = nodes.map((n) => {
+    const reasons: CircleRouteCandidate["reasons"] = [];
+    const matchedTags: string[] = [];
+    let score = 0;
+
+    const suggested = circleSuggestedTags(n);
+    for (const tag of suggested) {
+      // Substring, not token equality: Persian compounds and ZWNJ variants
+      // ("نوبت‌دهی" inside "برای نوبت‌دهی چه کنم") would miss on tokens alone.
+      if (tag.length > 2 && lower.includes(tag.toLowerCase())) {
+        score += 3;
+        matchedTags.push(tag);
+        reasons.push({ kind: "tag", value: tag });
+      }
+    }
+
+    if (n.label.length > 2 && lower.includes(n.label.toLowerCase())) {
+      score += 2.5;
+      reasons.push({ kind: "name", value: n.label });
+    }
+
+    for (const topic of circleTopicTags(n)) {
+      if (tokens.has(topic) || lower.includes(topic.replace(/_/g, " "))) {
+        score += 2;
+        reasons.push({ kind: "topic", value: topic });
+      }
+    }
+
+    for (const { tag, count } of (inUse[n.id] ?? []) as { tag: string; count: number }[]) {
+      if (matchedTags.includes(tag)) continue; // already scored as a curated tag
+      if (tag.length > 2 && lower.includes(tag.toLowerCase())) {
+        score += 1.5;
+        matchedTags.push(tag);
+        reasons.push({ kind: "usedTag", value: tag, count });
+      }
+    }
+
+    const descHits = routeTokens(String(circleProps(n).description ?? "")).filter((w) => tokens.has(w));
+    if (descHits.length) {
+      score += Math.min(1.5, descHits.length * 0.5);
+      reasons.push({ kind: "description", count: descHits.length });
+    }
+
+    const postCount = counts[n.id] ?? 0;
+    // Activity is a tiebreak, never a reason to route somewhere irrelevant.
+    if (score > 0) score += Math.min(0.4, postCount / 250);
+
+    const members = squadMembers(n.id);
+    return {
+      circleId: n.id,
+      label: n.label,
+      score: Number(score.toFixed(3)),
+      reasons,
+      postCount,
+      mine: members.includes(userId),
+      open: circleProps(n).open !== false,
+      suggestedTags: suggested,
+      matchedTags,
+    };
+  });
+
+  const scored = out.filter((c) => c.score > 0).sort((a, b) => b.score - a.score);
+  // Nothing matched: offer the busiest circles rather than an empty list — the
+  // user still has to pick one, and a wrong default beats no default here.
+  if (scored.length === 0) {
+    return out.sort((a, b) => b.postCount - a.postCount).slice(0, 3);
+  }
+  return scored.slice(0, 3);
+}
+
+/** Suggest which circle a question belongs in (see {@link routeQuestion}). */
+app.post("/api/forum/route", async (req, res) => {
+  const { userId } = auth(req);
+  const text = str(req.body?.text, 1000);
+  if (!text) return res.status(400).json({ error: "text required" });
+  try {
+    res.json({ candidates: await routeQuestion(text, appOf(req), userId) });
   } catch (e) {
     res.status(500).json(asError(e));
   }
@@ -4430,18 +4575,121 @@ async function isVerifiedSpecialist(nodeId: string): Promise<boolean> {
 }
 
 /** Open slots for a specialist. Managers/admins also see booked ones. */
+/** A specialist's advertised session price, if they set one. Payment happens
+ *  between the two people (v1) — this is the number they agreed on, shown
+ *  everywhere a slot is, so nobody books expecting free. */
+function sessionPriceOf(nodeId: string): { amount: number; currency: string } | null {
+  const n = shared.nodes.find((x) => x.id === nodeId);
+  const props = (n as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
+  const amount = Number(props.sessionPrice);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return { amount, currency: String(props.sessionCurrency ?? "AMD") };
+}
+
 app.get("/api/specialists/:nodeId/slots", async (req, res) => {
   const { userId } = auth(req);
-  if (!bookingEnabled()) return res.json({ slots: [], canManage: false, verified: false });
+  if (!bookingEnabled()) return res.json({ slots: [], canManage: false, verified: false, availability: [], price: null });
   const nodeId = String(req.params.nodeId);
   try {
     const view = specialistsEnabled() ? await getSpecialist(nodeId, userId, isAdminReq(req)) : null;
     const canManage = !!view?.isManager || isAdminReq(req);
+    // Top up the rolling window on read: a weekly pattern set two months ago
+    // must still have bookable slots today without anyone running a cron.
+    await materializeSlots(nodeId).catch(() => 0);
     res.json({
       slots: await listSlots(nodeId, { includeBooked: canManage }),
       canManage,
       verified: await isVerifiedSpecialist(nodeId),
+      availability: await listAvailability(nodeId),
+      price: sessionPriceOf(nodeId),
     });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Replace the weekly availability pattern — managers of a VERIFIED specialist
+ *  (or an admin, who is themselves the human check). */
+app.put("/api/specialists/:nodeId/availability", async (req, res) => {
+  const { userId } = auth(req);
+  if (!bookingEnabled()) return res.status(503).json({ error: "booking unavailable" });
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.isManager && !isAdminReq(req)) return res.status(403).json({ error: "managers only" });
+    if (!isAdminReq(req) && !(await isVerifiedSpecialist(nodeId))) {
+      return res.status(403).json({ error: "a verification is required before publishing session times" });
+    }
+    if (!Array.isArray(req.body?.rules)) return res.status(400).json({ error: "rules (array) required" });
+    const r = await setAvailability(nodeId, req.body.rules);
+    if (!r.ok) return res.status(400).json({ error: r.error });
+    emitEvent("booking.availability_set", {
+      userId,
+      targetId: nodeId,
+      payload: { rules: r.rules.length, slotsCreated: r.created },
+    });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/** Set (or clear, with amount 0) the advertised session price. */
+app.patch("/api/specialists/:nodeId/session-price", async (req, res) => {
+  const { userId } = auth(req);
+  const nodeId = String(req.params.nodeId);
+  try {
+    const view = await getSpecialist(nodeId, userId, isAdminReq(req));
+    if (!view.isManager && !isAdminReq(req)) return res.status(403).json({ error: "managers only" });
+    const amount = Math.max(0, Math.round(Number(req.body?.amount) || 0));
+    const currency = (str(req.body?.currency, 8) ?? "AMD").toUpperCase();
+    await serialize(async () => {
+      const nodes = shared.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              properties: {
+                ...(n.properties ?? {}),
+                ...(amount > 0
+                  ? { sessionPrice: amount, sessionCurrency: currency }
+                  : { sessionPrice: undefined, sessionCurrency: undefined }),
+              },
+            }
+          : n,
+      );
+      return commitShared(refreshDerived({ nodes, links: shared.links, meId: "system", recommendations: [] }));
+    });
+    emitEvent("booking.price_set", { userId, targetId: nodeId, payload: { amount, currency } });
+    res.json({ ok: true, price: sessionPriceOf(nodeId) });
+  } catch (e) {
+    res.status(500).json(asError(e));
+  }
+});
+
+/**
+ * Bookable experts for a topic — the agent's "find someone I can actually sit
+ * down with". Same trust ranking as /api/specialists, but each card carries its
+ * next open slots and its price, so the chat can offer a real booking rather
+ * than a link to go and look.
+ */
+app.get("/api/experts/bookable", async (req, res) => {
+  auth(req);
+  if (!specialistsEnabled()) return res.status(503).json({ error: "specialists unavailable" });
+  const topic = str(req.query.topic as unknown, 60);
+  if (!topic) return res.status(400).json({ error: "topic required" });
+  try {
+    const cards = await findSpecialistsByTopic(topic, 6);
+    const experts = await Promise.all(
+      cards.map(async (c) => {
+        if (!bookingEnabled()) return { ...c, slots: [], price: sessionPriceOf(c.nodeId) };
+        await materializeSlots(c.nodeId).catch(() => 0);
+        const slots = (await listSlots(c.nodeId).catch(() => [])).slice(0, 6);
+        return { ...c, slots, price: sessionPriceOf(c.nodeId) };
+      }),
+    );
+    // Someone with real availability outranks someone you'd have to chase.
+    experts.sort((a, b) => (b.slots.length > 0 ? 1 : 0) - (a.slots.length > 0 ? 1 : 0));
+    res.json({ topic, experts });
   } catch (e) {
     res.status(500).json(asError(e));
   }

@@ -424,6 +424,62 @@ export const en = {
   "time.hoursAgo": "{count}h ago",
   "time.daysAgo": "{count}d ago",
 
+  // ── agent chat chrome ────────────────────────────────────────────
+  "agent.label": "Agent",
+  "agent.thought": "Thought",
+  "agent.hiccups": "Worked, with some hiccups",
+  "agent.usedTools": "used {count} tools",
+  "agent.showTrustPaths": "Show {count} trust paths on the graph",
+  "agent.reviewEntities": "Review {count} entities and weave them into your sky",
+
+  // ── confirm cards ────────────────────────────────────────────────
+  "confirm.approve": "Approve",
+  "confirm.notNow": "Not now",
+  "confirm.approved": "approved",
+  "confirm.denied": "declined",
+  "confirm.topic": "Topic",
+  "confirm.geo": "Place",
+  "confirm.note": "Note",
+  "confirm.optional": "optional",
+
+  // ── routing a question to a circle ───────────────────────────────
+  "forumRoute.finding": "Finding the right topic…",
+  "forumRoute.none": "No circle in this community fits yet — pick one manually.",
+  "forumRoute.goesTo": "Goes to",
+  "forumRoute.change": "change",
+  "forumRoute.questionCount": "{count} questions",
+  "forumRoute.becauseTag": "mentions «{tag}»",
+  "forumRoute.becauseName": "names this circle",
+  "forumRoute.becauseTopic": "about {topic}",
+  "forumRoute.becauseDescription": "matches what this circle covers",
+  "forumRoute.becauseBusiest": "the busiest circle here ({count} questions)",
+  "forumRoute.openThread": "Open the question in {circle}",
+
+  // ── booking, in chat ─────────────────────────────────────────────
+  "booking.pickATime": "Pick a time",
+  "booking.noSlotsShort": "No published times — open their profile to ask.",
+  "booking.confirmedAt": "Booked — {day} at {time}",
+
+  // ── weekly availability ──────────────────────────────────────────
+  "availability.title": "My weekly availability",
+  "availability.intro":
+    "Set the hours you're free once and sessions are generated for the next few weeks automatically.",
+  "availability.minutes": "{count} min",
+  "availability.windowTooShort": "shorter than one session",
+  "availability.price": "Session price",
+  "availability.priceFree": "free",
+  "availability.priceHint":
+    "Shown wherever your times appear. Payment is arranged directly between you and the person — Trusty doesn't take it.",
+  "availability.weeklyCount": "{count} sessions a week",
+  "availability.created": "{count} new times published",
+  "day.sun": "Sunday",
+  "day.mon": "Monday",
+  "day.tue": "Tuesday",
+  "day.wed": "Wednesday",
+  "day.thu": "Thursday",
+  "day.fri": "Friday",
+  "day.sat": "Saturday",
+
   // ── generic ──────────────────────────────────────────────────────
   "common.loading": "Loading…",
   "common.save": "Save",
@@ -837,6 +893,57 @@ export const fa: Dictionary = {
   "time.minutesAgo": "{count} دقیقه پیش",
   "time.hoursAgo": "{count} ساعت پیش",
   "time.daysAgo": "{count} روز پیش",
+
+  "agent.label": "دستیار",
+  "agent.thought": "فکر کرد",
+  "agent.hiccups": "انجام شد، با کمی مشکل",
+  "agent.usedTools": "{count} ابزار استفاده شد",
+  "agent.showTrustPaths": "نمایش {count} مسیر اعتماد روی شبکه",
+  "agent.reviewEntities": "بررسی {count} مورد و افزودنشان به کهکشانت",
+
+  "confirm.approve": "تأیید",
+  "confirm.notNow": "الان نه",
+  "confirm.approved": "تأیید شد",
+  "confirm.denied": "رد شد",
+  "confirm.topic": "موضوع",
+  "confirm.geo": "مکان",
+  "confirm.note": "توضیح",
+  "confirm.optional": "اختیاری",
+
+  "forumRoute.finding": "دارم موضوع درست را پیدا می‌کنم…",
+  "forumRoute.none": "فعلاً هیچ حلقه‌ای مناسب این سوال نیست — خودت یکی انتخاب کن.",
+  "forumRoute.goesTo": "می‌رود به",
+  "forumRoute.change": "تغییر",
+  "forumRoute.questionCount": "{count} سوال",
+  "forumRoute.becauseTag": "به «{tag}» اشاره دارد",
+  "forumRoute.becauseName": "اسم همین حلقه را آورده",
+  "forumRoute.becauseTopic": "دربارهٔ {topic}",
+  "forumRoute.becauseDescription": "با موضوع این حلقه می‌خواند",
+  "forumRoute.becauseBusiest": "پرمراجعه‌ترین حلقه این‌جا ({count} سوال)",
+  "forumRoute.openThread": "دیدن سوال در {circle}",
+
+  "booking.pickATime": "یک وقت انتخاب کن",
+  "booking.noSlotsShort": "وقتی اعلام نکرده — از پروفایلش بپرس.",
+  "booking.confirmedAt": "رزرو شد — {day} ساعت {time}",
+
+  "availability.title": "وقت‌های هفتگی من",
+  "availability.intro":
+    "یک‌بار ساعت‌های آزادت را مشخص کن؛ جلسه‌های چند هفتهٔ آینده خودکار ساخته می‌شوند.",
+  "availability.minutes": "{count} دقیقه",
+  "availability.windowTooShort": "کوتاه‌تر از یک جلسه",
+  "availability.price": "هزینهٔ جلسه",
+  "availability.priceFree": "رایگان",
+  "availability.priceHint":
+    "هرجا وقت‌هایت نشان داده شود این هم دیده می‌شود. پرداخت مستقیم بین خودت و طرف مقابل است — تراستی چیزی برنمی‌دارد.",
+  "availability.weeklyCount": "{count} جلسه در هفته",
+  "availability.created": "{count} وقت تازه منتشر شد",
+  "day.sun": "یکشنبه",
+  "day.mon": "دوشنبه",
+  "day.tue": "سه‌شنبه",
+  "day.wed": "چهارشنبه",
+  "day.thu": "پنجشنبه",
+  "day.fri": "جمعه",
+  "day.sat": "شنبه",
 
   "common.loading": "در حال بارگذاری…",
   "common.save": "ذخیره",

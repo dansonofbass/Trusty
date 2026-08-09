@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 
-import { Map as MapIcon, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Map as MapIcon, MessagesSquare, Sparkles } from "lucide-react";
 import type { ThoughtExtraction } from "@constellation/graph-core";
 import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge/AgentTrace";
 import type { TrustRec } from "@/lib/trustClient";
 import { GOLD } from "@/lib/palette";
 import ConfirmCard, { type PendingConfirm } from "./ConfirmCard";
+import ExpertSlotsCard, { type ExpertsToolData } from "./ExpertSlotsCard";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -31,6 +33,15 @@ export interface TrustToolData {
   recs: TrustRec[];
 }
 
+/** ask_forum's receipt: where the question landed, so the user can go read it. */
+export interface ForumPostToolData {
+  postId?: string;
+  circleId: string;
+  circleLabel?: string;
+  title: string;
+  tags: string[];
+}
+
 export interface AgentChatEntry {
   role: "user" | "assistant";
   text: string;
@@ -41,6 +52,10 @@ export interface AgentChatEntry {
   trustData?: TrustToolData | null;
   /** extract_entities payload — offered as a "review & weave" flow (#31). */
   weaveData?: { text: string; extraction: ThoughtExtraction } | null;
+  /** find_expert payload — specialists + their open times, bookable in place. */
+  expertsData?: ExpertsToolData | null;
+  /** ask_forum payload — a link to the thread that was just created. */
+  forumData?: ForumPostToolData | null;
 }
 
 /** Human labels for tool steps in the trace. */
@@ -52,6 +67,9 @@ export const TOOL_LABEL: Record<string, string> = {
   record_decision: "Recording your decision",
   create_ask: "Asking your network",
   recommend: "Recommending (trust + share)",
+  ask_forum: "Posting to the community",
+  find_expert: "Finding bookable specialists",
+  book_session: "Booking the session",
   request_listen: "Sending listen request",
   extract_entities: "Extracting entities",
 };
@@ -82,8 +100,8 @@ function ThinkingBlock({ steps, active }: { steps: ThinkStep[]; active: boolean 
         className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11.5px] text-[var(--color-faint)] transition hover:text-ink"
       >
         <span style={{ color: hasError ? "#fda4af" : GOLD }}>✻</span>
-        {hasError ? "Worked with some hiccups" : "Thought"}
-        {tools > 0 && <span>· used {tools} tool{tools === 1 ? "" : "s"}</span>}
+        {tr(hasError ? "agent.hiccups" : "agent.thought")}
+        {tools > 0 && <span>· {tr("agent.usedTools", { count: tools })}</span>}
         <span className={`transition-transform ${open ? "rotate-90" : ""}`}>›</span>
       </button>
       {open && (
@@ -111,25 +129,26 @@ export default function AgentChat({
   onShowOnGraph: (data: TrustToolData) => void;
   onWeaveRequest?: (text: string, extraction: ThoughtExtraction) => void;
 }) {
+  const t = useT();
   if (!entries.length) return null;
   return (
     <div className="mb-3 space-y-3">
       {entries.map((e, i) =>
         e.role === "user" ? (
-          <div key={i} dir="auto" className="ml-8 rounded-2xl rounded-tr-sm border border-line bg-[rgba(146,166,255,0.08)] px-3 py-2 text-[12.5px] leading-relaxed text-ink">
+          <div key={i} dir="auto" className="ms-8 rounded-2xl rounded-tr-sm border border-line bg-[rgba(146,166,255,0.08)] px-3 py-2 text-[12.5px] leading-relaxed text-ink">
             {e.text}
           </div>
         ) : (
-          <div key={i} className="mr-2">
+          <div key={i} className="me-2">
             <span className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
-              <Sparkles size={11} /> Agent
+              <Sparkles size={11} /> {t("agent.label")}
             </span>
             {e.trace.length > 0 && <ThinkingBlock steps={toSteps(e.trace)} active={!!e.streaming} />}
             {(e.text || e.streaming) && (
               <div dir="auto" className="mt-1.5 text-[12.5px] leading-relaxed text-ink">
                 <MarkdownLite text={e.text} />
                 {e.streaming && (
-                  <span className="ml-0.5 inline-block h-3.5 w-[7px] animate-pulse align-middle" style={{ background: GOLD }} />
+                  <span className="ms-0.5 inline-block h-3.5 w-[7px] animate-pulse align-middle" style={{ background: GOLD }} />
                 )}
               </div>
             )}
@@ -139,7 +158,7 @@ export default function AgentChat({
                 onClick={() => onShowOnGraph(e.trustData!)}
                 className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-[rgba(255,140,90,0.5)] bg-[rgba(255,140,90,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#ff8c5a]"
               >
-                <MapIcon size={12} /> Show {e.trustData.recs.length} trust path{e.trustData.recs.length === 1 ? "" : "s"} on the graph
+                <MapIcon size={12} /> {t("agent.showTrustPaths", { count: e.trustData.recs.length })}
               </button>
             )}
             {e.weaveData && onWeaveRequest && (
@@ -148,8 +167,19 @@ export default function AgentChat({
                 onClick={() => onWeaveRequest(e.weaveData!.text, e.weaveData!.extraction)}
                 className="mt-1.5 flex items-center gap-1.5 rounded-lg border border-[rgba(154,240,200,0.5)] bg-[rgba(154,240,200,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#9af0c8]"
               >
-                <Sparkles size={12} /> Review {e.weaveData.extraction.entities.length} entities &amp; weave into your sky
+                <Sparkles size={12} /> {t("agent.reviewEntities", { count: e.weaveData.extraction.entities.length })}
               </button>
+            )}
+            {e.expertsData && <ExpertSlotsCard data={e.expertsData} />}
+            {e.forumData?.postId && (
+              <Link
+                href={`/c/${encodeURIComponent(e.forumData.circleId)}/p/${encodeURIComponent(e.forumData.postId)}`}
+                className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-semibold"
+                style={{ borderColor: "var(--color-accent-line)", background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+              >
+                <MessagesSquare size={12} />
+                <span dir="auto">{t("forumRoute.openThread", { circle: e.forumData.circleLabel ?? "" })}</span>
+              </Link>
             )}
             {e.confirm && (
               <ConfirmCard

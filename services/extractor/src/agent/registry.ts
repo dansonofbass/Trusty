@@ -536,6 +536,169 @@ const requestListen: AgentTool = {
   },
 };
 
+/* ------------------- ask the forum / book an expert ------------------- */
+
+interface RouteCandidate {
+  circleId: string;
+  label: string;
+  score: number;
+  mine: boolean;
+  open: boolean;
+  postCount: number;
+  matchedTags: string[];
+  suggestedTags: string[];
+  reasons: { kind: string; value?: string; count?: number }[];
+}
+
+/**
+ * Posting to a circle is the OTHER way to ask the network: `create_ask`
+ * broadcasts to the people who listen to you and dies in a feed, this puts the
+ * question somewhere permanent where the next person with it will find the
+ * answer. Prefer it for anything a stranger could also be wondering.
+ */
+const askForum: AgentTool = {
+  name: "ask_forum",
+  description:
+    "Post the user's question to the community forum, in the circle it belongs to. Use for general questions others will also have (residency paperwork, taxes, banks, housing…) — it stays searchable forever, unlike create_ask which only reaches the user's own listeners. Do NOT pass circleId unless the user named a circle: the tool picks the best one and the user confirms or changes it.",
+  confirm: true,
+  confirmTitle: "Post this to the community?",
+  confirmDescription:
+    "Your question goes to the circle below — you can change which one. Members answer, and the thread stays searchable for whoever asks next.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      title: { type: "string", description: "The question, one line, in the user's own language" },
+      body: { type: "string", description: "Context that helps someone answer: dates, what they tried" },
+      circleId: { type: "string", description: "Only if the user explicitly named a circle" },
+      tags: { type: "array", items: { type: "string" }, description: "Tags from the circle's vocabulary" },
+    },
+    required: ["title"],
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const title = str(args.title, 200);
+    if (!title) return { ok: false, summary: "title required" };
+    const body = str(args.body, 4000) ?? "";
+
+    let circleId = str(args.circleId, 200);
+    let routed: RouteCandidate | undefined;
+    let candidates: RouteCandidate[] = [];
+    if (!circleId) {
+      const r = await graphFetch(ctx, "/api/forum/route", {
+        method: "POST",
+        body: { text: `${title}\n${body}` },
+      });
+      candidates = ((r.body as { candidates?: RouteCandidate[] })?.candidates ?? []).slice(0, 3);
+      routed = candidates[0];
+      circleId = routed?.circleId;
+    }
+    if (!circleId) {
+      return { ok: false, summary: "no circle in this community matches that question — ask the user to pick one" };
+    }
+
+    const tags = strArr(args.tags, 6) ?? routed?.matchedTags ?? [];
+    const r = await graphFetch(ctx, `/api/circles/${encodeURIComponent(circleId)}/posts`, {
+      method: "POST",
+      body: { title, body, tags },
+    });
+    if (!r.ok) return fail(r.body, r.status);
+    const postId = (r.body as { id?: string })?.id;
+    return {
+      ok: true,
+      summary: `posted "${title}" to ${routed?.label ?? circleId}${
+        tags.length ? ` (tagged ${tags.join(", ")})` : ""
+      } — tell the user where it went and that answers will notify them`,
+      data: { postId, circleId, circleLabel: routed?.label, candidates, title, tags },
+    };
+  },
+};
+
+interface BookableExpert {
+  nodeId: string;
+  label: string;
+  nodeType: string;
+  verified: boolean;
+  trustLabelText: string;
+  slots: { id: string; startsAt: string; endsAt: string }[];
+  price: { amount: number; currency: string } | null;
+}
+
+const findExpert: AgentTool = {
+  name: "find_expert",
+  description:
+    `Find verified specialists for a topic who have bookable session times. Use when the user's problem needs a professional (a lawyer, accountant, doctor…) rather than a community answer — especially after trust_search or ask_forum, when the question needs someone accountable. Topic MUST be one of: ${TOPIC_LIST}. The UI shows their open times so the user can book right there; do NOT invent times, just say who is available.`,
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      topic: { type: "string", description: `One of: ${TOPIC_LIST}` },
+    },
+    required: ["topic"],
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const topic = canonicalTopic(args.topic);
+    if (!topic) return topicError(args.topic);
+    const r = await graphFetch(ctx, `/api/experts/bookable?topic=${encodeURIComponent(topic)}`);
+    if (!r.ok) return fail(r.body, r.status);
+    const experts = ((r.body as { experts?: BookableExpert[] })?.experts ?? []).slice(0, 6);
+    if (experts.length === 0) {
+      return { ok: true, summary: `no listed specialists for ${topic} yet`, data: { topic, experts: [] } };
+    }
+    const withSlots = experts.filter((e) => e.slots.length > 0);
+    const lines = experts.map(
+      (e) =>
+        `${e.label} (${e.nodeType}${e.verified ? ", verified" : ""}, ${e.trustLabelText})${
+          e.slots.length ? ` — ${e.slots.length} open times` : " — no published times"
+        }${e.price ? `, ${e.price.amount} ${e.price.currency}/session` : ""}`,
+    );
+    return {
+      ok: true,
+      summary: `${experts.length} specialists for ${topic}; ${withSlots.length} have open session times:\n${lines.join("\n")}`,
+      data: { topic, experts },
+    };
+  },
+};
+
+const bookSession: AgentTool = {
+  name: "book_session",
+  description:
+    "Book a specific open session time with a specialist. Only call with a slotId that came from find_expert in this conversation — never a guessed one. If the user hasn't chosen a time, show them find_expert's results instead and let them tap one.",
+  confirm: true,
+  confirmTitle: "Book this session?",
+  confirmDescription:
+    "The time is reserved for you and the specialist is notified. Payment, if any, is arranged directly between you.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      specialistId: { type: "string", description: "Specialist node id from find_expert" },
+      slotId: { type: "string", description: "Slot id from find_expert" },
+      note: { type: "string", description: "What the user wants to cover (max 500)" },
+    },
+    required: ["specialistId", "slotId"],
+  },
+  async execute(input, ctx) {
+    const args = (input ?? {}) as Record<string, unknown>;
+    const specialistId = str(args.specialistId, 200);
+    const slotId = str(args.slotId, 60);
+    if (!specialistId || !slotId) return { ok: false, summary: "specialistId and slotId required" };
+    const r = await graphFetch(
+      ctx,
+      `/api/specialists/${encodeURIComponent(specialistId)}/slots/${encodeURIComponent(slotId)}/book`,
+      { method: "POST", body: { note: str(args.note, 500) } },
+    );
+    if (!r.ok) return fail(r.body, r.status);
+    const slot = (r.body as { slot?: { startsAt?: string } })?.slot;
+    return {
+      ok: true,
+      summary: `session booked for ${slot?.startsAt ?? "the chosen time"} (UTC) — both sides notified`,
+      data: r.body,
+    };
+  },
+};
+
 /** The composer agent's tool set. Data-driven: sub-agents later register as
  *  `kind: "agent"` entries without touching the loop. */
 export function buildComposerRegistry(extra: AgentTool[] = []): ToolRegistry {
@@ -548,6 +711,9 @@ export function buildComposerRegistry(extra: AgentTool[] = []): ToolRegistry {
     updateJourney,
     recordDecision,
     createAsk,
+    askForum,
+    findExpert,
+    bookSession,
     recommend,
     requestListen,
     ...extra,

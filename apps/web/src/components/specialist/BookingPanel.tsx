@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Check, Loader2, Plus, X } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
+import AvailabilityEditor from "./AvailabilityEditor";
+import { formatPrice, type AvailabilityRule, type SessionPrice } from "@/lib/bookingClient";
 
 /**
  * Session times on a specialist profile.
@@ -31,10 +33,12 @@ const fmt = (iso: string) =>
   });
 
 export default function BookingPanel({ nodeId }: { nodeId: string }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [availability, setAvailability] = useState<AvailabilityRule[]>([]);
+  const [price, setPrice] = useState<SessionPrice | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -44,10 +48,18 @@ export default function BookingPanel({ nodeId }: { nodeId: string }) {
   const load = useCallback(async () => {
     try {
       const r = await fetch(`/api/specialists/${encodeURIComponent(nodeId)}/slots`, { cache: "no-store" });
-      const d = (await r.json()) as { slots: Slot[]; canManage: boolean; verified: boolean };
+      const d = (await r.json()) as {
+        slots: Slot[];
+        canManage: boolean;
+        verified: boolean;
+        availability?: AvailabilityRule[];
+        price?: SessionPrice | null;
+      };
       setSlots(d.slots ?? []);
       setCanManage(!!d.canManage);
       setVerified(!!d.verified);
+      setAvailability(d.availability ?? []);
+      setPrice(d.price ?? null);
     } catch {
       setSlots([]);
     }
@@ -95,6 +107,16 @@ export default function BookingPanel({ nodeId }: { nodeId: string }) {
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-[13px] font-extrabold uppercase tracking-wide text-faint">
           <CalendarClock size={14} /> {t("booking.sessions")}
+          {/* Advertised, not charged: v1 settles between the two people, so the
+              number has to be visible before anyone taps "book". */}
+          {price && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}
+            >
+              {formatPrice(price, locale)}
+            </span>
+          )}
         </h2>
         {canManage && verified && (
           <button
@@ -108,6 +130,15 @@ export default function BookingPanel({ nodeId }: { nodeId: string }) {
 
       {canManage && !verified && (
         <p className="mt-2 text-[12.5px] leading-relaxed text-dim">{t("booking.verifyFirst")}</p>
+      )}
+
+      {canManage && verified && (
+        <AvailabilityEditor
+          nodeId={nodeId}
+          initialRules={availability}
+          initialPrice={price}
+          onSaved={() => void load()}
+        />
       )}
 
       {adding && (
