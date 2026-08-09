@@ -494,7 +494,14 @@ body {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
 }
+/* RTL: the drawer is anchored to the right edge, so it must slide in from the
+   right — the LTR keyframe would fly it in from off-screen on the wrong side. */
+@keyframes drawer-in-rtl {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
 .drawer-in { animation: drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+[dir="rtl"] .drawer-in { animation-name: drawer-in-rtl; }
 @media (prefers-reduced-motion: reduce) {
   .drawer-in { animation: none; }
 }

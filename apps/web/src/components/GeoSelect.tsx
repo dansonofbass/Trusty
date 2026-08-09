@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { GEO_OPTIONS, geoLabel } from "@constellation/graph-core";
+import { useT } from "@/lib/i18n";
 
 /**
  * Location select — Trusty explores one country at a time (Armenia, v1).
@@ -29,6 +30,7 @@ export default function GeoSelect({
   icon?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -107,7 +109,7 @@ export default function GeoSelect({
             }}
           >
             {allowAnywhere && (
-              <OptionRow active={!value} label="Anywhere in Armenia" onClick={() => pick("")} muted />
+              <OptionRow active={!value} label={t("geo.anywhere")} onClick={() => pick("")} muted />
             )}
             {GEO_OPTIONS.map((g) => (
               <div key={g.label}>

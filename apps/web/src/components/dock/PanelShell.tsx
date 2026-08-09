@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Shared chrome for the right-side workspaces (Compose / Asks / Add entity /
@@ -23,6 +24,7 @@ export default function PanelShell({
   /** Small controls rendered between the title and the close button. */
   headerExtra?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <aside
       className="rise pointer-events-auto fixed bottom-4 right-4 top-4 z-40 flex w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[20px] border border-line shadow-2xl"
@@ -48,7 +50,7 @@ export default function PanelShell({
         {headerExtra}
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t("common.close")}
           onClick={onClose}
           className="rounded-lg p-1.5 text-[var(--color-faint)] transition hover:bg-[var(--color-tint)] hover:text-ink"
         >

@@ -64,6 +64,7 @@ const COMMUNITY_NAV: NavItem[] = [
   { href: "/ask", labelKey: "nav.ask", icon: MessageCircle },
   { href: "/experts", labelKey: "nav.experts", icon: BadgeCheck },
   { href: "/messages", labelKey: "nav.messages", icon: MessagesSquare },
+  { href: "/graph", labelKey: "nav.graph", icon: Orbit },
 ];
 
 /**

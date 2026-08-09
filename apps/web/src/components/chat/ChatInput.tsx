@@ -17,6 +17,7 @@ import { parseSlashToken, skillsForSpace, type Skill } from "@/lib/skills";
 import { spaceFromHost } from "@/lib/space";
 import { X } from "lucide-react";
 import { GOLD } from "@/lib/palette";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 /** Same key as the mobile Composer — one private draft, every surface. */
 const DRAFT_KEY = "trusty_composer_draft_v1";
@@ -26,14 +27,14 @@ const DRAFT_KEY = "trusty_composer_draft_v1";
 const isTouch = () =>
   typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
-const INTENT_META: Record<ComposerIntent, { label: string; icon: React.ElementType; color: string }> = {
-  search: { label: "Search", icon: SearchIcon, color: "#3fc6f4" },
-  question: { label: "Question", icon: SearchIcon, color: "#3fc6f4" },
-  recommendation: { label: "Recommendation", icon: Megaphone, color: "#ff8c5a" },
-  experience: { label: "Experience", icon: Sparkles, color: "#54d26e" },
-  decision_update: { label: "Decision", icon: Check, color: "#e25cff" },
-  note: { label: "Private note", icon: FileText, color: "#8e97bd" },
-  unknown: { label: "…", icon: FileText, color: "#8e97bd" },
+const INTENT_META: Record<ComposerIntent, { labelKey: TranslationKey; icon: React.ElementType; color: string }> = {
+  search: { labelKey: "intent.search", icon: SearchIcon, color: "#3fc6f4" },
+  question: { labelKey: "intent.question", icon: SearchIcon, color: "#3fc6f4" },
+  recommendation: { labelKey: "intent.recommendation", icon: Megaphone, color: "#ff8c5a" },
+  experience: { labelKey: "intent.experience", icon: Sparkles, color: "#54d26e" },
+  decision_update: { labelKey: "intent.decision", icon: Check, color: "#e25cff" },
+  note: { labelKey: "intent.note", icon: FileText, color: "#8e97bd" },
+  unknown: { labelKey: "intent.unknown", icon: FileText, color: "#8e97bd" },
 };
 
 /**
@@ -74,6 +75,9 @@ export default function ChatInput({
   const [mentionDismissed, setMentionDismissed] = useState(false);
   const mentionMapRef = useRef<Map<string, ResolvedMention>>(new Map());
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // `tr`, not the usual `t` — this file already binds `t` to trimmed text and
+  // to a topic in a map callback, and shadowing the translator is a trap.
+  const tr = useT();
 
   // Draft preservation: survive refresh/crash/navigation.
   useEffect(() => {
@@ -196,10 +200,10 @@ export default function ChatInput({
           rows={compact ? 2 : 4}
           placeholder={
             isTouch()
-              ? "Ask anything — / for skills, @ to mention"
+              ? tr("chat.placeholderShort")
               : agentMode
-                ? "Ask, need, recommend, note… the agent detects intent, searches your network and acts — outward actions wait for your OK. Enter to send, Shift+Enter for a new line."
-                : "Write naturally — search, recommend, capture an experience, note a decision… the heuristics sort it out."
+                ? tr("chat.placeholderAgent")
+                : tr("chat.placeholderQuick")
           }
           className="w-full resize-none bg-transparent text-[16px] leading-snug text-ink outline-none placeholder:text-[var(--color-faint)] md:text-[13.5px] md:leading-relaxed"
         />
@@ -212,7 +216,7 @@ export default function ChatInput({
               title={skill.description}
             >
               {skill.icon} {skill.name}
-              <button type="button" onClick={() => setSkill(null)} aria-label="Leave skill" className="ml-0.5 opacity-70 hover:opacity-100">
+              <button type="button" onClick={() => setSkill(null)} aria-label={tr("chat.leaveSkill")} className="ms-0.5 opacity-70 hover:opacity-100">
                 <X size={11} />
               </button>
             </span>
@@ -223,7 +227,7 @@ export default function ChatInput({
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
                 style={{ background: `${primary.color}22`, color: primary.color }}
               >
-                <primary.icon size={10} /> {primary.label}
+                <primary.icon size={10} /> {tr(primary.labelKey)}
               </span>
               {analysis.topics.slice(0, 3).map((t) => (
                 <span key={t} className="rounded-full bg-[rgba(146,166,255,0.1)] px-2 py-0.5 text-[10px] text-[var(--color-dim)]">
@@ -238,14 +242,14 @@ export default function ChatInput({
             </>
           )}
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ms-auto flex items-center gap-1.5">
             {showSearch && text.trim() && (
               <button
                 onClick={() => onQuickSearch(text)}
                 disabled={busy !== null}
                 className="flex items-center gap-1.5 rounded-lg border border-[rgba(63,198,244,0.5)] bg-[rgba(63,198,244,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#3fc6f4] disabled:opacity-50"
               >
-                {busy === "search" ? <Loader2 className="animate-spin" size={12} /> : <SearchIcon size={12} />} Search network
+                {busy === "search" ? <Loader2 className="animate-spin" size={12} /> : <SearchIcon size={12} />} {tr("chat.searchNetwork")}
               </button>
             )}
             {text.trim() && (
@@ -259,26 +263,26 @@ export default function ChatInput({
                   });
                 }}
                 disabled={busy !== null}
-                title="Save privately to your workspace"
+                title={tr("chat.saveHint")}
                 className="flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-ink disabled:opacity-50"
               >
-                {busy === "save" ? <Loader2 className="animate-spin" size={12} /> : <Lock size={12} />} Save
+                {busy === "save" ? <Loader2 className="animate-spin" size={12} /> : <Lock size={12} />} {tr("common.save")}
               </button>
             )}
             {text.trim().length >= 12 && (
               <button
                 onClick={() => onWeave(text)}
-                title="Extract entities from this text and weave them into your knowledge graph"
+                title={tr("chat.weaveHint")}
                 className="flex items-center gap-1.5 rounded-lg border border-[rgba(154,240,200,0.5)] bg-[rgba(154,240,200,0.08)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#9af0c8]"
               >
-                <Sparkles size={12} /> Weave
+                <Sparkles size={12} /> {tr("chat.weave")}
               </button>
             )}
             {agentMode && (
               <button
                 onClick={send}
                 disabled={sending || !text.trim()}
-                aria-label="Send"
+                aria-label={tr("chat.send")}
                 className="grid h-9 w-9 place-items-center rounded-full text-space disabled:opacity-40"
                 style={{ background: GOLD }}
               >

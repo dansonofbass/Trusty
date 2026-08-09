@@ -16,6 +16,7 @@ import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { useChat } from "@/lib/chat/ChatProvider";
 import { resolveScope, trustSearch as runTrustSearch, type TrustRec } from "@/lib/trustClient";
 import { saveDraft } from "@/lib/writings";
+import { useT, type Translate } from "@/lib/i18n";
 
 interface HeroCard {
   title: string;
@@ -24,8 +25,18 @@ interface HeroCard {
   href?: string;
 }
 
-/** Space-aware hero suggestions: each community's front door teaches ITS jobs. */
-function heroCardsForSpace(space: string | null): HeroCard[] {
+/**
+ * Space-aware hero suggestions: each community's front door teaches ITS jobs.
+ *
+ * The `prompt` is translated too, not just the label — the agent answers in
+ * whatever language it is asked in, so a Persian card that fires an English
+ * prompt would get an English answer back and undo the whole point.
+ *
+ * Summit's cards stay untranslated on purpose: that space is English-audience
+ * and retired (SPACE_META.listed === false), so keys for it would be dead
+ * weight in every dictionary.
+ */
+function heroCardsForSpace(space: string | null, t: Translate): HeroCard[] {
   if (space === "summit") {
     return [
       { title: "🎪 Get set up for the Summit", prompt: "/summit set me up", sub: "Profile, program, squad — 1 minute" },
@@ -36,17 +47,17 @@ function heroCardsForSpace(space: string | null): HeroCard[] {
   }
   if (space === "irham") {
     return [
-      { title: "🏛 Residency & documents", prompt: "What documents do I need for the residency application?", sub: "Saved community answers, with author + date" },
-      { title: "🧾 Find a trusted accountant", prompt: "Find a trusted accountant for my IE", sub: "Ranked by your community's real experience" },
-      { title: "⭕ Browse the topics", href: "/", sub: "Residency · Accounting · Jobs · Health — pick yours" },
-      { title: "📣 Ask the community", prompt: "Ask my network: which bank is currently opening accounts?", sub: "Reaches people who listen to you" },
+      { title: t("hero.irhamResidency"), prompt: t("hero.irhamResidencyPrompt"), sub: t("hero.irhamResidencySub") },
+      { title: t("hero.irhamAccountant"), prompt: t("hero.irhamAccountantPrompt"), sub: t("hero.irhamAccountantSub") },
+      { title: t("hero.irhamTopics"), href: "/", sub: t("hero.irhamTopicsSub") },
+      { title: t("hero.irhamAsk"), prompt: t("hero.irhamAskPrompt"), sub: t("hero.irhamAskSub") },
     ];
   }
   return [
-    { title: "🔍 Find someone trusted", prompt: "Find a trusted dentist in Yerevan", sub: "Search your network's real experience" },
-    { title: "⭕ Create a circle", href: "/messages", sub: "A group chat + shared memory for your community" },
-    { title: "📝 Capture a thought", prompt: "Note: ", sub: "Notes link people, places and ideas automatically" },
-    { title: "📣 Ask your network", prompt: "Ask my network: ", sub: "Broadcast a need to people who listen to you" },
+    { title: t("hero.findTrusted"), prompt: t("hero.findTrustedPrompt"), sub: t("hero.findTrustedSub") },
+    { title: t("hero.createCircle"), href: "/messages", sub: t("hero.createCircleSub") },
+    { title: t("hero.capture"), prompt: t("hero.capturePrompt"), sub: t("hero.captureSub") },
+    { title: t("hero.askNetwork"), prompt: t("hero.askNetworkPrompt"), sub: t("hero.askNetworkSub") },
   ];
 }
 
@@ -66,6 +77,7 @@ const KIND_FOR_INTENT: Record<string, string> = {
  * conversation starts. Sessions are ephemeral in P1 — persistence is Phase 2.
  */
 export default function ChatView() {
+  const t = useT();
   const router = useRouter();
   const { dataset, mode, pending, handleExtract, handleWeave } = useGraphData();
   const { chat, sending, agentMode, runTurn, decide, newChat, quota, clearQuota } = useChat();
@@ -121,13 +133,13 @@ export default function ChatView() {
       const scope = await resolveScope(text).catch(() => null);
       const topic = scope?.topic ?? analyzeComposerText(text).topics[0];
       if (!topic) {
-        flash("Couldn't tell the topic — mention it (e.g. lawyer, dentist).");
+        flash(t("chat.noTopic"));
         return;
       }
       const res = await runTrustSearch({ topic, geo: scope?.geo, context: scope?.context });
       setTrustSearch({ topic, geo: scope?.geo, recs: res.recommendations });
       if (res.recommendations.length) router.push("/graph");
-      else flash("No trusted results yet — try listening to more people.");
+      else flash(t("chat.noTrustedResults"));
     } finally {
       setBusy(null);
     }
@@ -147,7 +159,7 @@ export default function ChatView() {
         collections: analysis.topics,
       });
       bumpDocs();
-      flash("Saved privately to your workspace 🔒");
+      flash(t("chat.savedPrivately"));
       return true;
     } finally {
       setBusy(null);
@@ -161,21 +173,21 @@ export default function ChatView() {
         onClick={() => setRightPanel("addEntity")}
         className="flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--color-dim)] backdrop-blur-md transition hover:text-ink"
       >
-        <Plus size={13} /> Add
+        <Plus size={13} /> {t("chat.add")}
       </button>
       <button
         type="button"
         onClick={() => router.push("/asks")}
         className="flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--color-dim)] backdrop-blur-md transition hover:text-ink"
       >
-        <Megaphone size={13} /> Asks
+        <Megaphone size={13} /> {t("nav.asks")}
       </button>
       <button
         type="button"
         onClick={() => setRightPanel("invite")}
         className="flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-1.5 text-[12px] font-medium text-[var(--color-dim)] backdrop-blur-md transition hover:text-ink"
       >
-        <UserPlus size={13} /> Invite
+        <UserPlus size={13} /> {t("chat.invite")}
       </button>
     </div>
   );
@@ -225,22 +237,23 @@ export default function ChatView() {
             className="text-center text-[26px] font-bold leading-tight text-ink md:text-[34px]"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            What are you looking for?
+            {t("chat.heroTitle")}
           </h1>
           <p className="mb-6 mt-2 text-center text-[13.5px] leading-relaxed text-[var(--color-dim)]">
-            The agent interprets your needs, navigates your network, and acts upon your approval.
+            {t("chat.heroSub")}
           </p>
           {input}
           {heroChips}
           {/* Try-asking guide: space-aware suggestion cards — one tap runs the
               prompt (or routes); "everything" opens the full command catalog. */}
           <div className="mx-auto mt-6 grid w-full max-w-[620px] grid-cols-1 gap-2 sm:grid-cols-2">
-            {heroCardsForSpace(spaceFromHost()).map((c) => (
+            {heroCardsForSpace(spaceFromHost(), t).map((c) => (
               <button
                 key={c.title}
                 type="button"
+                dir="auto"
                 onClick={() => (c.href ? router.push(c.href) : void runTurn({ text: c.prompt! }))}
-                className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-2.5 text-left backdrop-blur-md transition hover:border-[var(--color-accent-line)]"
+                className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-3.5 py-2.5 text-start backdrop-blur-md transition hover:border-[var(--color-accent-line)]"
               >
                 <div className="text-[12.5px] font-semibold text-ink">{c.title}</div>
                 <div className="mt-0.5 text-[11px] text-[var(--color-faint)]">{c.sub}</div>
@@ -254,13 +267,13 @@ export default function ChatView() {
               className="text-[11.5px] font-semibold underline decoration-dotted underline-offset-4 transition hover:text-ink"
               style={{ color: "var(--color-accent)" }}
             >
-              Everything you can ask →
+              {t("chat.everything")}
             </button>
           </div>
           {guideOpen && <GuideSheet onRun={(p) => void runTurn({ text: p })} onClose={() => setGuideOpen(false)} />}
           {!agentMode && (
             <p className="mt-3 text-center text-[11px] text-[var(--color-faint)]">
-              AI agent offline — quick mode (heuristics) active.
+              {t("chat.agentOffline")}
             </p>
           )}
           {toast && (
@@ -277,15 +290,15 @@ export default function ChatView() {
       <div className="hidden items-center gap-2 border-b border-line px-5 py-2.5 md:flex">
         <Sparkles size={13} style={{ color: "var(--color-accent)" }} />
         <span className="text-[12.5px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-          {agentMode ? "AI agent" : "Quick mode — agent offline"}
+          {agentMode ? t("chat.agentMode") : t("chat.quickMode")}
         </span>
         <button
           type="button"
           onClick={newChat}
-          title="New conversation"
-          className="ml-auto flex items-center gap-1 text-[11px] text-[var(--color-faint)] transition hover:text-ink"
+          title={t("nav.newChat")}
+          className="ms-auto flex items-center gap-1 text-[11px] text-[var(--color-faint)] transition hover:text-ink"
         >
-          <RotateCcw size={11} /> New chat
+          <RotateCcw size={11} /> {t("nav.newChat")}
         </button>
       </div>
 

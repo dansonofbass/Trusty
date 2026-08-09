@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
+import { useT } from "@/lib/i18n";
 import { useUI } from "@/lib/store";
 import { fetchNotifications } from "@/lib/socialClient";
 
 /** Bell button with a live unread badge. Polls lightly (45s + tab focus);
  *  opening the panel marks everything read, so the badge self-clears. */
 export default function NotificationBell({ className = "" }: { className?: string }) {
+  const t = useT();
   const rightPanel = useUI((s) => s.rightPanel);
   const setRightPanel = useUI((s) => s.setRightPanel);
   const [unread, setUnread] = useState(0);
@@ -32,7 +34,7 @@ export default function NotificationBell({ className = "" }: { className?: strin
   return (
     <button
       type="button"
-      aria-label="Notifications"
+      aria-label={t("notif.title")}
       onClick={() => setRightPanel(rightPanel === "notifications" ? null : "notifications")}
       className={`relative grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)] ${className}`}
     >

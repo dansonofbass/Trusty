@@ -8,6 +8,7 @@ import { AgentTrace, MarkdownLite, type ThinkStep } from "@/components/concierge
 import type { TrustRec } from "@/lib/trustClient";
 import { GOLD } from "@/lib/palette";
 import ConfirmCard, { type PendingConfirm } from "./ConfirmCard";
+import { useT } from "@/lib/i18n";
 
 /**
  * The composer agent's chat transcript (#29) — Cursor/Claude style: user
@@ -60,13 +61,15 @@ export const TOOL_LABEL: Record<string, string> = {
  *  finishes it collapses to a one-line receipt ("Thought · used N tools")
  *  that expands on click. */
 function ThinkingBlock({ steps, active }: { steps: ThinkStep[]; active: boolean }) {
+  // `tr` — `t` is bound to a think-step in the callbacks below.
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const tools = steps.filter((t) => t.status === "done" || t.status === "error").length;
   const hasError = steps.some((t) => t.status === "error");
   if (active) {
     return (
       <div className="mb-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-tint-soft)] px-2.5 py-2">
-        <div className="thinking-shimmer mb-1 text-[11.5px] font-semibold">Thinking…</div>
+        <div className="thinking-shimmer mb-1 text-[11.5px] font-semibold">{tr("chat.thinking")}</div>
         <AgentTrace steps={steps} accent={GOLD} />
       </div>
     );

@@ -3,23 +3,24 @@
 import { Plus, X } from "lucide-react";
 import type { Wallet } from "@constellation/graph-core";
 import { GOLD, withAlpha } from "@/lib/palette";
+import { useT, type Translate, type TranslationKey } from "@/lib/i18n";
 
-const REASON_LABEL: Record<string, string> = {
-  start: "Starting balance",
-  buy: "Bought tokens",
-  thought: "Wrote a thought",
-  promotion: "Your link was adopted",
-  peek: "Peeked beyond your galaxy",
+const REASON_KEY: Record<string, TranslationKey> = {
+  start: "wallet.reasonStart",
+  buy: "wallet.reasonBuy",
+  thought: "wallet.reasonThought",
+  promotion: "wallet.reasonPromotion",
+  peek: "wallet.reasonPeek",
 };
 
-function relTime(ms: number): string {
+function relTime(ms: number, t: Translate): string {
   const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-  if (s < 45) return "just now";
+  if (s < 45) return t("time.justNow");
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t("time.minutesAgo", { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t("time.hoursAgo", { count: h });
+  return t("time.daysAgo", { count: Math.floor(h / 24) });
 }
 
 export default function WalletPanel({
@@ -36,6 +37,7 @@ export default function WalletPanel({
   /** "below" drops from a top bar; "above" rises from the sidebar footer. */
   placement?: "below" | "above";
 }) {
+  const t = useT();
   const ledger = [...(wallet.ledger ?? [])].reverse(); // newest first
 
   return (
@@ -50,15 +52,15 @@ export default function WalletPanel({
             <span className="text-[22px] font-bold" style={{ color: GOLD, fontFamily: "var(--font-mono)" }}>
               ✦ {wallet.balance}
             </span>
-            <span className="text-[11px] text-[var(--color-faint)]">tokens</span>
+            <span className="text-[11px] text-[var(--color-faint)]">{t("wallet.tokens")}</span>
           </div>
           <div className="text-[10.5px] text-[var(--color-faint)]">
-            {wallet.earnedTotal} earned by contributing
+            {t("wallet.earnedTotal", { count: wallet.earnedTotal })}
           </div>
         </div>
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t("common.close")}
           onClick={onClose}
           className="rounded-lg p-1 text-[var(--color-faint)] hover:bg-[rgba(146,166,255,0.1)] hover:text-ink"
         >
@@ -67,8 +69,7 @@ export default function WalletPanel({
       </div>
 
       <p className="mb-3 rounded-lg bg-[rgba(146,166,255,0.06)] px-2.5 py-2 text-[11px] leading-relaxed text-[var(--color-dim)]">
-        Tokens gate what you can see. <b>Earn</b> them by writing and when your links get adopted
-        into the global graph; <b>spend</b> them to peek at regions you have no social path to.
+        {t("wallet.explainer")}
       </p>
 
       <button
@@ -77,13 +78,13 @@ export default function WalletPanel({
         disabled={pending}
         onClick={onBuy}
       >
-        <Plus size={13} /> Buy 10 tokens
+        <Plus size={13} /> {t("wallet.buy")}
       </button>
 
-      <div className="eyebrow mb-1.5">Activity</div>
+      <div className="eyebrow mb-1.5">{t("wallet.activity")}</div>
       {ledger.length === 0 ? (
         <p className="py-2 text-[11px] text-[var(--color-faint)]">
-          No activity yet — write something or peek to see your token history.
+          {t("wallet.noActivity")}
         </p>
       ) : (
         <ul className="-mr-1 flex max-h-[220px] flex-col gap-1 overflow-y-auto pr-1 scroll-quiet">
@@ -103,9 +104,9 @@ export default function WalletPanel({
                   {e.delta}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[var(--color-dim)]">
-                  {REASON_LABEL[e.reason] ?? e.reason}
+                  {REASON_KEY[e.reason] ? t(REASON_KEY[e.reason]) : e.reason}
                 </span>
-                <span className="shrink-0 text-[10px] text-[var(--color-faint)]">{relTime(e.at)}</span>
+                <span className="shrink-0 text-[10px] text-[var(--color-faint)]">{relTime(e.at, t)}</span>
               </li>
             );
           })}

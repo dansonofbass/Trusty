@@ -19,16 +19,17 @@ import LayerToggle from "@/components/LayerToggle";
 import HintBar from "@/components/HintBar";
 import EntityLinkPicker from "@/components/EntityLinkPicker";
 import { Orbit, Route, SlidersHorizontal, Sparkles, Users } from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 const endId = (v: string | GNode): string => (typeof v === "string" ? v : v.id);
 
 /** The graph view toolbar — Universe · Circles · Path · Recs (the old
  *  graph-"discover" ghost-rec view; nav Discover is now the feed). */
-const VIEW_TABS: { id: ViewId; label: string; icon: React.ElementType; title: string }[] = [
-  { id: "universe", label: "Universe", icon: Orbit, title: "Your bounded galaxy" },
-  { id: "circles", label: "Circles", icon: Users, title: "Color and isolate your communities" },
-  { id: "path", label: "Path", icon: Route, title: "Trace the path between two nodes" },
-  { id: "discover", label: "Recs", icon: Sparkles, title: "Ghost edges to things your network recommends" },
+const VIEW_TABS: { id: ViewId; labelKey: TranslationKey; icon: React.ElementType; titleKey: TranslationKey }[] = [
+  { id: "universe", labelKey: "graph.universe", icon: Orbit, titleKey: "graph.universeHint" },
+  { id: "circles", labelKey: "graph.circles", icon: Users, titleKey: "graph.circlesHint" },
+  { id: "path", labelKey: "graph.path", icon: Route, titleKey: "graph.pathHint" },
+  { id: "discover", labelKey: "graph.recs", icon: Sparkles, titleKey: "graph.recsHint" },
 ];
 
 /**
@@ -39,6 +40,8 @@ const VIEW_TABS: { id: ViewId; label: string; icon: React.ElementType; title: st
  * the canvas overlays (Lens, Layers, HintBar, entity-link picker).
  */
 export default function GraphView() {
+  // `tr` — the view-tab map below already binds `t` to a tab.
+  const tr = useT();
   const {
     dataset,
     graph,
@@ -385,20 +388,20 @@ export default function GraphView() {
       />
 
       {/* View toolbar — Universe · Circles · Path · Recs */}
-      <div className="rise absolute left-4 top-4 z-40 hidden items-center gap-1.5 md:flex">
-        <nav className="panel flex items-center gap-1 rounded-full px-1.5 py-1" aria-label="Graph views">
-          {VIEW_TABS.map((t) => (
-            <button key={t.id} className="tab" data-active={view === t.id} title={t.title}
-              onClick={() => setView(view === t.id && t.id !== "universe" ? "universe" : t.id)}>
-              <t.icon size={14} strokeWidth={2.2} />
-              {t.label}
+      <div className="rise absolute start-4 top-4 z-40 hidden items-center gap-1.5 md:flex">
+        <nav className="panel flex items-center gap-1 rounded-full px-1.5 py-1" aria-label={tr("graph.views")}>
+          {VIEW_TABS.map((tab) => (
+            <button key={tab.id} className="tab" data-active={view === tab.id} title={tr(tab.titleKey)}
+              onClick={() => setView(view === tab.id && tab.id !== "universe" ? "universe" : tab.id)}>
+              <tab.icon size={14} strokeWidth={2.2} />
+              {tr(tab.labelKey)}
             </button>
           ))}
         </nav>
         <button
           onClick={() => setLensOpen((v) => !v)}
           aria-expanded={lensOpen}
-          title="Lens — filter which node types the graph shows"
+          title={tr("graph.lensHint")}
           className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11.5px] font-medium backdrop-blur-md transition"
           style={
             lensOpen
@@ -406,7 +409,7 @@ export default function GraphView() {
               : { borderColor: "var(--color-line)", background: "var(--color-surface)", color: "var(--color-dim)" }
           }
         >
-          <SlidersHorizontal size={12} /> Lens
+          <SlidersHorizontal size={12} /> {tr("graph.lens")}
           {hiddenTypes.length > 0 && (
             <span className="rounded-full bg-[rgba(255,140,90,0.2)] px-1.5 text-[10px] font-bold text-[#ff8c5a]">{hiddenTypes.length}</span>
           )}

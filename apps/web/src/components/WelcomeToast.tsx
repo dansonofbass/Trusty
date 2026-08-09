@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { GOLD } from "@/lib/palette";
+import { useT } from "@/lib/i18n";
 
 /**
  * The moment right after redeeming an invite: the new user lands already
@@ -11,6 +12,7 @@ import { GOLD } from "@/lib/palette";
  * left by the auth callback, then scrubs those params from the URL.
  */
 export default function WelcomeToast() {
+  const t = useT();
   const [from, setFrom] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,19 +39,15 @@ export default function WelcomeToast() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-bold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-            You're connected with {from || "your friend"} 🌟
+            {t("welcome.connected", { name: from || t("welcome.yourFriend") })}
           </p>
-          <p className="mt-1 text-[13px] leading-relaxed text-dim">
-            Their network is now part of yours. Try{" "}
-            <b className="text-ink">✦ Trust search</b> (bottom-left) to find who your
-            network trusts — a dentist, a lawyer, a mechanic.
-          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-dim">{t("welcome.body")}</p>
         </div>
         <button
           type="button"
           onClick={() => setFrom(null)}
           className="shrink-0 text-dim hover:text-ink"
-          aria-label="Dismiss"
+          aria-label={t("welcome.dismiss")}
         >
           <X size={16} />
         </button>

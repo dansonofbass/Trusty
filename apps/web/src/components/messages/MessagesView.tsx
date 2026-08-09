@@ -28,6 +28,7 @@ import {
   type SpecialistCard,
 } from "@/lib/specialistClient";
 import SpecialistAvatar from "@/components/specialist/SpecialistAvatar";
+import { useT, type TranslationKey } from "@/lib/i18n";
 
 const POLL_MS = 4000;
 
@@ -112,6 +113,7 @@ function TrustedMentors({ roomId }: { roomId: string }) {
 }
 
 function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
+  const t = useT();
   const select = useUI((s) => s.select);
   const [thread, setThread] = useState<RoomThread | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -245,21 +247,21 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b border-line px-3 py-2 md:px-5">
-        <button type="button" onClick={onBack} aria-label="Back" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-dim)] transition hover:text-ink">
+        <button type="button" onClick={onBack} aria-label={t("common.back")} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-dim)] transition hover:text-ink">
           <ArrowLeft size={16} />
         </button>
-        <button type="button" onClick={() => setMembersOpen(true)} className="min-w-0 flex-1 text-left" title="See members">
+        <button type="button" onClick={() => setMembersOpen(true)} className="min-w-0 flex-1 text-start" title={t("msg.seeMembers")}>
           <div className="truncate text-[13px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
             {thread?.room.title ?? "…"}
           </div>
           <div className="text-[10.5px] text-[var(--color-faint)]">
-            {thread ? `${thread.members.length} members — tap to see` : ""}
+            {thread ? t("messages.membersTapToSee", { count: thread.members.length }) : ""}
           </div>
         </button>
         <button
           type="button"
           onClick={openAnswers}
-          title="Saved answers"
+          title={t("messages.savedAnswers")}
           className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-dim)] transition hover:text-ink"
         >
           <BookmarkCheck size={15} />
@@ -267,7 +269,7 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
         <button
           type="button"
           onClick={() => setMembersOpen(true)}
-          aria-label="Members"
+          aria-label={t("messages.members")}
           className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-dim)] transition hover:text-ink"
         >
           <Users size={15} />
@@ -277,8 +279,8 @@ function Thread({ roomId, onBack }: { roomId: string; onBack: () => void }) {
             type="button"
             onClick={() => void leave()}
             disabled={leaving}
-            title="Leave this circle"
-            aria-label="Leave circle"
+            title={t("msg.leaveCircle")}
+            aria-label={t("msg.leaveCircle")}
             className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-dim)] transition hover:text-rose-300 disabled:opacity-50"
           >
             {leaving ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} />}
@@ -305,9 +307,9 @@ ${url}`)}` },
             <div className="absolute inset-x-0 bottom-0 rounded-t-[20px] border border-line bg-[var(--color-card)] p-4 pb-[max(env(safe-area-inset-bottom),16px)] md:inset-x-auto md:left-1/2 md:top-1/2 md:bottom-auto md:w-[420px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:pb-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[13px] font-bold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-                  Share this answer
+                  {t("msg.shareAnswer")}
                 </span>
-                <button type="button" onClick={() => setShareTarget(null)} aria-label="Close">
+                <button type="button" onClick={() => setShareTarget(null)} aria-label={t("common.close")}>
                   <X size={15} className="text-[var(--color-faint)]" />
                 </button>
               </div>
@@ -340,7 +342,7 @@ ${url}`)}` },
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--color-line)] py-2.5 text-[12.5px] font-semibold text-[var(--color-dim)]"
                 >
                   {copiedId === shareTarget.answerId ? <Check size={13} /> : <LinkIcon size={13} />}
-                  {copiedId === shareTarget.answerId ? "Copied" : "Copy link"}
+                  {copiedId === shareTarget.answerId ? t("msg.copied") : t("invite.copy")}
                 </button>
                 {typeof navigator !== "undefined" && "share" in navigator && (
                   <button
@@ -370,9 +372,9 @@ ${url}`)}` },
           <div className="absolute inset-x-0 bottom-0 max-h-[70dvh] overflow-y-auto rounded-t-[20px] border border-line bg-[var(--color-card)] p-4 md:inset-x-auto md:right-6 md:top-16 md:bottom-auto md:w-[320px] md:rounded-2xl">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
-                Members · {thread.members.length}
+                {t("msg.membersCount", { count: thread.members.length })}
               </span>
-              <button type="button" onClick={() => setMembersOpen(false)} aria-label="Close">
+              <button type="button" onClick={() => setMembersOpen(false)} aria-label={t("common.close")}>
                 <X size={15} className="text-[var(--color-faint)]" />
               </button>
             </div>
@@ -412,19 +414,17 @@ ${url}`)}` },
           <div className="absolute inset-x-0 bottom-0 max-h-[75dvh] overflow-y-auto rounded-t-[20px] border border-line bg-[var(--color-card)] p-4 md:inset-x-auto md:right-6 md:top-16 md:bottom-auto md:w-[420px] md:rounded-2xl">
             <div className="mb-2 flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--color-faint)]">
-                <BookmarkCheck size={13} /> Saved answers
+                <BookmarkCheck size={13} /> {t("messages.savedAnswers")}
               </span>
-              <button type="button" onClick={() => setAnswersOpen(false)} aria-label="Close">
+              <button type="button" onClick={() => setAnswersOpen(false)} aria-label={t("common.close")}>
                 <X size={15} className="text-[var(--color-faint)]" />
               </button>
             </div>
             {answers === null ? (
-              <p className="py-4 text-center text-[12px] text-[var(--color-faint)]">Loading…</p>
+              <p className="py-4 text-center text-[12px] text-[var(--color-faint)]">{t("common.loading")}</p>
             ) : answers.length === 0 ? (
               <p className="py-4 text-[12.5px] leading-relaxed text-[var(--color-dim)]">
-                Nothing saved yet. Tap the <Bookmark size={11} className="inline" /> on any helpful
-                message — it becomes reusable knowledge the assistant can cite, with the author's
-                name and date.
+                {t("messages.savedAnswersEmpty")}
               </p>
             ) : (
               <ul className="space-y-2">
@@ -444,15 +444,15 @@ ${url}`)}` },
                       <button
                         type="button"
                         onClick={() => setShareTarget({ answerId: a.id, body: a.body })}
-                        title="Share this answer"
+                        title={t("msg.shareAnswer")}
                         className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold"
                         style={{ background: "rgba(42,171,238,0.14)", color: "#2AABEE" }}
                       >
-                        <Send size={10} /> Share
+                        <Send size={10} /> {t("invite.share")}
                       </button>
                       <button
                         type="button"
-                        title="Copy link"
+                        title={t("invite.copy")}
                         onClick={() => {
                           void navigator.clipboard?.writeText(url);
                           setCopiedId(a.id);
@@ -461,7 +461,7 @@ ${url}`)}` },
                         className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--color-line)] px-2 py-0.5 text-[10.5px] text-[var(--color-dim)]"
                       >
                         {copiedId === a.id ? <Check size={10} /> : <LinkIcon size={10} />}
-                        {copiedId === a.id ? "Copied" : "Link"}
+                        {copiedId === a.id ? t("msg.copied") : t("msg.link")}
                       </button>
                     </div>
                   </li>
@@ -509,11 +509,11 @@ ${url}`)}` },
                   {quoted && (
                     <div className="mb-1 mt-0.5 rounded-lg border-l-2 bg-[rgba(146,166,255,0.06)] px-2 py-1 text-[11px] text-[var(--color-dim)]" style={{ borderColor: senderColor(quoted.senderId) }}>
                       <span className="font-semibold" style={{ color: senderColor(quoted.senderId) }}>{quoted.senderLabel}</span>{" "}
-                      {quoted.deleted ? "message deleted" : quoted.body.slice(0, 120)}
+                      {quoted.deleted ? t("messages.deleted") : quoted.body.slice(0, 120)}
                     </div>
                   )}
                   {m.deleted ? (
-                    <p className="text-[12px] italic text-[var(--color-faint)]">message deleted</p>
+                    <p className="text-[12px] italic text-[var(--color-faint)]">{t("messages.deleted")}</p>
                   ) : (
                     <p dir="auto" className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">{m.body}</p>
                   )}
@@ -525,8 +525,8 @@ ${url}`)}` },
                         type="button"
                         title={
                           answerIdOf.get(m.id)
-                            ? "Saved as an answer — tap to share it"
-                            : "Save as answer, then share (credited to the author)"
+                            ? t("msg.savedTapShare")
+                            : t("messages.saveAsAnswer")
                         }
                         onClick={() => void share(m)}
                         disabled={sharing === m.id}
@@ -550,7 +550,7 @@ ${url}`)}` },
                     {!m.deleted && (
                       <button
                         type="button"
-                        title="Reply"
+                        title={t("messages.reply")}
                         onClick={() => setReplyTo(m)}
                         className="opacity-60 transition hover:opacity-100"
                       >
@@ -560,7 +560,7 @@ ${url}`)}` },
                     {m.mine && !m.deleted && (
                       <button
                         type="button"
-                        title="Delete"
+                        title={t("msg.delete")}
                         onClick={() => void remove(m)}
                         className="opacity-60 transition hover:opacity-100"
                       >
@@ -582,9 +582,9 @@ ${url}`)}` },
             <div className="mb-1 flex items-center gap-2 rounded-lg bg-[rgba(146,166,255,0.08)] px-2.5 py-1.5 text-[11.5px] text-[var(--color-dim)]">
               <CornerUpLeft size={12} />
               <span className="min-w-0 flex-1 truncate">
-                Replying to <b style={{ color: senderColor(replyTo.senderId) }}>{replyTo.senderLabel}</b>: {replyTo.body.slice(0, 80)}
+                {t("msg.replyingTo")} <b style={{ color: senderColor(replyTo.senderId) }}>{replyTo.senderLabel}</b>: {replyTo.body.slice(0, 80)}
               </span>
-              <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+              <button type="button" onClick={() => setReplyTo(null)} aria-label={t("msg.cancelReply")}>
                 <X size={12} />
               </button>
             </div>
@@ -601,7 +601,7 @@ ${url}`)}` },
                 }
               }}
               dir="auto"
-              placeholder="Message your group…"
+              placeholder={t("messages.placeholder")}
               className="max-h-32 min-h-[38px] w-full resize-none bg-transparent px-1.5 py-1.5 text-[16px] leading-snug text-ink outline-none placeholder:text-[var(--color-faint)] md:text-[13.5px]"
             />
             <button
@@ -626,14 +626,15 @@ ${url}`)}` },
  * surface hosts community groups when owners can create them. ?room=<id>
  * opens a thread; otherwise the room list.
  */
-const CIRCLE_KINDS = [
-  { id: "topic", label: "Topic", hint: "Around a subject — Residency, Accounting, Jobs…" },
-  { id: "community", label: "Community", hint: "A group of people who belong together" },
-  { id: "event", label: "Event", hint: "A one-off gathering or recurring meetup" },
-  { id: "team", label: "Team", hint: "A working group — startup, project, crew" },
+const CIRCLE_KINDS: { id: string; labelKey: TranslationKey; hintKey: TranslationKey }[] = [
+  { id: "topic", labelKey: "circle.kindTopic", hintKey: "circle.kindTopicHint" },
+  { id: "community", labelKey: "circle.kindCommunity", hintKey: "circle.kindCommunityHint" },
+  { id: "event", labelKey: "circle.kindEvent", hintKey: "circle.kindEventHint" },
+  { id: "team", labelKey: "circle.kindTeam", hintKey: "circle.kindTeamHint" },
 ];
 
 function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (roomId: string) => void }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("topic");
@@ -660,9 +661,9 @@ function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCrea
       <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-[20px] border border-line bg-[var(--color-card)] p-4 md:inset-x-auto md:left-1/2 md:top-1/2 md:bottom-auto md:w-[440px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-[13px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-            New circle
+            {t("messages.newCircle")}
           </span>
-          <button type="button" onClick={onClose} aria-label="Close">
+          <button type="button" onClick={onClose} aria-label={t("common.close")}>
             <X size={15} className="text-[var(--color-faint)]" />
           </button>
         </div>
@@ -670,7 +671,7 @@ function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCrea
           dir="auto"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Name — e.g. Residency, Weekend hikes…"
+          placeholder={t("circle.name")}
           maxLength={60}
           className="mb-2 w-full rounded-xl border border-[var(--color-line)] bg-transparent px-3 py-2.5 text-[16px] text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[var(--color-accent-line)] md:text-[13.5px]"
         />
@@ -678,7 +679,7 @@ function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCrea
           dir="auto"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="What is this circle for? Shown to people deciding whether to join."
+          placeholder={t("circle.about")}
           rows={2}
           maxLength={280}
           className="mb-2 w-full resize-none rounded-xl border border-[var(--color-line)] bg-transparent px-3 py-2.5 text-[16px] leading-snug text-ink outline-none placeholder:text-[var(--color-faint)] focus:border-[var(--color-accent-line)] md:text-[13.5px]"
@@ -689,15 +690,15 @@ function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCrea
               key={k.id}
               type="button"
               onClick={() => setCategory(k.id)}
-              className="rounded-xl border px-3 py-2 text-left transition"
+              className="rounded-xl border px-3 py-2 text-start transition"
               style={
                 category === k.id
                   ? { borderColor: "var(--color-accent-line)", background: "var(--color-accent-soft)" }
                   : { borderColor: "var(--color-line)" }
               }
             >
-              <span className="block text-[12px] font-semibold text-ink">{k.label}</span>
-              <span className="block text-[10px] leading-snug text-[var(--color-faint)]">{k.hint}</span>
+              <span className="block text-[12px] font-semibold text-ink">{t(k.labelKey)}</span>
+              <span className="block text-[10px] leading-snug text-[var(--color-faint)]">{t(k.hintKey)}</span>
             </button>
           ))}
         </div>
@@ -713,7 +714,7 @@ function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCrea
           className="w-full rounded-xl py-2.5 text-[13px] font-bold text-space disabled:opacity-40"
           style={{ background: "var(--color-accent)" }}
         >
-          {busy ? "Creating…" : "Create circle"}
+          {busy ? t("circle.creating") : t("circle.create")}
         </button>
       </div>
     </div>
@@ -721,6 +722,7 @@ function CreateCircleSheet({ onClose, onCreated }: { onClose: () => void; onCrea
 }
 
 export default function MessagesView() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeRoom = searchParams.get("room");
@@ -751,15 +753,15 @@ export default function MessagesView() {
       <div className="flex items-center gap-2 border-b border-line px-3 py-2.5 md:px-5">
         <MessagesSquare size={13} style={{ color: "var(--color-accent)" }} />
         <span className="text-[12.5px] font-semibold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-          Messages
+          {t("nav.messages")}
         </span>
-        <span className="text-[10.5px] text-[var(--color-faint)]">your squad & circles</span>
+        <span className="text-[10.5px] text-[var(--color-faint)]">{t("messages.subtitle")}</span>
         <button
           type="button"
           onClick={() => setCreating(true)}
-          className="ml-auto flex items-center gap-1 rounded-full border border-[var(--color-line)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-dim)] transition hover:border-[var(--color-accent-line)] hover:text-ink"
+          className="ms-auto flex items-center gap-1 rounded-full border border-[var(--color-line)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-dim)] transition hover:border-[var(--color-accent-line)] hover:text-ink"
         >
-          <Plus size={12} /> New circle
+          <Plus size={12} /> {t("messages.newCircle")}
         </button>
       </div>
       {creating && (
@@ -774,13 +776,11 @@ export default function MessagesView() {
       <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5">
         <div className="mx-auto w-full max-w-[720px]">
           {rooms === null ? (
-            <p className="py-6 text-center text-[12px] text-[var(--color-faint)]">Loading…</p>
+            <p className="py-6 text-center text-[12px] text-[var(--color-faint)]">{t("common.loading")}</p>
           ) : rooms.length === 0 ? (
             <div className="py-10 text-center">
               <MessagesSquare size={24} className="mx-auto mb-2 text-[var(--color-faint)]" />
-              <p className="text-[13px] text-[var(--color-dim)]">
-                Join a squad or a circle and its group chat appears here — or start your own.
-              </p>
+              <p className="text-[13px] text-[var(--color-dim)]">{t("messages.empty")}</p>
               <button
                 type="button"
                 onClick={() => setCreating(true)}
@@ -818,7 +818,7 @@ export default function MessagesView() {
                       <span className="mt-0.5 block truncate text-[11.5px] text-[var(--color-dim)]">
                         {r.lastMessage
                           ? `${r.lastMessage.senderLabel}: ${r.lastMessage.body.slice(0, 60)}`
-                          : "No messages yet — say hi 👋"}
+                          : t("msg.noMessages")}
                       </span>
                     </span>
                     {r.unread > 0 && (

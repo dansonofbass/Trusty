@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ThumbsUp, ThumbsDown, X } from "lucide-react";
 import { TRUST_ACCENT, withAlpha } from "@/lib/palette";
 import { listPendingOutcomes, resolveOutcome, type PendingPrompt } from "@/lib/outcomeClient";
+import { useT } from "@/lib/i18n";
 
 /**
  * The follow-up half of the outcome loop: after you act on a provider, this
@@ -12,6 +13,7 @@ import { listPendingOutcomes, resolveOutcome, type PendingPrompt } from "@/lib/o
  * the verified-outcome data moat. One prompt at a time so it never nags.
  */
 export default function OutcomePrompts() {
+  const t = useT();
   const [queue, setQueue] = useState<PendingPrompt[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -57,10 +59,10 @@ export default function OutcomePrompts() {
           </div>
           <button
             type="button"
-            aria-label="Not yet"
+            aria-label={t("outcome.notYet")}
             onClick={advance}
             className="shrink-0 text-faint hover:text-ink"
-            title="Not yet — ask me later"
+            title={t("outcome.notYetHint")}
           >
             <X size={16} />
           </button>

@@ -17,6 +17,7 @@ import SourceLinks from "./SourceLinks";
 import ListenButton from "./ListenButton";
 import RecommendButton from "./RecommendButton";
 import ClaimProfileButton from "./ClaimProfileButton";
+import { useT } from "@/lib/i18n";
 import PlaceDetail from "./PlaceDetail";
 
 /** Restaurant/cafe nodes get the full trust-native detail panel, not the generic entity grid. */
@@ -110,6 +111,7 @@ function EntityDetails({
   findByLabel?: (value: string) => GNode | null;
   onJump?: (id: string) => void;
 }) {
+  const t = useT();
   const def = node.entityType ? entityTypeById(node.entityType) : undefined;
   const props = node.properties ?? {};
   const has = (v: unknown) =>
@@ -121,7 +123,7 @@ function EntityDetails({
     Array.isArray(v)
       ? v.map((x) => String(x).replace(/_/g, " ")).join(", ")
       : typeof v === "boolean"
-        ? v ? "Yes" : "No"
+        ? v ? t("common.yes") : t("common.no")
         : typeof v === "number" && v > 1e12
           ? new Date(v).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
           : String(v).replace(/_/g, " ");
@@ -132,7 +134,7 @@ function EntityDetails({
         {def?.label ?? node.entityType}
       </div>
       {entries.length === 0 ? (
-        <p className="text-[11.5px] text-[var(--color-faint)]">No details yet.</p>
+        <p className="text-[11.5px] text-[var(--color-faint)]">{t("inspector.noDetails")}</p>
       ) : (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[12px]">
           {entries.map((e, i) => (
@@ -226,6 +228,7 @@ export default function Inspector({
   onStartEntityLink?: (id: string) => void;
   onRemoveEntityLink?: (linkId: string) => void;
 }) {
+  const t = useT();
   const neighborGroups = useMemo(() => {
     if (!node || !graph.hasNode(node.id)) return [];
     const byType = new Map<NodeType, GNode[]>();
@@ -277,10 +280,10 @@ export default function Inspector({
 
   const stats: { label: string; value: string; accent?: boolean }[] = [];
   if (node) {
-    stats.push({ label: "Links", value: String(degree) });
-    if (shared.length > 0) stats.push({ label: "Shared", value: String(shared.length) });
-    if (hops) stats.push({ label: "Hops from you", value: hops });
-    if (rec) stats.push({ label: "Affinity", value: String(rec.score), accent: true });
+    stats.push({ label: t("inspector.links"), value: String(degree) });
+    if (shared.length > 0) stats.push({ label: t("inspector.shared"), value: String(shared.length) });
+    if (hops) stats.push({ label: t("inspector.hops"), value: hops });
+    if (rec) stats.push({ label: t("inspector.affinity"), value: String(rec.score), accent: true });
   }
 
   const open = !!node;
@@ -381,7 +384,7 @@ export default function Inspector({
               )}
             </div>
             <button
-              aria-label="Close inspector"
+              aria-label={t("inspector.close")}
               onClick={onClose}
               className="rounded-lg p-1.5 text-[var(--color-faint)] transition hover:bg-[var(--color-tint)] hover:text-ink"
             >
@@ -457,7 +460,7 @@ export default function Inspector({
                       onClick={() => onStartEntityLink(node.id)}
                     >
                       <Link2 size={12} />
-                      {linkPickActive ? "Pick target…" : "Link to…"}
+                      {linkPickActive ? t("inspector.pickTarget") : t("inspector.linkTo")}
                     </button>
                   )}
                 </div>
@@ -489,12 +492,12 @@ export default function Inspector({
                           <div className="flex items-start justify-between gap-2">
                             <button
                               type="button"
-                              className="min-w-0 flex-1 text-left"
+                              className="min-w-0 flex-1 text-start"
                               onClick={() => other && onJump(other.id)}
                             >
                               <div className="text-[11px] text-[var(--color-faint)]">
-                                {link.type === "SAME_AS" ? "Same as" : "Relates"}
-                                {local ? " · your link" : " · global"}
+                                {link.type === "SAME_AS" ? t("inspector.sameAs") : t("inspector.relates")}
+                                {local ? ` · ${t("inspector.yourLink")}` : ` · ${t("inspector.globalLink")}`}
                               </div>
                               <div className="truncate text-[12.5px] font-medium text-ink">
                                 {entityLinkLabel(link)}
@@ -508,7 +511,7 @@ export default function Inspector({
                             {local && onRemoveEntityLink && (
                               <button
                                 type="button"
-                                aria-label="Remove link"
+                                aria-label={t("inspector.removeLink")}
                                 className="rounded p-1 text-[var(--color-faint)] hover:text-[#ff9a90]"
                                 disabled={pending}
                                 onClick={() => onRemoveEntityLink(link.id)}
@@ -552,7 +555,7 @@ export default function Inspector({
                 </div>
                 <div className="mt-3">
                   <div className="mb-1 flex justify-between text-[10.5px] text-[var(--color-faint)]">
-                    <span>Affinity</span>
+                    <span>{t("inspector.affinity")}</span>
                     <span style={{ fontFamily: "var(--font-mono)" }}>{rec.score}</span>
                   </div>
                   <div className="h-1 overflow-hidden rounded-full bg-[var(--color-tint)]">
@@ -571,18 +574,18 @@ export default function Inspector({
                     className="btn-accent flex-1"
                     disabled={pending}
                     onClick={() => onAcceptRec(node.id)}
-                    title="The ghost edge becomes a real one"
+                    title={t("inspector.acceptHint")}
                   >
                     <Sparkles size={13} />
-                    Accept into your sky
+                    {t("inspector.accept")}
                   </button>
                   <button
                     className="btn justify-center"
                     disabled={pending}
                     onClick={() => onDismissRec(node.id)}
-                    title="Never show this again"
+                    title={t("inspector.dismissHint")}
                   >
-                    Dismiss
+                    {t("inspector.dismiss")}
                   </button>
                 </div>
               </section>
@@ -650,11 +653,11 @@ export default function Inspector({
               <button className="btn-accent w-full" disabled={pending} onClick={() => onConnect(node.id)}>
                 {node.type === "person" ? (
                   <>
-                    <UserPlus size={14} /> Befriend
+                    <UserPlus size={14} /> {t("inspector.befriend")}
                   </>
                 ) : (
                   <>
-                    <Plus size={14} /> Add to my sky
+                    <Plus size={14} /> {t("inspector.addToSky")}
                   </>
                 )}
               </button>
@@ -683,11 +686,11 @@ export default function Inspector({
 
             {/* Secondary icon row */}
             <div className="flex items-start justify-center gap-3 pt-0.5">
-              <IconAction label="Focus" onClick={() => onFocus(node.id)}>
+              <IconAction label={t("inspector.focus")} onClick={() => onFocus(node.id)}>
                 <Crosshair size={15} />
               </IconAction>
               {!node.isMe && (
-                <IconAction label="Path" onClick={() => onTrace(node.id)}>
+                <IconAction label={t("graph.path")} onClick={() => onTrace(node.id)}>
                   <Route size={15} />
                 </IconAction>
               )}
@@ -697,7 +700,7 @@ export default function Inspector({
                   accentLabel
                   disabled={pending}
                   onClick={() => onPeek(node.id)}
-                  title="Spend tokens to reveal this region — fades unless you connect"
+                  title={t("inspector.peekHint")}
                 >
                   <Eye size={15} />
                 </IconAction>
@@ -705,15 +708,15 @@ export default function Inspector({
               {!node.isMe && node.type === "person" && (
                 <div className="flex w-[52px] flex-col items-center gap-1">
                   <ListenButton targetId={node.id} targetLabel={node.label} variant="icon" />
-                  <span className="text-[9.5px] text-[var(--color-faint)]">Listen</span>
+                  <span className="text-[9.5px] text-[var(--color-faint)]">{t("inspector.listen")}</span>
                 </div>
               )}
               {!node.isMe && connected && (
                 <IconAction
-                  label={node.type === "person" ? "Unfriend" : "Remove"}
+                  label={node.type === "person" ? t("inspector.unfriend") : t("inspector.remove")}
                   disabled={pending}
                   onClick={() => onConnect(node.id)}
-                  title={node.type === "person" ? "Remove the friendship" : "Remove from your sky"}
+                  title={node.type === "person" ? t("inspector.unfriendHint") : t("inspector.removeHint")}
                 >
                   <UserMinus size={15} />
                 </IconAction>

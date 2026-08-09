@@ -117,6 +117,24 @@ export default function ThreadPage({ params }: { params: Promise<{ circleId: str
                 {post.body}
               </p>
             )}
+            {/* Tags are the thread's way back into the topic: each one returns
+                to the circle already filtered, so "what else is there about
+                مدارک" is one tap rather than a re-search. */}
+            {post.tags.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1">
+                {post.tags.map((tg) => (
+                  <Link
+                    key={tg}
+                    href={`/c/${encodeURIComponent(circleId)}?tag=${encodeURIComponent(tg)}`}
+                    dir="auto"
+                    className="rounded-full px-2 py-0.5 text-[11px] font-medium transition hover:opacity-80"
+                    style={{ background: "var(--color-tint)", color: "var(--color-dim)" }}
+                  >
+                    {tg.replace(/_/g, " ")}
+                  </Link>
+                ))}
+              </div>
+            )}
             {author && (
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--color-faint)]">
                 <SpecialistAvatar label={author.label} photoUrl={author.photoUrl} size={18} rounded="rounded-full" />

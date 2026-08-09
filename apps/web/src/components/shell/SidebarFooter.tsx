@@ -12,6 +12,7 @@ import ContributionPanel from "@/components/ContributionPanel";
 import { useUI } from "@/lib/store";
 import { useGraphData } from "@/lib/graph/GraphDataProvider";
 import { GOLD } from "@/lib/palette";
+import { useT } from "@/lib/i18n";
 
 /**
  * The sidebar footer — everything that lived on the old TopBar's right side:
@@ -19,6 +20,7 @@ import { GOLD } from "@/lib/palette";
  * signed-in identity.
  */
 export default function SidebarFooter() {
+  const t = useT();
   const { wallet, pending, handleBuyTokens } = useGraphData();
   const user = useUI((s) => s.user);
   const geoScope = useUI((s) => s.geoScope);
@@ -46,7 +48,7 @@ export default function SidebarFooter() {
           <button
             type="button"
             onClick={() => setWalletOpen((v) => !v)}
-            title="Your tokens — what they're for and your activity"
+            title={t("footer.tokens")}
             aria-expanded={walletOpen}
             className="flex items-center rounded-lg border border-[rgba(255,140,90,0.3)] bg-[rgba(255,140,90,0.06)] px-2.5 py-1.5 transition hover:border-[rgba(255,140,90,0.5)]"
           >
@@ -75,7 +77,7 @@ export default function SidebarFooter() {
           <button
             type="button"
             onClick={() => setContribOpen((v) => !v)}
-            title="My contribution — score, Listen slots and credits"
+            title={t("footer.contribution")}
             aria-expanded={contribOpen}
             className="flex items-center rounded-lg border border-[rgba(146,166,255,0.25)] bg-[rgba(146,166,255,0.06)] px-2.5 py-1.5 transition hover:border-[rgba(146,166,255,0.45)]"
           >
@@ -92,7 +94,7 @@ export default function SidebarFooter() {
         <button
           type="button"
           onClick={() => setRightPanel("invite")}
-          title="Invite — grow your trusted network"
+          title={t("invite.title")}
           className="flex items-center rounded-lg border border-[var(--color-line)] bg-[rgba(146,166,255,0.06)] px-2.5 py-1.5 text-[var(--color-dim)] transition hover:border-[rgba(146,166,255,0.45)] hover:text-ink"
         >
           <UserPlus size={13} />
@@ -105,9 +107,9 @@ export default function SidebarFooter() {
             className="min-w-0 flex-1 truncate text-[12px] text-[var(--color-dim)]"
             title={user.email ?? user.name}
           >
-            {user.name ?? "You"}
+            {user.name ?? t("common.you")}
           </span>
-          <a href="/api/auth/logout" className="btn" title="Sign out" aria-label="Sign out">
+          <a href="/api/auth/logout" className="btn" title={t("footer.signOut")} aria-label={t("footer.signOut")}>
             <LogOut size={13} />
           </a>
         </div>

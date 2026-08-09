@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Loader2, MessageSquarePlus, Plus } from "lucide-react";
 import PostCard from "@/components/forum/PostCard";
 import CircleSidebar from "@/components/forum/CircleSidebar";
@@ -35,13 +36,16 @@ const SORTS: PostSort[] = ["hot", "new", "top"];
 export default function CircleForumPage({ params }: { params: Promise<{ circleId: string }> }) {
   const { circleId } = use(params);
   const t = useT();
+  // A tag chip on a thread links back here as ?tag=… — arriving pre-filtered
+  // is the whole point, so seed the filter from the URL.
+  const initialTag = useSearchParams().get("tag");
 
   const [about, setAbout] = useState<CircleAbout | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [authors, setAuthors] = useState<Record<string, Author>>({});
   const [topicId, setTopicId] = useState<string | null>(null);
-  const [tag, setTag] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(initialTag);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [sort, setSort] = useState<PostSort>("hot");

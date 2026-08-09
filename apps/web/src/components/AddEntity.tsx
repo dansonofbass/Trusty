@@ -11,6 +11,7 @@ import { useUI } from "@/lib/store";
 import { createEntity } from "@/lib/ontologyClient";
 import { Plus } from "lucide-react";
 import PanelShell from "./dock/PanelShell";
+import { useT } from "@/lib/i18n";
 
 /**
  * Add an ontology entity (provider / place / property) with all its typed
@@ -24,6 +25,7 @@ export default function AddEntity({
    *  FAB + local state (MobileGraph — unchanged). */
   variant?: "standalone" | "docked";
 }) {
+  const t = useT();
   const docked = variant === "docked";
   const [localOpen, setLocalOpen] = useState(false);
   const rightPanel = useUI((s) => s.rightPanel);
@@ -106,14 +108,14 @@ export default function AddEntity({
             ) : (
               // Step 2 — name + schema-driven property fields.
               <div className="space-y-3">
-                <button type="button" onClick={reset} className="text-[11px] text-dim hover:text-ink">← change type</button>
+                <button type="button" onClick={reset} className="text-[11px] text-dim hover:text-ink">{t("addEntity.changeType")}</button>
 
-                <Labelled label="Name">
+                <Labelled label={t("addEntity.name")}>
                   <input
                     autoFocus
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
-                    placeholder={`${def.label} name`}
+                    placeholder={t("addEntity.namePlaceholder", { type: def.label })}
                     className="w-full rounded-lg border border-line bg-space/60 px-3 py-2 text-sm text-ink outline-none focus:border-gold/60"
                   />
                 </Labelled>
@@ -136,10 +138,10 @@ export default function AddEntity({
         onClick={() => void create()}
         className="btn-accent w-full"
       >
-        {saving ? "Adding…" : `Add ${def.label}`}
+        {saving ? t("addEntity.adding") : t("addEntity.addType", { type: def.label })}
       </button>
       <p className="mt-2 text-center text-[11px] text-faint">
-        Then recommend it (Inspector → Recommend) so it shows in trust search.
+        {t("addEntity.thenRecommend")}
       </p>
     </div>
   ) : undefined;
@@ -148,7 +150,7 @@ export default function AddEntity({
     if (!open) return null;
     return (
       <PanelShell
-        title={def ? `New ${def.label}` : "Add a provider or place"}
+        title={def ? t("addEntity.newType", { type: def.label }) : t("addEntity.title")}
         icon={<Plus size={15} />}
         onClose={close}
         footer={footer}
@@ -166,14 +168,14 @@ export default function AddEntity({
         className="fixed bottom-[76px] right-6 z-40 rounded-full border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink backdrop-blur-md shadow-lg hover:border-[var(--color-accent-line)]"
         style={{ fontFamily: "var(--font-display)", borderColor: open ? "rgba(154,240,200,0.6)" : undefined }}
       >
-        ＋ Add entity
+        ＋ {t("nav.addEntity")}
       </button>
 
       {open && (
         <aside className="pointer-events-auto fixed bottom-4 right-4 top-20 z-40 flex w-[380px] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-line bg-nebula/95 shadow-2xl backdrop-blur-md">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <h2 className="text-[15px] font-extrabold text-ink" style={{ fontFamily: "var(--font-display)" }}>
-              {def ? `New ${def.label}` : "Add a provider or place"}
+              {def ? t("addEntity.newType", { type: def.label }) : t("addEntity.title")}
             </h2>
             <button type="button" onClick={close} className="text-dim hover:text-ink">✕</button>
           </div>

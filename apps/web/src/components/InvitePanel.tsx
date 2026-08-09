@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { UserPlus, Copy, Check, Share2, Users, Eye } from "lucide-react";
 import { ACCENT } from "@/lib/palette";
 import { useUI } from "@/lib/store";
+import { useT, type Translate } from "@/lib/i18n";
 import PanelShell from "./dock/PanelShell";
 import {
   createInvite,
@@ -22,6 +23,7 @@ import {
  * (viewed → joined) — both instrumentation and motivation ("2 friends joined").
  */
 export default function InvitePanel() {
+  const t = useT();
   const open = useUI((s) => s.rightPanel === "invite");
   const setRightPanel = useUI((s) => s.setRightPanel);
   const setOpen = (v: boolean) => setRightPanel(v ? "invite" : null);
@@ -67,19 +69,16 @@ export default function InvitePanel() {
   if (!open) return null;
 
   return (
-    <PanelShell title="Grow your trusted network" icon={<UserPlus size={15} />} onClose={() => setOpen(false)}>
+    <PanelShell title={t("invite.title")} icon={<UserPlus size={15} />} onClose={() => setOpen(false)}>
           <div className="border-b border-line px-4 py-3">
-            <p className="text-[12.5px] leading-relaxed text-dim">
-              Trust search is only as good as your network. Invite the friends whose
-              taste you actually trust — they join already connected to you.
-            </p>
+            <p className="text-[12.5px] leading-relaxed text-dim">{t("invite.intro")}</p>
             <button
               type="button"
               onClick={mint}
               disabled={creating}
               className="btn-accent mt-3 w-full"
             >
-              <UserPlus size={15} /> {creating ? "Creating…" : "Create invite link"}
+              <UserPlus size={15} /> {creating ? t("invite.creating") : t("invite.create")}
             </button>
             {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
           </div>
@@ -87,23 +86,22 @@ export default function InvitePanel() {
           {/* Headline funnel — the growth metric, shown to the user. */}
           {stats && stats.invitesCreated > 0 && (
             <div className="grid grid-cols-3 gap-px border-b border-line bg-line/40 text-center">
-              <Stat label="Links" value={stats.invitesCreated} />
-              <Stat label="Viewed" value={stats.totalVisits} />
-              <Stat label="Joined" value={stats.totalJoined} accent />
+              <Stat label={t("invite.statLinks")} value={stats.invitesCreated} />
+              <Stat label={t("invite.statViewed")} value={stats.totalVisits} />
+              <Stat label={t("invite.statJoined")} value={stats.totalJoined} accent />
             </div>
           )}
 
           <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-            {loading && invites.length === 0 && <p className="text-sm text-dim">Loading…</p>}
+            {loading && invites.length === 0 && <p className="text-sm text-dim">{t("common.loading")}</p>}
             {!loading && invites.length === 0 && (
               <div className="rounded-lg border border-line bg-space/40 p-4 text-sm text-dim">
-                No invites yet. Create a link and share it — you'll see here who views
-                and joins.
+                {t("invite.empty")}
               </div>
             )}
             <div className="space-y-2">
               {invites.map((inv) => (
-                <InviteCard key={inv.code} inv={inv} highlight={inv.code === freshCode} />
+                <InviteCard key={inv.code} inv={inv} highlight={inv.code === freshCode} t={t} />
               ))}
             </div>
           </div>
@@ -125,7 +123,7 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
-function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) {
+function InviteCard({ inv, highlight, t }: { inv: InviteRow; highlight: boolean; t: Translate }) {
   const [copied, setCopied] = useState(false);
   const url = inviteUrl(inv.code);
 
@@ -143,7 +141,7 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
     const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
     if (nav.share) {
       await nav
-        .share({ title: "Join me on Trusty", text: "Find people our network trusts.", url })
+        .share({ title: t("invite.shareTitle"), text: t("invite.shareText"), url })
         .catch(() => undefined);
     } else {
       copy();
@@ -165,7 +163,7 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
         <button
           type="button"
           onClick={copy}
-          title="Copy link"
+          title={t("invite.copy")}
           className="shrink-0 rounded-lg border border-line px-2 py-1.5 text-dim hover:border-gold/60 hover:text-ink"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -173,7 +171,7 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
         <button
           type="button"
           onClick={share}
-          title="Share"
+          title={t("invite.share")}
           className="shrink-0 rounded-lg border border-line px-2 py-1.5 text-dim hover:border-gold/60 hover:text-ink"
         >
           <Share2 size={14} />
@@ -182,12 +180,12 @@ function InviteCard({ inv, highlight }: { inv: InviteRow; highlight: boolean }) 
 
       <div className="mt-2 flex items-center gap-3 text-[11px] text-faint">
         <span className="inline-flex items-center gap-1">
-          <Eye size={12} /> {inv.visits} viewed
+          <Eye size={12} /> {t("invite.viewedCount", { count: inv.visits })}
         </span>
         <span className="inline-flex items-center gap-1" style={{ color: inv.joined ? ACCENT : undefined }}>
-          <Users size={12} /> {inv.joined} joined
+          <Users size={12} /> {t("invite.joinedCount", { count: inv.joined })}
         </span>
-        {inv.revoked && <span className="text-rose-300">revoked</span>}
+        {inv.revoked && <span className="text-rose-300">{t("invite.revoked")}</span>}
       </div>
 
       {inv.joinedNames.length > 0 && (

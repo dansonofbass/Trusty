@@ -2,13 +2,15 @@
 
 import { ExternalLink } from "lucide-react";
 import type { EntitySource } from "@constellation/graph-core";
+import { useT } from "@/lib/i18n";
 
 export default function SourceLinks({ sources }: { sources: EntitySource[] }) {
+  const t = useT();
   if (!sources.length) return null;
 
   return (
     <div className="mt-3 flex flex-col gap-2">
-      <div className="eyebrow text-[var(--color-faint)]">Sources</div>
+      <div className="eyebrow text-[var(--color-faint)]">{t("common.sources")}</div>
       {sources.map((s) => (
         <a
           key={s.url}

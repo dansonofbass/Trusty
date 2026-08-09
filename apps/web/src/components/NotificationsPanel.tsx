@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, BookmarkCheck, Handshake, MessageCircle, ShieldCheck, Sparkles, UserPlus, Users } from "lucide-react";
 import PanelShell from "./dock/PanelShell";
+import { useT } from "@/lib/i18n";
 import { useUI } from "@/lib/store";
 import {
   fetchNotifications,
@@ -35,6 +36,7 @@ function timeAgo(iso: string): string {
 /** The bell's panel: who connected with / confirmed / trusted / messaged you.
  *  Opening it marks everything read (the badge is the unread signal). */
 export default function NotificationsPanel() {
+  const t = useT();
   const open = useUI((s) => s.rightPanel === "notifications");
   const setRightPanel = useUI((s) => s.setRightPanel);
   const select = useUI((s) => s.select);
@@ -70,16 +72,13 @@ export default function NotificationsPanel() {
   };
 
   return (
-    <PanelShell title="Notifications" icon={<Bell size={15} />} onClose={() => setRightPanel(null)}>
+    <PanelShell title={t("notif.title")} icon={<Bell size={15} />} onClose={() => setRightPanel(null)}>
       {!loaded ? (
-        <p className="px-1 py-2 text-[12px] text-[var(--color-faint)]">Loading…</p>
+        <p className="px-1 py-2 text-[12px] text-[var(--color-faint)]">{t("common.loading")}</p>
       ) : items.length === 0 ? (
         <div className="px-1 py-6 text-center">
           <Bell size={22} className="mx-auto mb-2 text-[var(--color-faint)]" />
-          <p className="text-[12.5px] text-[var(--color-dim)]">
-            Nothing yet. When someone connects with you, confirms your squad, trusts you or asks to
-            meet, it lands here.
-          </p>
+          <p className="text-[12.5px] text-[var(--color-dim)]">{t("notif.empty")}</p>
         </div>
       ) : (
         <ul className="space-y-1">
@@ -90,7 +89,7 @@ export default function NotificationsPanel() {
                 <button
                   type="button"
                   onClick={() => openItem(n)}
-                  className="flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-[var(--color-tint)]"
+                  className="flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2 text-start transition hover:bg-[var(--color-tint)]"
                   style={n.read ? undefined : { background: "var(--color-accent-soft)" }}
                 >
                   <span
@@ -100,9 +99,9 @@ export default function NotificationsPanel() {
                     <Icon size={13} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[12.5px] leading-snug text-ink">{n.text}</span>
+                    <span dir="auto" className="block text-[12.5px] leading-snug text-ink">{n.text}</span>
                     <span className="mt-0.5 block text-[10.5px] text-[var(--color-faint)]">
-                      {timeAgo(n.createdAt)} ago
+                      {t("notif.ago", { time: timeAgo(n.createdAt) })}
                     </span>
                   </span>
                 </button>

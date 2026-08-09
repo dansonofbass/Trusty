@@ -11,6 +11,7 @@ import Brand from "@/components/Brand";
 import NotificationBell from "@/components/NotificationBell";
 import { switchMode } from "@/lib/dataSource";
 import { isCommunitySpace } from "@/lib/space";
+import { useT } from "@/lib/i18n";
 
 // Client-only islands (canvas/window dependencies) — same pattern as the old
 // home page: decide mobile vs desktop BEFORE mounting anything heavy.
@@ -23,7 +24,7 @@ const OutcomePrompts = dynamic(() => import("@/components/OutcomePrompts"), { ss
 const PlaceModalHost = dynamic(() => import("@/components/PlaceModalHost"), { ssr: false });
 const NotificationsPanel = dynamic(() => import("@/components/NotificationsPanel"), { ssr: false });
 
-function LoadingSky() {
+function LoadingSky({ caption }: { caption: string }) {
   return (
     <div className="flex h-screen w-screen items-center justify-center">
       <div className="text-center">
@@ -33,7 +34,7 @@ function LoadingSky() {
         >
           TRUSTY
         </div>
-        <p className="mt-2 text-[12px] text-[var(--color-faint)]">charting your universe…</p>
+        <p className="mt-2 text-[12px] text-[var(--color-faint)]">{caption}</p>
       </div>
     </div>
   );
@@ -41,6 +42,7 @@ function LoadingSky() {
 
 /** Gates the shell on the shared dataset + renders the global notice toast. */
 function Shell({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { data, loadError, notice, mode } = useGraphData();
   const { newChat, sending } = useChat();
   const router = useRouter();
@@ -57,21 +59,19 @@ function Shell({ children }: { children: React.ReactNode }) {
     return (
       <main className="grid h-screen w-screen place-items-center px-6">
         <div className="panel max-w-md rounded-2xl p-6 text-center">
-          <p className="eyebrow mb-2">Signal lost</p>
+          <p className="eyebrow mb-2">{t("shell.signalLost")}</p>
           <p className="text-[13px] leading-relaxed text-[var(--color-dim)]">
-            Couldn&apos;t reach the graph in <b>{mode}</b> mode: {loadError}. Start it with{" "}
-            <span style={{ fontFamily: "var(--font-mono)" }}>npm run dev:graph</span>, or
-            explore the in-browser universe instead.
+            {t("shell.signalLostBody", { mode, error: loadError })}
           </p>
           <button className="btn btn-gold mx-auto mt-4" onClick={() => switchMode("mock")}>
-            Switch to mock data
+            {t("shell.useMockData")}
           </button>
         </div>
       </main>
     );
   }
 
-  if (!data) return <LoadingSky />;
+  if (!data) return <LoadingSky caption={t("shell.loading")} />;
 
   return (
     <div className="flex h-dvh w-screen flex-col overflow-hidden md:flex-row">
@@ -79,7 +79,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <header className="flex shrink-0 items-center justify-between border-b border-line bg-[color-mix(in_srgb,var(--color-card)_92%,transparent)] px-2 pb-1.5 pt-[max(env(safe-area-inset-top),8px)] backdrop-blur-md md:hidden">
         <button
           type="button"
-          aria-label="Open menu"
+          aria-label={t("shell.openMenu")}
           onClick={() => setDrawerOpen(true)}
           className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--color-line)] bg-[rgba(146,166,255,0.08)] text-ink transition active:bg-[var(--color-tint)]"
         >
@@ -90,7 +90,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NotificationBell />
           <button
             type="button"
-            aria-label="New chat"
+            aria-label={t("nav.newChat")}
             onClick={() => {
               if (sending) return;
               newChat();
@@ -118,7 +118,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             onClick={() => setDrawerOpen(false)}
             aria-hidden
           />
-          <div className="drawer-in absolute inset-y-0 left-0 w-[300px] max-w-[85vw] shadow-2xl">
+          <div className="drawer-in absolute inset-y-0 start-0 w-[300px] max-w-[85vw] shadow-2xl">
             <Sidebar onNavigate={() => setDrawerOpen(false)} />
           </div>
         </div>

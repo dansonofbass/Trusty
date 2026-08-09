@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AccessGuard from "@/components/AccessGuard";
-import { I18nProvider } from "@/lib/i18n";
+import { I18nProvider, DEFAULT_LOCALE, LOCALE_DIR } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Trusty — your social universe as a graph",
@@ -21,7 +21,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    // Persian-first: the app's default locale is stamped on the SERVER, so the
+    // first paint is already RTL. The provider only overrides it when the
+    // visitor has explicitly chosen a language.
+    <html lang={DEFAULT_LOCALE} dir={LOCALE_DIR[DEFAULT_LOCALE]}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

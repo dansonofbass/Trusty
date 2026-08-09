@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Up/down vote. Optimistic — the count moves on click and reverts if the
@@ -19,6 +20,7 @@ export default function VoteControl({
   onVote: (value: number) => Promise<{ score: number; myVote: number }>;
   size?: "sm" | "md";
 }) {
+  const t = useT();
   const [state, setState] = useState({ score, myVote });
   const [busy, setBusy] = useState(false);
 
@@ -48,7 +50,7 @@ export default function VoteControl({
       <button
         type="button"
         onClick={() => void cast(1)}
-        aria-label="Upvote"
+        aria-label={t("vote.up")}
         aria-pressed={state.myVote === 1}
         className="rounded transition hover:opacity-100 disabled:opacity-40"
         style={active(1)}
@@ -65,7 +67,7 @@ export default function VoteControl({
       <button
         type="button"
         onClick={() => void cast(-1)}
-        aria-label="Downvote"
+        aria-label={t("vote.down")}
         aria-pressed={state.myVote === -1}
         className="rounded transition hover:opacity-100 disabled:opacity-40"
         style={active(-1)}
