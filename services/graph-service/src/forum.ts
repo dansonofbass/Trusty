@@ -64,6 +64,11 @@ export interface PostRow {
   locked: boolean;
   answerCount: number;
   score: number;
+  /** Opening of the accepted (else best-scored) answer, for list views. A
+   *  question card that shows only the question makes the reader open a page
+   *  to find out whether it was ever answered; showing the answer is the
+   *  whole point of a knowledge forum. Empty when nothing is answered yet. */
+  answerPreview: string;
   /** Classification within the circle (visa, contract, bank…). */
   tags: string[];
   /** The viewer's own vote (-1 | 0 | 1) — set by callers that pass a viewer. */
@@ -320,6 +325,7 @@ const postRow = (row: Record<string, unknown>): PostRow => ({
   locked: !!row.locked,
   answerCount: Number(row.answer_count ?? 0),
   score: Number(row.score ?? 0),
+  answerPreview: String(row.answer_preview ?? ""),
   tags: Array.isArray(row.tags) ? (row.tags as unknown[]).map(String) : [],
   myVote: Number(row.my_vote ?? 0),
   createdAt: new Date(row.created_at as string).toISOString(),
@@ -353,9 +359,16 @@ export async function listPosts(opts: {
   // silently widening to the whole platform.
   if (circleIds && circleIds.length === 0) return [];
   const r = await pool.query(
-    `SELECT p.*, COALESCE(v.value, 0) AS my_vote
+    `SELECT p.*, COALESCE(v.value, 0) AS my_vote, a.body AS answer_preview
        FROM posts p
        LEFT JOIN votes v ON v.subject_type = 'post' AND v.subject_id = p.id AND v.user_id = $3
+       -- The answer worth showing: the accepted one, else the best-scored.
+       LEFT JOIN LATERAL (
+         SELECT pa.body FROM post_answers pa
+          WHERE pa.post_id = p.id AND NOT pa.deleted
+          ORDER BY pa.accepted DESC, pa.score DESC, pa.created_at
+          LIMIT 1
+       ) a ON TRUE
       WHERE NOT p.deleted
         AND ($1::text IS NULL OR p.circle_id = $1)
         AND ($6::text[] IS NULL OR p.circle_id = ANY($6))

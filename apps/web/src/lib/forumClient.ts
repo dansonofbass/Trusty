@@ -44,6 +44,8 @@ export interface Post {
   locked: boolean;
   answerCount: number;
   score: number;
+  /** Opening of the accepted (else best-scored) answer. Empty when unanswered. */
+  answerPreview: string;
   /** Classification within the circle (visa, contract, bank…). */
   tags: string[];
   myVote: number;

@@ -8,7 +8,25 @@ import BadgeRow from "./BadgeRow";
 import { votePost, type Author, type Post } from "@/lib/forumClient";
 import { useI18n } from "@/lib/i18n";
 
-/** One question in a list. Body is clamped — the thread page has the rest.
+/** The answer's first sentence, then the rest. A good answer opens with the
+ *  verdict ("نه — اصل ترجمه را نگه می‌دارند"), so promoting that one line to
+ *  bold is what makes a list skimmable. Splits on Persian and Latin
+ *  sentence ends, or the first line break, whichever comes first. */
+function splitLead(preview: string): [string, string] {
+  const text = (preview ?? "").trim();
+  if (!text) return ["", ""];
+  const cut = text.search(/[.!?؟۔]\s|\n/);
+  // No sentence end in a short answer: the whole thing is the lead.
+  if (cut < 0) return [text.length <= 160 ? text : `${text.slice(0, 160).trim()}…`, ""];
+  const lead = text.slice(0, cut + 1).trim();
+  const rest = text.slice(cut + 1).trim();
+  // A very long first sentence is a paragraph, not a verdict — don't bold it all.
+  if (lead.length > 180) return ["", text];
+  return [lead, rest];
+}
+
+/** One question in a list. Shows the accepted answer's opening when there is
+ *  one, the asker's context when there is not.
  *  `circleLabel` is set only by lists that mix circles (the merged feed), where
  *  a card without its origin is ambiguous. */
 export default function PostCard({
@@ -21,6 +39,7 @@ export default function PostCard({
   circleLabel?: string;
 }) {
   const { t, locale } = useI18n();
+  const [answerLead, answerRest] = splitLead(post.answerPreview);
 
   return (
     <article className="flex gap-3 rounded-2xl border border-line bg-[var(--color-surface)] p-3.5 backdrop-blur-md transition hover:border-[var(--color-accent-line)]">
@@ -58,10 +77,31 @@ export default function PostCard({
           <h3 dir="auto" className="text-[14.5px] font-bold leading-snug text-ink hover:underline">
             {post.title}
           </h3>
-          {post.body && (
-            <p dir="auto" className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-[var(--color-dim)]">
-              {post.body}
-            </p>
+          {/* Answered questions lead with the ANSWER: a card showing only the
+              question makes you open the page to learn whether it was ever
+              answered. Unanswered ones fall back to the asker's own context. */}
+          {answerLead || answerRest ? (
+            <>
+              {answerLead && (
+                <p dir="auto" className="mt-1.5 text-[13px] font-semibold leading-relaxed text-ink">
+                  {answerLead}
+                </p>
+              )}
+              {answerRest && (
+                <p
+                  dir="auto"
+                  className={`line-clamp-2 text-[12.5px] leading-relaxed text-[var(--color-dim)] ${answerLead ? "mt-1" : "mt-1.5"}`}
+                >
+                  {answerRest}
+                </p>
+              )}
+            </>
+          ) : (
+            post.body && (
+              <p dir="auto" className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-[var(--color-dim)]">
+                {post.body}
+              </p>
+            )
           )}
         </Link>
 
