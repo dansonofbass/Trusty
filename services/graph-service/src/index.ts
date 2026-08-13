@@ -364,6 +364,23 @@ import {
   type PostSort,
 } from "./forum";
 import {
+  deleteSource,
+  digest,
+  evidenceFor,
+  getCandidate,
+  initTelegram,
+  listCandidates,
+  listRuns,
+  listSources,
+  loadMessages,
+  markCandidate,
+  saveCandidates,
+  saveMessages,
+  saveRun,
+  telegramEnabled,
+  upsertSource,
+} from "./telegram";
+import {
   initSurvey,
   markJoined,
   markMatchesShown,
@@ -3171,6 +3188,197 @@ app.get("/api/circles/:id/about", async (req, res) => {
  * already-shared public /a/<id> links keep working. `?app=` scopes it to one
  * space; `?topic=` names the destination section.
  */
+/* ===================== telegram connector (admin only) ===================== */
+
+/** Every route here is admin-gated: this is raw mined material, not member content. */
+const tgGate = (req: express.Request, res: express.Response): boolean => {
+  auth(req);
+  if (!isAdminReq(req)) {
+    res.status(403).json({ error: "admin only" });
+    return false;
+  }
+  if (!telegramEnabled()) {
+    res.status(503).json({ error: "telegram storage unavailable (no DATABASE_URL)" });
+    return false;
+  }
+  return true;
+};
+
+app.get("/api/admin/telegram/sources", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  try {
+    res.json({ sources: await listSources() });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.post("/api/admin/telegram/sources", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const id = str(req.body?.id, 60);
+  const defaultCircle = str(req.body?.defaultCircle, 80);
+  if (!id || !defaultCircle) return res.status(400).json({ error: "id and defaultCircle are required" });
+  try {
+    const source = await upsertSource({
+      id,
+      title: str(req.body?.title, 200) ?? id,
+      chatId: str(req.body?.chatId, 40) ?? null,
+      app: str(req.body?.app, 40) ?? "irham",
+      defaultCircle,
+      kind: str(req.body?.kind, 10) ?? "export",
+      lang: str(req.body?.lang, 10) ?? "fa",
+      enabled: req.body?.enabled !== false,
+    });
+    res.json({ source });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.delete("/api/admin/telegram/sources/:id", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  try {
+    await deleteSource(String(req.params.id));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+/** Called by the connector after it parses an export or polls the bot. */
+app.post("/api/admin/telegram/messages", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const sourceId = str(req.body?.sourceId, 60);
+  if (!sourceId) return res.status(400).json({ error: "sourceId required" });
+  const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  try {
+    res.json(await saveMessages(sourceId, messages));
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.get("/api/admin/telegram/messages", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const sourceId = str(req.query.sourceId as unknown, 60);
+  if (!sourceId) return res.status(400).json({ error: "sourceId required" });
+  try {
+    res.json({ messages: await loadMessages(sourceId) });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.post("/api/admin/telegram/candidates", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const sourceId = str(req.body?.sourceId, 60);
+  if (!sourceId) return res.status(400).json({ error: "sourceId required" });
+  const list = Array.isArray(req.body?.candidates) ? req.body.candidates : [];
+  try {
+    res.json({ saved: await saveCandidates(sourceId, list) });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.get("/api/admin/telegram/candidates", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  try {
+    const items = await listCandidates({
+      status: str(req.query.status as unknown, 20) ?? "pending",
+      kind: str(req.query.kind as unknown, 20),
+      sourceId: str(req.query.sourceId as unknown, 60),
+      limit: Number(req.query.limit) || 50,
+    });
+    res.json({ candidates: items });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+/** The evidence trail — the messages a candidate was derived from. */
+app.get("/api/admin/telegram/candidates/:key/evidence", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  try {
+    const c = await getCandidate(String(req.params.key));
+    if (!c) return res.status(404).json({ error: "not found" });
+    res.json({ evidence: await evidenceFor(c.sourceId, c.evidence) });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+/**
+ * Approve a candidate. For a Q&A that means creating the real forum thread —
+ * question, accepted answer, tags — authored by the seed account. This is the
+ * ONLY path from mined text into member-visible knowledge.
+ */
+app.post("/api/admin/telegram/candidates/:key/approve", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const { userId } = auth(req);
+  try {
+    const c = await getCandidate(String(req.params.key));
+    if (!c) return res.status(404).json({ error: "not found" });
+    if (c.status !== "pending") return res.status(409).json({ error: `already ${c.status}` });
+
+    let postId: string | undefined;
+    if (c.kind === "qa") {
+      if (!forumEnabled()) return res.status(503).json({ error: "forum unavailable" });
+      const p = c.payload as { circle?: string; title?: string; body?: string; answer?: string; tags?: string[] };
+      const label = String(p.circle ?? "").toLowerCase();
+      const circle = circleNodes().find((n) => n.label.toLowerCase() === label);
+      if (!circle) return res.status(400).json({ error: `circle "${p.circle}" not found` });
+
+      const topics = await listTopics(circle.id);
+      const created = await createForumPost({
+        circleId: circle.id,
+        topicId: topics[0]?.id ?? null,
+        authorId: userId,
+        title: String(p.title ?? "").slice(0, 200),
+        body: String(p.body ?? ""),
+        tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
+      });
+      if (!created.ok) return res.status(400).json({ error: created.error });
+      postId = created.id;
+
+      const answer = await createAnswer({
+        postId: created.id,
+        parentId: null,
+        authorId: userId,
+        body: String(p.answer ?? ""),
+      });
+      if (answer.ok) await acceptAnswer(answer.id).catch(() => {});
+      emitEvent("forum.post_created", {
+        userId,
+        app: String(circleProps(circle).app ?? BUILTIN_APP),
+        targetId: created.id,
+        payload: { circleId: circle.id, via: "telegram-connector" },
+      });
+    }
+
+    await markCandidate(c.key, "approved", userId, postId);
+    res.json({ ok: true, postId: postId ?? null });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.post("/api/admin/telegram/candidates/:key/reject", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const { userId } = auth(req);
+  try {
+    await markCandidate(String(req.params.key), "rejected", userId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.post("/api/admin/telegram/runs", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  try {
+    await saveRun(req.body ?? {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+app.get("/api/admin/telegram/runs", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  try {
+    res.json({ runs: await listRuns(str(req.query.sourceId as unknown, 60), 20) });
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
+/** The digest an admin sends back to the group — see docs in telegram.ts. */
+app.get("/api/admin/telegram/digest", async (req, res) => {
+  if (!tgGate(req, res)) return;
+  const sourceId = str(req.query.sourceId as unknown, 60);
+  if (!sourceId) return res.status(400).json({ error: "sourceId required" });
+  try {
+    res.json(await digest(sourceId, Math.min(90, Number(req.query.days) || 7)));
+  } catch (e) { res.status(500).json(asError(e)); }
+});
+
 app.post("/api/admin/forum/migrate-answers", async (req, res) => {
   auth(req);
   if (!isAdminReq(req)) return res.status(403).json({ error: "admin only" });
@@ -7378,6 +7586,9 @@ async function main() {
   );
   await initForum().catch((e) =>
     console.error("graph-service: forum init failed:", e instanceof Error ? e.message : e),
+  );
+  await initTelegram().catch((e) =>
+    console.error("graph-service: telegram connector init failed:", e instanceof Error ? e.message : e),
   );
   await initBooking().catch((e) =>
     console.error("graph-service: booking init failed:", e instanceof Error ? e.message : e),

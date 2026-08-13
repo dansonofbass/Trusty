@@ -413,6 +413,29 @@ services:
       graph-service:
         condition: service_healthy
 
+  connector-telegram:
+    <<: *node-service
+    command: npm run start --workspace @constellation/connector-telegram
+    environment:
+      PORT: "4008"
+      GRAPH_URL: http://graph-service:4001
+      CONNECTOR_ADMIN_SECRET: ${CONNECTOR_ADMIN_SECRET:-}
+      # Live tail is opt-in: without a token the service only serves export
+      # ingestion. The bot must be IN the group with privacy mode disabled.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_POLL_MS: ${TELEGRAM_POLL_MS:-0}
+      # Optional refinement pass; heuristics run regardless.
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
+      TELEGRAM_EXTRACT_MODEL: ${TELEGRAM_EXTRACT_MODEL:-claude-sonnet-5}
+      TELEGRAM_LLM_MAX: ${TELEGRAM_LLM_MAX:-40}
+    restart: unless-stopped
+    depends_on:
+      install:
+        condition: service_completed_successfully
+      graph-service:
+        condition: service_healthy
+
   # ---------------- web (GraphQL gateway is the graph API for the browser) ----------------
   web:
     <<: *node-service
@@ -431,6 +454,8 @@ services:
       # Server-side (BFF) internal targets — Docker DNS names.
       GATEWAY_INTERNAL_URL: http://gateway:4000/graphql
       EXTRACTOR_INTERNAL_URL: http://extractor:4003
+      TELEGRAM_CONNECTOR_URL: http://connector-telegram:4008
+      CONNECTOR_ADMIN_SECRET: ${CONNECTOR_ADMIN_SECRET:-}
       GRAPH_SERVICE_INTERNAL_URL: http://graph-service:4001
       # Community photo uploads land here (a named volume, outside the bind mount).
       UPLOAD_DIR: /data/uploads

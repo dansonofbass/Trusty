@@ -1,0 +1,17 @@
+{
+  "name": "@constellation/connector-telegram",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram group connector — ingests public/exported group history, classifies it, and mines question→answer pairs, outcome events and provider verdicts into a reviewable knowledge queue. Source-pluggable (Desktop JSON export, Bot API live tail).",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@constellation/graph-core": "*",
+    "express": "^4.21.2",
+    "nats": "^2.29.3",
+    "tsx": "^4.19.2"
+  }
+}
