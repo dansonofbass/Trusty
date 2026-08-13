@@ -417,7 +417,9 @@ const NATS_URL = process.env.NATS_URL?.trim();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Telegram export ingestion posts a full classified history in one shot (~15 MB
+// for a busy year); the connector already accepts 64 MB upstream.
+app.use(express.json({ limit: "64mb" }));
 
 // Assigned during bootstrap, before the server starts listening.
 let store: GraphStore;

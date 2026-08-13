@@ -47,6 +47,22 @@ const graph = async (method: string, path: string, body?: unknown) => {
   return text ? JSON.parse(text) : {};
 };
 
+/** POST messages in chunks so one huge export cannot hit upstream body limits. */
+async function storeMessages(sourceId: string, messages: Classified[]) {
+  const CHUNK = 500;
+  let inserted = 0;
+  let seen = 0;
+  for (let i = 0; i < messages.length; i += CHUNK) {
+    const batch = (await graph("POST", "/api/admin/telegram/messages", {
+      sourceId,
+      messages: messages.slice(i, i + CHUNK),
+    })) as { inserted: number; seen: number };
+    inserted += batch.inserted;
+    seen += batch.seen;
+  }
+  return { inserted, seen };
+}
+
 /** The whole pipeline for one batch of messages. */
 async function runPipeline(source: TgSource, messages: Classified[]): Promise<{
   candidates: Candidate[];
@@ -110,12 +126,7 @@ app.post("/ingest/export", async (req, res) => {
 
     const parsed = parseExport(raw, source);
     const classified = classifyAll(parsed.messages);
-    const stored = (await graph("POST", "/api/admin/telegram/messages", {
-      sourceId,
-      title: parsed.title,
-      chatId: parsed.chatId,
-      messages: classified,
-    })) as { inserted: number; seen: number };
+    const stored = await storeMessages(sourceId, classified);
 
     const { candidates, byClass, warnings } = await runPipeline(source, classified);
     await graph("POST", "/api/admin/telegram/candidates", { sourceId, candidates });
@@ -206,16 +217,13 @@ async function tailLoop() {
         offset = nextOffset;
         if (messages.length) {
           const classified = classifyAll(messages);
-          await graph("POST", "/api/admin/telegram/messages", {
-            sourceId: classified[0].sourceId,
-            messages: classified,
-          });
           // Live messages are extracted in the same pass; a group's newest
           // rejection is the one worth surfacing fastest.
           for (const s of new Set(classified.map((m) => m.sourceId))) {
+            const batch = classified.filter((m) => m.sourceId === s);
+            await storeMessages(s, batch);
             const source = sources.find((x) => x.id === s);
             if (!source) continue;
-            const batch = classified.filter((m) => m.sourceId === s);
             const { candidates } = await runPipeline(source, batch);
             if (candidates.length) {
               await graph("POST", "/api/admin/telegram/candidates", { sourceId: s, candidates });
